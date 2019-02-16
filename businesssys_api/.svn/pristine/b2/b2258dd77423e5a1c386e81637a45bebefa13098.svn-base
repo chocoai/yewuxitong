@@ -1,0 +1,125 @@
+<?php
+
+namespace app\admin\service;
+
+/**
+ * 数据中心 接口调用类
+ */
+class Zcdc {
+
+    //调用信息
+    const API_KEY = 'UvlaSSVXzaeGdkbfLy';
+    const API_SECRET = '13736cd69bc69fd6874af6b9839a26';
+    //接口URL
+    //const API_URL_PREFIX = 'http://zcdc.ezczx.com/api/';
+    const API_URL_PREFIX = 'http://127.0.0.1/zcdc/public/api/';
+    //接口
+    const CUSTOMERINFO_CUSTOMERLIST = 'customer/customerList'; //查询客户列表
+    private $appkey;
+    private $secret;
+    private $sign;
+    private $timestamp;
+
+    public function __construct() {
+        $this->appkey = self::API_KEY;
+        $this->secret = self::API_SECRET;
+        $this->timestamp = time();
+        $this->sign = md5($this->appkey . $this->secret . $this->timestamp);
+    }
+
+
+    /**
+     * 获取post数据
+     * @param $url
+     * @param $params
+     * @return bool|mixed
+     */
+    public function getPostData($url,$params)
+    {
+        $result = $this->http_post(self::API_URL_PREFIX . $url,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+
+    }
+
+
+    /*组装数据*/
+    private function getData($params)
+    {
+        $data['appkey'] = $this->appkey;
+        $data['sign'] = $this->sign;
+        $data['timestamp'] = $this->timestamp;
+        $data['params'] = json_encode($params);
+        return $data;
+    }
+
+
+    /**
+     * GET 请求
+     * @param string $url
+     * @return string content
+     */
+    private function http_get($url) {
+        $oCurl = curl_init();
+        if (stripos($url, "https://") !== FALSE) {
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); //CURL_SSLVERSION_TLSv1
+        }
+        curl_setopt($oCurl, CURLOPT_URL, $url);
+        curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
+        //curl_setopt($oCurl, CURLOPT_HTTPHEADER, Array("Accept:application/json;charset=UTF-8"));
+        $sContent = curl_exec($oCurl);
+        $aStatus = curl_getinfo($oCurl);
+        curl_close($oCurl);
+        if (intval($aStatus["http_code"]) == 200) {
+            return $sContent;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * POST 请求
+     * @param string $url
+     * @param array $param
+     * @param boolean $post_file 是否文件上传
+     * @return string content
+     */
+    private function http_post($url, $param, $post_file = false) {
+        $oCurl = curl_init();
+        if (stripos($url, "https://") !== FALSE) {
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); //CURL_SSLVERSION_TLSv1
+        }
+        if (is_string($param) || $post_file) {
+            $strPOST = $param;
+        } else {
+            $aPOST = array();
+            foreach ($param as $key => $val) {
+                $aPOST[] = $key . "=" . urlencode($val);
+            }
+            $strPOST = join("&", $aPOST);
+        }
+        curl_setopt($oCurl, CURLOPT_URL, $url);
+        curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($oCurl, CURLOPT_POST, true);
+        curl_setopt($oCurl, CURLOPT_POSTFIELDS, $strPOST);
+        //curl_setopt($oCurl, CURLOPT_HTTPHEADER, Array("Content-Type: application/json; charset=utf-8"));
+        $sContent = curl_exec($oCurl);
+        $aStatus = curl_getinfo($oCurl);
+        curl_close($oCurl);
+        if (intval($aStatus["http_code"]) == 200) {
+            return $sContent;
+        } else {
+            return false;
+        }
+    }
+
+}
+
+?>

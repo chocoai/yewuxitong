@@ -1,0 +1,58 @@
+<?php
+/**
+ * 楼盘信息
+ */
+namespace app\admin\controller;
+
+use app\model\BuildingInfo as Building;
+use app\util\ReturnCode;
+
+class BuildingInfo extends Base {
+
+    /**
+     *获取楼盘名称
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @param districtId 片区id
+     */
+    public function getBuilding()
+    {;
+        $districtId = $this->request->post('districtId');
+        if(empty($districtId))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $result = Building::getAll(['status'=>1,'district_id'=>$districtId],'building_name,id','',10);
+        if($result !== false)
+            return  $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼盘信息读取失败!');
+    }
+
+    /**
+     * 添加楼盘
+     * @param buildingName 楼盘名称
+     * @param buildingAlias 楼盘别名
+     * @return array
+     */
+    public function addBuilding()
+    {
+        $data['building_name'] = trim($this->request->post('buildingName'));
+        $data['building_alias'] = trim($this->request->post('buildingAlias'));
+        $data['province_id'] = $this->request->post('provinceId');
+        $data['city_id'] = $this->request->post('cityId');
+        $districtId = $this->request->post('districtId');
+
+        if( empty($data['building_name']) || empty($data['building_alias']) || empty($data['building_id']) || strlen($data['building_name']) >15
+            || strlen($data['building_alias']) > 15 || empty($provinceId) || empty($cityId) || empty($districtId) )
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $Building = new Building;
+        if($Building::getCount(['building_name'=>$data['building_name'],'status'=>1]) > 0)
+            return $this->buildFailed(ReturnCode::DATA_EXISTS, '系统已存在该楼盘!');
+        $data['id'] =  'I' . $this->_building_id();
+        $data['create_time'] = time();
+        if($Building->add($data) >0)
+            return $this->buildSuccess(['unitId'=>$data['id'],'buildingName'=>$data['building_name']]);
+
+        return $this->buildFailed(ReturnCode::ADD_FAILED,'楼盘添加失败');
+
+    }
+
+}

@@ -1,0 +1,765 @@
+<?php
+/**
+ * 订单
+ */
+namespace app\admin\controller;
+use think\Db;
+use app\model\Order;
+use app\model\Estate;
+use app\model\OrderDp;
+use app\model\OrderMortgage;
+use app\model\OrderGuarantee;
+use app\model\OrderGuaranteeBank;
+use app\model\Customer;
+use app\model\Dictionary;
+use app\model\SystemUser;
+use app\util\ReturnCode;
+use app\util\Tools;
+use think\Exception;
+
+
+
+
+class Orders extends Base{
+
+    private $orderSn;//订单编号
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/Orders/orderList 订单列表[admin/Orders/orderList]
+     * @apiVersion 1.0.0
+     * @apiName orderList
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Orders/orderList
+     * @apiParam {string}  startTime   订单开始时间
+     * @apiParam {string}  endTime   订单结束时间
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  estateCity   所属城市
+     * @apiParam {string}  estateDistrict   所属城区
+     * @apiParam {string}  stage   订单状态
+     * @apiParam {int}  guaranteeFeeStatus   （担保费）收费状态 1未收齐 2已收齐
+     * @apiParam {int}  is_bank_losn   银行放款入账状态 1待入账 2待复核 3已复核',
+     * @apiParam {int}  label   待风控审批12待赎楼完成21  待过户抵押25
+     */
+    public function orderList()
+    {
+        $startTime = $this->request->post('startTime','','strtotime');
+        $endTime = $this->request->post('endTime','','strtotime');
+        $search = $this->request->post('search','','trim');
+        $managerId = $this->request->post('managerId',0,'int');
+        $estateCity = $this->request->post('estateCity','');
+        $estateDistrict = $this->request->post('estateDistrict','');
+        $stage = $this->request->post('stage',0,'int');
+        $subordinates = $this->request->post('subordinates',0,'int');
+        $pageSize = $this->request->post('pageSize',0,'int');
+        $page = $this->request->post('page',0,'int');
+        $guaranteeFeeStatus = input('post.guaranteeFeeStatus',0,'int');
+        $isBankLosn = input('post.isBankLosn',0,'int');
+        $label = input('post.label',0,'int');
+        $userId = $this->userInfo['id'];
+
+        //用户判断
+        $userStr = $managerId === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$managerId,$subordinates);
+        if($userStr !== false)
+            $where['x.financing_manager_id|x.create_uid']=['in', $userStr];//理财经理或者提交人
+        else
+            return $this->buildSuccess();
+        $where['y.status']=1;
+
+        if($startTime && $endTime){
+            $startTime !== $endTime ? $where['x.create_time'] = ['between',[$startTime,$endTime]] : $where['x.create_time'] = $startTime;
+        }elseif($startTime){
+            $where['x.create_time'] = ['egt',$startTime];
+        }elseif($endTime){
+            $where['x.create_time'] = ['elt',$endTime];
+        }
+        $guaranteeFeeStatus !== 0 && $where['z.guarantee_fee_status']=$guaranteeFeeStatus;
+        $isBankLosn != 0 && $where['z.is_bank_losn']=$isBankLosn;
+        $search && $where['x.order_sn|y.estate_name']=['like', "%{$search}%"];
+        $estateCity && $where['y.estate_ecity'] = $estateCity;
+        $estateDistrict && $where['y.estate_district'] = $estateDistrict;
+        $stage && $where['x.stage'] = $stage;
+        $stage ? $where['x.stage'] = $stage:$label && $where['x.stage']=['ELT',$label];
+
+
+        $where['x.status'] = 1;
+        //获取查询的用户数据
+        $result = Order::orderList($where,$page,$pageSize);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '订单读取失败!');
+        if($result['data']){
+            foreach($result['data'] as &$val){
+                $val['estateInfo'] = Tools::buildArrFromObj(Estate::getAll(['order_sn'=>$val['order_sn'],'status'=>1],'estate_name,estate_owner,estate_region'));
+                $val['sellerInfo'] = Tools::buildArrFromObj(Customer::where(['order_sn'=>$val['order_sn'],'status'=>1,'is_seller'=>2])->field('cname')->select());
+                isset($val['sellerInfo'][0]['cname']) && $val['estate_owner'] = $val['sellerInfo'][0]['cname'];
+                $val['name'] = (new SystemUser)->where(['id'=>$val['financing_manager_id']])->value('name');
+            }
+        }
+
+        return $this->buildSuccess($result);
+
+    }
+
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/Orders/orderDetails 订单详情[admin/Orders/orderDetails]
+     * @apiVersion 1.0.0
+     * @apiName orderDetails
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Orders/orderDetails
+     * @apiParam {string}  orderSn   订单编号
+     */
+    public function orderDetails()
+    {
+        $orderSn  = $this->request->post('orderSn','');
+        if(empty($orderSn)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+        $result = Order::orderDetail($orderSn);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '订单读取失败!');
+        return $this->buildSuccess($result);
+    }
+
+
+
+
+
+    /**
+     * @api {post} admin/Orders/orderGuarantee 担保赎楼信息 [admin/Orders/orderGuarantee]
+     * @apiVersion 1.0.0
+     * @apiName orderGuarantee
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Orders/orderGuarantee
+     *
+     * @apiParam {string} orderSn    订单编号
+     *
+     * @apiSuccess {string} notarization    公证日期
+     * @apiSuccess {int} guarantee_money    担保金额
+     * @apiSuccess {int} self_financing    自筹金额
+     * @apiSuccess {int} guarantee_per    担保成数
+     * @apiSuccess {float} guarantee_rate    担保费率
+     * @apiSuccess {float} bussiness_loan    商贷贷款出账
+     * @apiSuccess {float} accumulation_fund    公积金贷款出账
+     * @apiSuccess {float} account_per    出账成数
+     * @apiSuccess {float} guarantee_fee 担保费
+     * @apiSuccess {float} fee    手续费
+     * @apiSuccess {float} info_fee    预计信息费
+     * @apiSuccess {float} total_fee    费用合计
+     * @apiSuccess {int} order_source    业务来源1合作中介 2银行介绍 3个人介绍 4房帮帮 5其它来源
+     * @apiSuccess {string} source_info 来源信息(来源机构)
+     * @apiSuccess {array} guaranteeBank    赎楼还款银行信息type还款账号类型：1赎楼还款账户2尾款账号信息bankaccount银行户名accounttype账户类型：1卖方 2卖方共同借款人 3买方 4买方共同借款人 5其它（当type为1时只能选1、2,bankcard卡号openbank银行
+     * @apiSuccess {string} mortgage_name    按揭人姓名
+     * @apiSuccess {string} mortgage_mobile    按揭人电话
+     * @apiSuccess {string} remark    业务说明
+     * @apiSuccess {array} attachInfo    附件信息name附件名称
+     */
+    public function orderGuarantee()
+    {
+        $orderSn  = $this->request->post('orderSn','');
+        if(empty($orderSn)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+        $result = OrderGuarantee::orderGuarantee($orderSn);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '担保赎楼信息读取失败!');
+        return $this->buildSuccess($result);
+    }
+
+
+
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/Orders/addOrder 新增订单[admin/Orders/addOrder]
+     * @apiVersion 1.0.0
+     * @apiName addOrder
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Orders/addOrder
+     * @apiParam {string} type 业务类型
+     * @apiParam {string} orderSn 订单编号
+     * @apiParam {float} money 订单金额
+     * @apiParam {string} financingManager 理财经理
+     * @apiParam {string} depId 理财经理部门
+     * @apiParam {string} mortgageName 按揭人姓名
+     * @apiParam {string} mortgageMobile 按揭人电话
+     * @apiParam {string} managerId 部门经理
+     * @apiParam remark 业务说明
+     * @apiParam orderSource 业务说明
+     * @apiParam sourceInfo 来源信息
+     * @apiParam {array} estateData 房产信息estate_name房产名称,estate_ecity（string)城市,estate_district{string}城区,estate_zone（string）片区estate_region地址名称house_type(int)房屋类型estate_certtype产证类型estate_certnum产证编码estate_area面积building_name楼盘名称estate_alias楼盘别名estate_unit栋阁名称estate_unit_alias栋阁别名estate_floor楼层estate_floor_plusminus楼层正负+-estate_house房号
+     * @apiParam {array} mortgageData 按揭信息type(string)数据类型,mortgage_type(int)按揭类型,money(float)按揭金额,organization_type(string)按揭机构类型,organization(string)按揭机构,interest_balance(float)=>本息余额
+     * @apiParam {float} strikePrice 首期款成交价
+     * @apiParam {float} earnestMoney 首期款定金
+     * @apiParam {float} money 首期款金额
+     * @apiParam {string} superviseBank 首期款监管银行
+     * @apiParam {float} nowMortgage 按揭成数
+     * @apiParam {string} redeembank 赎楼短贷银行
+     * @apiParam  {array} seller 客户信息'ctype(int)所属类型,is_seller(int)买卖方,is_comborrower(int)是否共同借款人,cname(string)姓名,certData(其他证件信息)(array)('certtype(证件类型)证件类型,certcode(证件编号)证件编号,certtype证件类型,certcode证件编号,mobile电话,is_guarantee是否担保申请人
+     * @apiParam {string} notarization 公证日期
+     * @apiParam {float} guaranteeMoney 担保金额
+     * @apiParam {float} selfFinancing 自筹金额
+     * @apiParam {float} guaranteePer 担保成数
+     * @apiParam {float} guaranteeRate 担保费率
+     * @apiParam {float} accumulationFund 公积金贷款出账
+     * @apiParam {float} bussinessLoan 商贷贷款出账
+     * @apiParam {float} accountPer 出账成数
+     * @apiParam {float} guaranteeFee 担保费
+     * @apiParam {float} fee 手续费
+     * @apiParam {float} infoFee 预计信息费
+     * @apiParam {float} totalFee 费用合计
+     * @apiParam {array} attach 附件['attachment_id'=>]
+     */
+
+    public function addOrder()
+    {
+        switch($this->request->post('type')){
+            case 'JYDB':
+                return $this->addJYDBOrder();
+                break;
+            default :
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '无效的参数!');
+        }
+    }
+
+
+
+    /**
+     * @author 林桂均
+     * 添加交易担保订单
+     */
+    private function addJYDBOrder()
+    {
+        $checkData = $this->check();
+        if(isset($checkData['code']) && $checkData['code']!='1') return $checkData;
+        $orderData=$checkData['orderInfo'];
+        $financingManagerId = $orderData['financing_manager_id'];//理财经理
+        $orderData['order_sn'] = $this->_systemSequence('JYDB');
+        if($orderData['order_sn']===false) return $this->buildFailed(ReturnCode::DB_SAVE_ERROR,'订单编号生成失败');
+
+        $this->orderSn=$orderData['order_sn'];
+        $orderData['create_uid'] = $this->userInfo['id'];
+        Db::startTrans();
+        try{
+            $orderData['finance_sn'] = $this->financeSn();
+            if($orderData['finance_sn']===false){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR,'财务编号生成失败');
+            }
+            $orderData['create_time'] = time();
+            $orderData['update_time'] = time();
+            $orderData['stage'] = '待业务报单';
+            $orderModel = new Order;
+
+            //添加订单
+            if($orderModel->save($orderData) === false){
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单新增失败');
+            }
+
+            //添加房产
+            $estateInfo = $this->addEstate($checkData['estateData'],$checkData['estateCustomer']);
+            if($estateInfo !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $estateInfo);
+            }
+
+            //添加按揭信息
+            $mortageInfo = $this->addMortgage($checkData['mortgageInfo']);
+            if($mortageInfo !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $mortageInfo);
+            }
+
+            //添加首期款信息
+            $DpInfo = $this->addDp($checkData['dpInfo']);
+            if($DpInfo !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $DpInfo);
+            }
+
+            //添加客户信息
+            $customerInfo = $this->addOrderCustomer($checkData['customerInfo']);
+            if($customerInfo !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $customerInfo);
+            }
+
+            //添加担保赎楼信息
+            $guaranteeInfo = $this->addGuarantee($checkData['guaranteeInfo']);
+            if($guaranteeInfo !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $guaranteeInfo);
+            }
+
+            //添加赎楼银行信息
+            $guaranteeBank = $this->addGuaranteeBank($checkData['guaranteeBankInfo']);
+            if($guaranteeBank !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $guaranteeBank);
+            }
+
+            //添加附件
+            $attachmentInfo = $this->addAttachment();
+            if($attachmentInfo !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $attachmentInfo);
+            }
+            Db::commit();
+            return $this->buildSuccess();
+        }catch(Exception $e){
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!'.$e->getMessage());
+        }
+    }
+
+    /**
+     * 新建订单校验
+     */
+    private function check()
+    {
+        $orderInfo = $this->checkOrder();
+        if(!is_array($orderInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $orderInfo);
+        $checkData['orderInfo']=$orderInfo;
+        unset($orderInfo);
+
+        //校验订单客户信息
+        $customerInfo = $this->checkCustomer($checkData['orderInfo']['financing_manager_id']);
+        if(!is_array($customerInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $customerInfo);
+        $checkData['customerInfo']=$customerInfo['sellerInfo'];
+        $checkData['estateCustomer']=$customerInfo['estateCustomer'];
+        $nameStr = $customerInfo['nameStr'];
+        $ownerType = $customerInfo['ownerType'];
+        unset($customerInfo);
+        //校验房产
+        $estateInfo = $this->checkEstate($nameStr,$ownerType);
+        if(!is_array($estateInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $estateInfo);
+        $checkData['estateData'] = $estateInfo;
+        unset($estateInfo);
+
+        //校验按揭信息
+        $mortgageInfo = $this->checkMortgage();
+        if(!is_array($mortgageInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $mortgageInfo);
+        $checkData['mortgageInfo']=$mortgageInfo;
+        unset($mortgageInfo);
+        //校验首期款信息
+        $dpInfo = $this->checkDp();
+        if(!is_array($dpInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $dpInfo);
+        $checkData['dpInfo']=$dpInfo;
+        unset($dpInfo);
+
+        $guaranteeInfo = $this->checkGuarantee();
+        if(!is_array($guaranteeInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $guaranteeInfo);
+        $checkData['guaranteeInfo']=$guaranteeInfo;
+        unset($guaranteeInfo);
+
+        $guaranteeBankInfo = $this->checkGuaranteeBank();
+        if(!is_array($guaranteeBankInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $guaranteeBankInfo);
+        $checkData['guaranteeBankInfo']=$guaranteeBankInfo;
+        unset($guaranteeBankInfo);
+        return $checkData;
+    }
+
+    /**
+     * 校验订单信息
+     * @return array
+     */
+    private function checkOrder()
+    {
+        //验证订单信息
+        $orderData['type'] = $this->request->post('type');
+        $orderData['money'] = $this->request->post('money');
+        $orderData['financing_manager_id'] = $this->request->post('financingManager');
+        $orderData['financing_dept_id'] = $this->request->post('depId');//部门ID
+        $orderData['mortgage_name'] = $this->request->post('mortgageName');//按揭姓名
+        $orderData['mortgage_mobile'] = $this->request->post('mortgageMobile');
+        $orderData['dept_manager_id'] = $this->request->post('managerId');//部门经理ID
+        $orderVail = validate('OrderValidate');
+        $msg = $orderVail->check($orderData);
+        if($msg !== true) return $orderVail->getError();
+        !empty($orderSource = $this->request->post('orderSource','')) && $orderData['order_source'] = $orderSource;
+        !empty($sourceInfo = $this->request->post('sourceInfo','')) && $orderData['source_info'] = $sourceInfo;
+        !empty($remark = input('post.remark','')) && $orderData['remark'] = $remark;
+        return $orderData;
+    }
+
+
+    /**
+     * 校验房产
+     * @param $nameStr 产权人姓名
+     * @param $ownerType  产权类型
+     * @return array|mixed|string|true
+     */
+    private function checkEstate($nameStr,$ownerType)
+    {
+        $estateDatas = input('post.estateData/a');
+        $estateDatas=[
+            [
+                'estate_name'=>'国际新城一栋','estate_ecity'=>'440300','estate_district'=>'440303','estate_zone'=>'440303001',
+                'estate_region'=>'深圳市|罗湖区|桂园街道',
+                'estate_area'=>'70','estate_certtype'=>'1','estate_certnum'=>'11111','house_type'=>1,
+                'building_name'=>'国际新城','estate_alias'=>'国际新城','estate_unit'=>'一栋','estate_unit_alias'=>'一栋',
+                'estate_floor'=>'第十层','estate_floor_plusminus'=>'up','estate_house'=>'101'
+            ]
+        ];
+        //校验房产信息
+        if(!$estateDatas || !is_array($estateDatas)) return '房产信息不能为空';
+        foreach($estateDatas as &$estateData){
+            $estateData['estate_name'] = trim($estateData['estate_name']);
+            $estateData['building_name'] = trim($estateData['building_name']);
+            $estateData['estate_alias'] = trim($estateData['estate_alias']);
+            $estateData['estate_unit'] = trim($estateData['estate_unit']);
+            $estateData['estate_unit_alias'] = trim($estateData['estate_unit_alias']);
+            $estateData['estate_house'] = trim($estateData['estate_house']);
+            $msg = $this->validate($estateData,'EstateValidate');
+            $estateData['estate_owner'] = $nameStr;
+            $estateData['estate_owner_type'] = $ownerType;
+            if($msg !== true) return $msg;
+        }
+        return $estateDatas;
+    }
+
+    /**
+     * 校验按揭信息
+     * @return array|mixed|string
+     */
+    private function checkMortgage()
+    {
+        $mortgageDatas = $this->request->post('mortgageData');
+        $mortgageDatas = [
+            ['type'=>'ORIGINAL','mortgage_type'=>1,'money'=>100,'organization_type'=>1,'organization'=>'银行','interest_balance'=>'111111.11']
+        ];
+        if(!$mortgageDatas || !is_array($mortgageDatas)){
+            return '按揭不能为空';
+        }
+        $mortgageVail = validate('Mortgage');
+        foreach($mortgageDatas as &$mortgageData){
+            $msg = $mortgageVail->check($mortgageData);
+            if($msg !== true) return  $mortgageVail->getError();
+        }
+        return $mortgageDatas;
+    }
+
+    /**
+     * 校验首期款信息
+     * @return array
+     */
+    private function checkDp()
+    {
+        $dpData['dp_strike_price'] = $this->request->post('strikePrice');//首期款成交价
+        $dpData['dp_earnest_money'] = $this->request->post('earnestMoney');//首期款定金
+        $dpData['dp_money'] = $this->request->post('money');//首期款金额
+        $dpData['dp_supervise_bank'] = $this->request->post('superviseBank');//首期款监管银行
+        $dpData['dp_buy_way'] = $this->request->post('buyWay');//购房方式
+        $dpData['dp_now_mortgage'] = $this->request->post('nowMortgage');//按揭成数
+        $dpData['dp_redeem_bank'] = $this->request->post('redeembank');//赎楼短贷银行
+        $dpVail = validate('DpValidate');
+        $msg = $dpVail->check($dpData);
+        if($msg !== true) return  $dpVail->getError();
+        return $dpData;
+    }
+    /**
+     * 校验订单客户
+     * @return array
+     */
+    private function checkCustomer($financingManagerId)
+    {
+        /*获取卖方信息*/
+        $sellerInfos = $this->request->post('seller');
+        $isSellerComborrower = $this->request->post('isSellerComborrower');//0无1有共同借款人
+        $isBuyerComborrower = $this->request->post('isBuyerComborrower');
+        $isSellerComborrower = '0';
+        $isBuyerComborrower = '0';
+        $isguarantee = 0;//是否担保申请人'
+        if(($isSellerComborrower!=='1' && $isSellerComborrower!=='0') || ($isBuyerComborrower!=='1' && $isBuyerComborrower!=='0')) return '客户信息参数有误';
+        $sellerInfos = [
+            [
+                'ctype' => '1','is_seller'=>'2','is_comborrower'=>'0','cname'=>'张三','certData'=>[['certtype'=>'1','certcode'=>'11111122322'],['certtype'=>2,'certcode'=>'1111']],
+                'mobile' => '18825454079','is_guarantee'=>'1','datacenter_id'=>1
+
+            ],
+            [
+                'ctype' => '1','is_seller'=>'1','is_comborrower'=>'0','cname'=>'李四','certData'=>[['certtype'=>'1','certcode'=>'1111112222']],
+                'mobile' => '18825454079','is_guarantee'=>'0','datacenter_id'=>2
+
+            ],
+            [
+                'ctype' => '1','is_seller'=>'2','is_comborrower'=>'0','cname'=>'王五','certData'=>[['certtype'=>'1','certcode'=>'1111112sdad222']],
+                'mobile' => '18825454079','is_guarantee'=>'0','datacenter_id'=>3
+            ]
+        ];
+        $sellerIsset = 0;//卖方信息判断
+        $buyIsset = 0;//买方信息判断
+        $sellerComborrowerInfo = 0;//是否存在卖方共同借款人信息
+        $buyerComborrowerInfo = 0;//是否存在买方共同借款人信息
+        if(!$sellerInfos) return '卖方信息为空';
+        $estateCustomer = [];
+        $nameStr = '';
+        $ownerType='';
+        foreach($sellerInfos as &$sellerInfo){
+            $arr = $this->dealwithCarddata($sellerInfo['certData']);
+            if($arr === false) return '证件信息有误!';
+            $vailArr = [];
+            $vailArr['certtype'] =$sellerInfo['certtype'] = $arr['certtype'];
+            $vailArr['certcode'] = $sellerInfo['certcode'] = $arr['certcode'];
+            $vailArr['financing_manager_id'] = $financingManagerId;
+            $vailArr['ctype'] = $sellerInfo['ctype'];
+            $vailArr['is_seller'] = $sellerInfo['is_seller'];
+            $vailArr['is_comborrower'] = $sellerInfo['is_comborrower'];
+            $vailArr['cname'] = $sellerInfo['cname'];
+            $vailArr['mobile'] = $sellerInfo['mobile'];
+            $vailArr['is_guarantee'] = $sellerInfo['is_guarantee'];
+            $vailArr['datacenter_id'] = $sellerInfo['datacenter_id'];
+            $msg = $this->validate($vailArr, 'CustomerValidate');
+            if ($msg !== true) return $msg;
+            if($vailArr['is_seller'] == '2' && $vailArr['is_comborrower']=='0'){
+                $nameStr==='' ? $nameStr=$vailArr['cname']:$nameStr.=','.$vailArr['cname'];
+                $estateCustomer[]['customer_id'] = $vailArr['datacenter_id'];
+                $ownerType==='' && $ownerType=$vailArr['ctype'];
+            }
+            if($isguarantee === 1 && $sellerInfo['is_guarantee']=='1') return '买卖双方只能有一方是担保申请人';
+            $isguarantee === 0 && $sellerInfo['is_guarantee']=='1' && $isguarantee=1;
+            ($sellerIsset === 0 && $vailArr['is_seller'] === '2') && $sellerIsset=1;
+            ($buyIsset === 0 && $vailArr['is_seller'] === '1') && $buyIsset=1;
+            ($isSellerComborrower === '1' && $sellerComborrowerInfo === 0 &&  ( $sellerInfo['is_seller'] === '2' && $sellerInfo['is_comborrower'] === '1')) && $sellerComborrowerInfo=1;
+            ($isBuyerComborrower === '1' && $buyerComborrowerInfo === 0 &&  ( $sellerInfo['is_seller'] === '1' && $sellerInfo['is_comborrower'] === '1')) && $buyerComborrowerInfo=1;
+        }
+        if($sellerIsset === 0) return '卖方信息不存在';
+        if($buyIsset === 0) return '买方信息不存在';
+        if(($isSellerComborrower === '1' && $sellerComborrowerInfo === 0) || ($isBuyerComborrower === '1' && $buyerComborrowerInfo === 0)) return '买方或卖方共同借款人信息为空';
+        return ['sellerInfo'=>$sellerInfos,'estateCustomer'=>$estateCustomer,'nameStr'=>$nameStr,'ownerType'=>$ownerType];
+    }
+
+    /**
+     * 校验担保赎楼信息
+     * @return array
+     */
+    private function checkGuarantee()
+    {
+        $guaranteeData['notarization'] = $this->request->post('notarization');
+        $guaranteeData['guarantee_money'] = $this->request->post('guaranteeMoney');
+        $guaranteeData['self_financing'] = $this->request->post('selfFinancing');
+        $guaranteeData['guarantee_per'] = $this->request->post('guaranteePer');
+        $guaranteeData['guarantee_rate'] = $this->request->post('guaranteeRate');
+        $guaranteeData['bussiness_loan'] = $this->request->post('bussinessLoan');
+        $guaranteeData['accumulation_fund'] = $this->request->post('accumulationFund');
+        $guaranteeData['account_per'] = $this->request->post('accountPer');
+        $guaranteeData['guarantee_fee'] = $this->request->post('guaranteeFee');
+        $guaranteeData['fee'] = $this->request->post('fee');
+        $guaranteeData['info_fee'] = $this->request->post('infoFee');
+        $guaranteeData['total_fee'] = $this->request->post('totalFee');
+        $guaranteeData['notarization']='2018-05-20';$guaranteeData['guarantee_money']=2;$guaranteeData['self_financing']=2;$guaranteeData['guarantee_per']=2;
+        $guaranteeData['guarantee_rate']=2;$guaranteeData['bussiness_loan']=2;$guaranteeData['accumulation_fund']=2;$guaranteeData['account_per']=2;
+        $guaranteeData['guarantee_fee']=2;$guaranteeData['fee']=2;$guaranteeData['info_fee']=2;$guaranteeData['total_fee']=2;
+        $msg = $this->validate($guaranteeData, 'Guarantee');
+        if ($msg !== true) return $msg;
+        return $guaranteeData;
+    }
+    /**
+     * 校验保赎楼银行信息
+     * @return array
+     */
+    private function checkGuaranteeBank()
+    {
+        $lastParagraph = input('post.lastParagrah/a');//尾款信息
+        $repayment = input('post.repayment/a');//赎楼还款信息
+        $lastParagraph = [
+            ['type' => 2, 'bankaccount' => '张三', 'accounttype' => 5, 'bankcard' => 31231312323, 'openbank' => '中国银行'],
+            ['type' => 1, 'bankaccount' => '李四', 'accounttype' => 1, 'bankcard' => 31231312323, 'openbank' => '中国银行']
+        ];
+        if (!$lastParagraph) return '尾款账号信息不能为空';
+        $repayment && $lastParagraph = array_merge($lastParagraph, $repayment);
+
+        foreach($lastParagraph as $gbData){
+            $GuaranteeBankVail = validate('GuaranteeBank');
+            $msg = $GuaranteeBankVail->check($gbData);
+            if($msg !== true) return  $GuaranteeBankVail->getError();
+            if($gbData['type'] == '1' && ($gbData['accounttype']!='1' && $gbData['accounttype']!='2')) return '账户类型有误';
+        }
+        return $lastParagraph;
+
+    }
+
+    //添加房产
+    private function addEstate($estateDatas,$estateCustomer)
+    {
+        $time = time();
+        $estate = new Estate;
+
+        foreach($estateDatas as $estateData){
+            $estateData['estate_usage'] = 'DB';
+            $estateData['order_sn'] = $this->orderSn;
+            $estateData['create_time'] = $time;
+            $id = $estate->insertGetId($estateData);
+            if($id===false) return  '房产信息添加失败';
+            foreach($estateCustomer as &$customer){
+                $customer['estate_id'] =$id;
+            }
+        }
+        if(Db::name('estate_customer')->insertAll($estateCustomer)>0){
+            unset($estateDatas,$estateCustomer);
+            return 1;
+        }
+        unset($estateDatas,$estateCustomer);
+        return '房产信息添加失败';
+    }
+
+
+    // @author 林桂均
+
+    /**
+     * 添加按揭信息
+     *
+     * @return array|int|string
+     * @throws \Exception
+     */
+    private function addMortgage($mortgageDatas)
+    {
+        foreach($mortgageDatas as &$mortgageData){
+            $mortgageData['create_time'] = $mortgageData['update_time'] = time();
+            $mortgageData['order_sn'] = $this->orderSn;
+            $mortgageData['create_uid'] = $this->userInfo['id'];
+        }
+        $OrderMortgage = new OrderMortgage;
+        if($OrderMortgage->saveAll($mortgageDatas) > 0) {
+            unset($mortgageDatas);
+            return 1;
+        }
+        unset($mortgageDatas);
+        return '按揭信息添加失败';
+    }
+
+
+
+    /**
+     * 添加首期款信息
+     * @return array|int|string
+     */
+    private function addDp($dpData)
+    {
+
+        $dpData['create_time'] = $dpData['update_time'] = time();
+        $dpData['order_sn'] = $this->orderSn;
+        $dpData['create_uid'] = $this->userInfo['id'];
+        $Dp = new OrderDp;
+        if($Dp->save($dpData) > 0) {
+            unset($dpData);
+            return 1;
+        }
+        unset($dpData);
+        return '首期款信息添加失败';
+    }
+
+
+    //添加客户信息
+    private function addOrderCustomer($sellerInfos)
+    {
+
+        $time = time();
+        foreach($sellerInfos as &$sellerInfo){
+            $sellerInfo['create_time'] = $time;
+            $sellerInfo['order_sn'] = $this->orderSn;
+            $certData = $sellerInfo['certData'];
+            unset($sellerInfo['certData']);
+            $customer = new Customer;
+            if(($id = $customer->insertGetId($sellerInfo)) > 0) {
+                foreach($certData as &$cert){
+                    $cert['customer_id'] = $id;
+                    $cert['create_time'] = $time;
+                }
+                $res = Db::name('customer_cert')->insertAll($certData);
+                if($res === false) return '客户证件信息添加失败';
+            }else{
+                return '客户信息添加失败';
+            }
+        }
+        unset($sellerInfos);
+        return 1;
+
+
+
+
+
+
+    }
+
+    //添加担保赎楼信息
+    private function addGuarantee($guaranteeData)
+    {
+        $guaranteeData['order_sn'] = $this->orderSn;
+        $guaranteeData['create_time'] = $guaranteeData['update_time'] = time();
+        $orderGuarantee = new OrderGuarantee;
+        if($orderGuarantee->save($guaranteeData) > 0) {
+            unset($guaranteeData);
+            return 1;
+        }
+        unset($guaranteeData);
+        return '客户信息添加失败';
+    }
+
+    //添加担保赎楼银行信息
+    private function addGuaranteeBank($guaranteeBank)
+    {
+        $time = time();
+        foreach($guaranteeBank as &$val){
+            $val['order_sn'] = $this->orderSn;
+            $val['create_time'] = $time;
+            $val['update_time'] = $time;
+        }
+        $OrderGuaranteeBank = new OrderGuaranteeBank;
+        if($OrderGuaranteeBank->saveAll($guaranteeBank) > 0) {
+            unset($guaranteeBank);
+            return 1;
+        }
+        unset($guaranteeBank);
+        return 1;
+    }
+
+
+
+
+    //添加附件
+    private function addAttachment()
+    {
+        $attach = $this->request->post('attach');
+        if($attach){
+            foreach($attach as &$att){
+                $att['order_sn'] = $this->orderSn;
+                $att['create_time'] = time();
+            }
+            if(Db::name('order_attachment')->saveAll($attach) > 0){
+                unset($attach);
+                return 1;
+            }
+            unset($attach);
+            return '附件添加失败';
+        }else{
+            return 1;
+        }
+    }
+
+    /**
+     * 处理证件信息
+     * @Param $data
+     * @return array|bool
+     */
+    private function dealwithCarddata($data)
+    {
+        $newarray = array();
+        foreach ($data as $val) {
+            if (empty($val['certtype']) || empty($val['certcode'])) return false;//验证证件
+            $val['certtype'] == 1 && $newarray = $val;
+        }
+        empty($newarray) && $newarray = $data[0];
+        return $newarray;
+    }
+
+    /**
+     * 获取财务号
+     */
+    private function financeSn()
+    {
+        $sequen = Db::name('system_sequence')->lock(true)->where(['type'=>'CWXH'])->find();
+        if($sequen){
+            if(Db::name('system_sequence')->where(['id'=>$sequen['id']])->setInc('sequence',1) === 1) return $sequen['sequence']++;
+        }
+        return false;
+
+    }
+
+
+
+}

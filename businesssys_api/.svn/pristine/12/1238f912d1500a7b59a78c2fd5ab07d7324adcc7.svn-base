@@ -1,0 +1,293 @@
+<?php
+
+/* 财务核销控制器 */
+
+namespace app\admin\controller;
+
+use think\Db;
+use app\util\OrderComponents;
+use app\util\ReturnCode;
+use app\model\BankCard as BankCardModel;
+use app\model\OrderRansomOut;
+use app\model\OrderRansomDispatch;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\Dictionary;
+use app\model\Cheque;
+use app\model\Ransomer;
+use app\model\OrderGuaranteeBank;
+use app\model\Attachment;
+use app\model\BankCard;
+
+class FinancialWriteoff extends Base {
+
+    private $bankcardmodel;
+    private $orderransomout;
+    private $attachment;
+    private $bankcard;
+    private $cheque;
+    private $dictionary;
+    private $ransomer;
+    private $orderransomdispatch;
+    private $order;
+    private $systemuser;
+    private $orderguaranteebank;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->bankcardmodel = new BankCardModel();
+        $this->orderransomout = new OrderRansomOut();
+        $this->attachment = new Attachment();
+        $this->orderransomdispatch = new OrderRansomDispatch();
+        $this->dictionary = new Dictionary();
+        $this->cheque = new Cheque();
+        $this->ransomer = new Ransomer();
+        $this->order = new Order();
+        $this->bankcard = new BankCard();
+        $this->systemuser = new SystemUser();
+        $this->orderguaranteebank = new OrderGuaranteeBank();
+    }
+
+    /**
+     * @api {get} admin/FinancialWriteoff/financialOff 财务核销列表[admin/FinancialWriteoff/financialOff]
+     * @apiVersion 1.0.0
+     * @apiName financialOff
+     * @apiGroup FinancialWriteoff
+     * @apiSampleRequest admin/FinancialWriteoff/financialOff
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type     订单类型
+     * @apiParam {int} is_verify     核销状态（0：未核销 1已核销）
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} is_verify_text    核销状态（0：未核销 1已核销）
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} ransom_end_time    赎楼时间
+     * @apiSuccess {string} financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function financialOff() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $create_uid = $this->request->get('create_uid', 0);
+        $subordinates = $this->request->get('subordinates', 0);
+        $type = $this->request->get('type', '');
+        $is_verify = $this->request->get('is_verify', '');
+        $keywords = $this->request->get('keywords', '');
+        //查询条件组装
+        $where = [];
+        $userId = $this->userInfo['id'];
+        $userStr = $create_uid == 0 ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId, $create_uid, $subordinates);
+        if ($userStr !== false) {
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        } else {
+            return $this->buildSuccess();
+        }
+        $type && $where['o.type'] = $type;
+        $is_verify && $where['x.is_verify'] = $is_verify;
+        $keywords && $where['x.order_sn|o.finance_sn|e.estate_name'] = ['like', "%{$keywords}%"];
+        $where['x.is_dispatch'] = array('neq', 2);
+        $where['x.ransom_status'] = 208;
+        $where['o.stage'] = array('gt', 1014);
+        $field = "x.id,x.order_sn,x.is_dispatch,x.ransom_bank,x.is_verify,x.ransomer,x.ransom_end_time,o.type,o.finance_sn,o.financing_manager_id,e.estate_name,e.estate_owner";
+        $creditList = $this->orderransomdispatch->alias('x')
+                        ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+                        ->join('__ESTATE__ e', 'e.order_sn=x.order_sn')
+                        ->where($where)->field($field)
+                        ->order('x.create_time', 'DESC')
+                        ->group('x.id')
+                        ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['is_verify_text'] = $value['is_verify'] == 1 ? '已核销' : '未核销'; //核销状态
+                $value['type_text'] = $this->order->getType($value['type']); //订单类型
+                $value['ransom_end_time'] = date('Y-m-d', $value['ransom_end_time']); //派单时间
+                $value['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+    /**
+     * @api {get} admin/FinancialWriteoff/financialDetail 财务审核详情页[admin/FinancialWriteoff/financialDetail]
+     * @apiVersion 1.0.0
+     * @apiName financialDetail
+     * @apiGroup FinancialWriteoff
+     * @apiSampleRequest admin/FinancialWriteoff/financialDetail
+     *
+     * @apiParam {int} id    赎楼派单id
+     *
+     * @apiSuccess {array} orderinfo    订单信息
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} ransom_status_text    当前状态
+     * @apiSuccess {string} ransom_status   当前状态（当值等于208时才显示上传回执按钮）
+     * @apiSuccess {string} bank_money    银行放款
+     * @apiSuccess {string} guarantee_money    担保金额
+     * @apiSuccess {string} self_financing    自筹金额
+     * @apiSuccess {string} short_loan_interest    短贷利息
+     * @apiSuccess {string} default_interest    罚息
+     * @apiSuccess {string} can_money    可出账金额
+     * @apiSuccess {string} out_money    已出账金额
+     * @apiSuccess {string} use_money    可用余额
+     * 
+     * @apiSuccess {array} dispatch    赎楼派单信息
+     * @apiSuccess {string} ransom_type    赎楼类型
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} ransomer_id    赎楼员id(申请出账时要用到)
+     * @apiSuccess {string} arrears    欠款金额
+     * 
+     * @apiSuccess {array} debitinfolog    出账申请记录
+     * @apiSuccess {string} money    出账金额
+     * @apiSuccess {string} item_text    出账项目
+     * @apiSuccess {string} way_text    出账方式
+     * @apiSuccess {string} is_prestore_text    是否预存
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} create_time    申请时间
+     * @apiSuccess {string} account_status_text    出账状态
+     * @apiSuccess {string} outok_time    出账时间
+     * @apiSuccess {string} cut_status    是否已经确认扣款（0:未扣款（不显示按钮），1已扣款）
+     * 
+     * @apiSuccess {array} checkinfo    当前用户支票信息（申请出账时用到）
+     * @apiSuccess {string} bank    支票银行
+     * @apiSuccess {string} cheque_num    支票号码
+
+     * @apiSuccess {array} receipt_img    回执照片信息
+     * @apiSuccess {string} url    图片路径
+     * @apiSuccess {string} name    保存名字
+     * @apiSuccess {string} id    图片id
+     */
+    public function financialDetail() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $data = $this->orderransomdispatch->where('id', $id)->field('receipt_img,ransom_status,order_sn')->find();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '派单信息有误！');
+            }
+            $returnInfo = [];
+            //基本信息信息
+            $returnInfo['basic_information'] = OrderComponents::orderJbInfo($data['order_sn']);
+            //房产信息
+            $resInfo = OrderComponents::showEstateList($data['order_sn'], 'estate_name,estate_region,estate_area,estate_certtype,estate_certnum,house_type');
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('PROPERTY_TYPE'));
+            if ($resInfo) {
+                foreach ($resInfo as &$val) {
+                    $val['estate_certtype_str'] = $newStageArr[$val['estate_certtype']] ? $newStageArr[$val['estate_certtype']] : '';
+                }
+            }
+            $returnInfo['estate_info'] = $resInfo;
+            //卖方信息(转让方)
+            $resInfo = OrderComponents::showCustomerInfo($data['order_sn'], 'cname,ctype,certtype,certcode,mobile,is_guarantee', false, 0, false);
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('CERTTYPE'));
+            if ($resInfo) {
+                foreach ($resInfo as &$val) {
+                    $val['certtype_str'] = $newStageArr[$val['certtype']] ? $newStageArr[$val['certtype']] : '';
+                }
+            }
+            $returnInfo['seller_info'] = $resInfo;
+            //卖方共同借款人
+            $resInfo = OrderComponents::showCustomerInfo($data['order_sn'], 'cname,ctype,certtype,certcode,mobile,is_guarantee', false, 1, false);
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('CERTTYPE'));
+            if ($resInfo) {
+                foreach ($resInfo as &$val) {
+                    $val['certtype_str'] = $newStageArr[$val['certtype']] ? $newStageArr[$val['certtype']] : '';
+                }
+            }
+            $returnInfo['borrower_info'] = $resInfo;
+            //实际出账收款账户
+            //$returnInfo['collection_info'] = OrderComponents::showCollectionInfo($data['order_sn']);
+            //风控初审问题汇总
+            $returnInfo['preliminary_question'] = OrderComponents::showPreliminary($data['order_sn']);
+            //风控提醒注意事项
+            $returnInfo['needing_attention'] = OrderComponents::showNeedAtten($data['order_sn']);
+            //欠款及出账金额 => 原按揭信息
+            $returnInfo['arrears_info'] = OrderComponents::showArrearsInfo($data['order_sn'], 'mortgage_type,organization,interest_balance', 'ORIGINAL');
+            //预录赎楼还款账户
+            $resInfo = OrderComponents::showGuaranteeBank($data['order_sn'], 'bankaccount,accounttype,bankcard,openbank', 'BOOK', 1);
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('JYDB_ACCOUNT_TYPE'));
+            if ($resInfo) {
+                foreach ($resInfo as &$val) {
+                    $val['accounttype_str'] = $newStageArr[$val['accounttype']] ? $newStageArr[$val['accounttype']] : '';
+                }
+            }
+            $returnInfo['reimbursement_info'] = $resInfo;
+            //费用入账
+            $returnInfo['cost_account'] = OrderComponents::showChargeList($data['order_sn']);
+            //银行放款入账
+            $returnInfo['lend_books'] = OrderComponents::showBankList($data['order_sn']);
+            //查询出各种状态
+            $returnInfo['status_info'] = OrderComponents::showStstusInfo($data['order_sn']);
+            //赎楼状态
+            $dispatch = OrderComponents::redemptionDispatch($id);
+            //出账申请记录
+            $debitinfolog = OrderComponents::showDebitInfolog($data['order_sn'], $id);
+            //赎楼回执
+            $receipt_img = OrderComponents::showReceiptimg($id);
+            return $this->buildSuccess(['dispatch' => $dispatch, 'debitinfolog' => $debitinfolog, 'receipt_img' => $receipt_img, 'returnInfo' => $returnInfo]);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/FinancialWriteoff/determineWriteoff 确认核销[admin/FinancialWriteoff/determineWriteoff]
+     * @apiVersion 1.0.0
+     * @apiName determineWriteoff
+     * @apiGroup FinancialWriteoff
+     * @apiSampleRequest admin/FinancialWriteoff/determineWriteoff
+     *
+     * @apiParam {int} id    赎楼派单表id
+     *
+     */
+    public function determineWriteoff() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $orderinfo = $this->orderransomdispatch->where('id', $id)->field('order_sn,ransom_type')->find();
+            $updata = ['update_time' => time(), 'is_verify' => 1];
+            $orderinfo['ransom_type'] = $this->orderransomdispatch->getRansomtype($orderinfo['ransom_type']);
+            Db::startTrans();
+            try {
+                if ($this->orderransomdispatch->where('id', $id)->update($updata)) {
+                    //加订单操作记录 
+                    $userInfo['id'] = $this->userInfo['id'];
+                    if (empty($userInfo['id']))
+                        return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                    $user = $this->systemuser->where('id', $userInfo['id'])->field('name,deptid,deptname')->find();
+                    $userInfo['deptid'] = $user['deptid'];
+                    $userInfo['deptname'] = $user['deptname'];
+                    $operate_det = '确认核销：' . $user['name'] . "确认核销了一笔" . $orderinfo['ransom_type'] . "赎楼派单";
+                    $operate_table = 'order_ransom_dispatch';
+                    $operate_table_id = $id;
+                    if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], $stage = show_status_name(1015, 'ORDER_JYDB_STATUS'), $operate = '已完成赎楼', '确认核销', $operate_det, $operate_reason = '', 1015, $operate_table, $operate_table_id)) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '确认核销信息更新失败！');
+            } catch (Exception $exc) {
+                return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+}

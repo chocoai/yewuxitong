@@ -1,0 +1,40 @@
+<?php
+
+/**
+ * 客户验证类
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class CustomerValidate extends Validate
+{
+
+    protected $rule = [
+        'ctype' => 'require|in:1,2', //客户类型
+        'certtype' => 'number', //证件类型
+        'certcode' => 'require', //证件编码
+        'cname' => 'require|length:1,50', //客户名称
+        'mobile' => 'length:1,15', //联系电话
+        'is_seller' => 'require|in:1,2', //卖方/卖方
+        'is_comborrower' => 'require|in:0,1', //
+        'is_guarantee' => 'require|in:0,1',
+        'financing_manager_id' => 'require', //客户经理
+        'datacenter_id' => 'require'
+
+    ];
+    protected $message = [
+        'ctype' => '客户类型有误', //所属类型
+        'certtype' => '证件类型不能为空', //证件信息
+        'certcode' => '证件编码不能为空',
+        'cname' => '姓名有误', //名称
+        'mobile' => '联系电话有误', //联系电话
+        'is_seller' => '买方卖方有误', //卖方/卖方
+        'is_comborrower' => '是否共同借款人有误',
+        'is_guarantee' => '担保申请人有误',
+        'financing_manager_id' => '理财经理不能为空',
+        'datacenter_id' => '缺少参数'
+
+    ];
+}

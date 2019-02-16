@@ -1,0 +1,31 @@
+<?php
+
+/**
+ * 工作流路由
+ * User: bordon
+ */
+return [
+    '[workflow]' => [
+        'flow/index' => [
+            'workflow/flow/index',
+            ['method' => 'get']
+        ],
+        'flow/publish' => [
+            'workflow/flow/publish',
+            ['method' => 'post']
+        ],
+        'flow/add' => [
+            'workflow/flow/add',
+            ['method' => 'get']
+        ],
+        'flow/create' => [
+            'workflow/flow/create',
+            ['method' => 'post']
+        ],
+        'flow/design/:id' => [
+            'workflow/flow/design',
+            ['method' => 'get']
+        ],
+        '__miss__'      => ['workflow/flow/index'],
+    ],
+];

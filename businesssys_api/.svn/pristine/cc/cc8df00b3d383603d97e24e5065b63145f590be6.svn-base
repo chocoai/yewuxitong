@@ -1,0 +1,47 @@
+<?php
+
+return [
+    '[api]' => [
+        //同步OA用户
+        'SystemUser/syncSystemUser' => [
+            'api/SystemUser/syncSystemUser',
+            ['method' => 'get']
+        ],
+        //同步OA部门
+        'SystemUser/syncDept' => [
+            'api/SystemUser/syncDept',
+            ['method' => 'get']
+        ],
+        //同步预计出账总额
+        'DataSynchronization/totalAmountsame' => [
+            'admin/DataSynchronization/totalAmountsame',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        //获取登录授权
+        'login/loginSecret' => [
+            'api/login/loginSecret',
+            ['method' => 'get']
+        ],
+        //授权登录校验
+        'login/checkCode' => [
+            'api/login/checkCode',
+            ['method' => 'post']
+        ],
+        //同步OA公司id
+        'SystemUser/syncCompanyId' => [
+            'api/SystemUser/syncCompanyId',
+            ['method' => 'get']
+        ],
+        //同步订单公司id
+        'SystemUser/syncOrderCompanyId' => [
+            'api/SystemUser/syncOrderCompanyId',
+            ['method' => 'get']
+        ],
+        //app驳回派单接口
+        'AppFlow/Reject' => [
+            'api/AppFlow/Reject',
+            ['method' => 'post']
+        ],
+        '__miss__' => ['wiki/index/index'],
+    ],
+];

@@ -1,0 +1,33 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/6/1
+ * Time: 15:47
+ */
+namespace app\home\model;
+
+use app\model\Base;
+use think\Db;
+
+
+class BannerItem extends Base {
+
+    /* @author 赵光帅
+     * 首页轮播图列表
+     * */
+    public static function bannerList(){
+        $map['a.delete_time'] = NULL;
+        $map['a.status'] = 1;
+        $res = self::alias('a')
+            ->field('a.id,a.img_url,a.key_word,a.status,a.create_time,z.name')
+            ->join('system_user z', 'a.create_uid=z.id')
+            ->where($map)
+            ->order('status desc')
+            ->order('sort asc')
+            ->select();
+        return $res;
+    }
+
+
+}

@@ -1,0 +1,24 @@
+<?php
+/**
+ *
+ * @since   2018-04-21
+ * @author  CGenJ
+ */
+
+namespace app\model;
+
+class SystemMenu extends Base
+{
+    /**查询菜单列表
+     * @param $where
+     * @return false|\PDOStatement|string|\think\Collection
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function getMenuList($where)
+    {
+        $list = self::where($where)->field('name,title,icon,component,path,id,fid,url,hide')->order('sort')->select();
+        return $list;
+    }
+}

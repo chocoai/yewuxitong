@@ -1,0 +1,10 @@
+<?php
+
+namespace app\workflow\model;
+
+use think\Model;
+
+class SystemDept extends Model
+{
+    //
+}

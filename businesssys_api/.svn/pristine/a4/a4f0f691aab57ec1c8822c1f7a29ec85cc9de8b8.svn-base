@@ -1,0 +1,71 @@
+<?php
+namespace app\admin\controller;
+
+use think\Db;
+
+/* 
+ * 审批列表审批流程类
+ *  */
+class Approval extends Base {
+			/**
+			 * @api {post} admin/Approval/show_approval_list 审批列表[admin/Approval/show_approval_list]
+			 * @apiVersion 1.0.0
+			 * @apiName show_approval_list
+			 * @apiGroup Approval
+			 * @apiSampleRequest admin/Approval/show_approval_list
+			 *
+			 *
+			 * @apiParam {int} user_id    录入人员id
+			 * @apiParam {int} order_type    订单类型
+			 * @apiParam {int} order_status    订单状态
+			 * @apiParam {int} city    城市
+			 * @apiParam {int} area    城区
+			 * @apiParam {int} search_text    关键字搜索
+			 * @apiParam {int} page    页码
+			 * @apiParam {int} limit    条数
+			 *
+			 * @apiSuccess {int} id    美业师id
+			 * @apiSuccess {string} type    技术类型
+			 *
+			 */
+	        public function show_approval_list(){
+	        	$user_id = input('user_id');
+	        	$order_type = input('order_type');
+	        	$order_status = input('order_status');
+	        	$city = input('city');
+	        	$area = input('area');
+	        	$search_text = input('search_text');
+	        	$page = input('page') ? input('page') : 1;
+	        	$pageSize = input('limit') ? input('limit') : 20;
+	        	$db = db('order')->alias('o');
+	        	if (!empty($user_id)) {
+	        		$db->where('user_id', $user_id);
+	        	}
+	        	if (!empty($order_type)) {
+	        		$db->where('order_type', $order_type);
+	        	}
+	        	if (!empty($order_status)) {
+	        		$db->where('order_status', $order_status);
+	        	}
+	        	if (!empty($city)) {
+	        		$db->where('city', $city);
+	        	}
+	        	if (!empty($area)) {
+	        		$db->where('area', $area);
+	        	}
+	        	if (!empty($search_text)) {
+	        		$db->where('building_name|unit_name|floorname|roomno_name|order_sn', 'like', "%" . $search_text . "%");
+	        	}
+	        	$db->join()
+	        	->order('create_time desc')
+	        	->field('id,building_name,building_alias,province_id,city_id,district_id,zone_id,address,building_num,house_num,parking_num,create_time')
+	        	->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+	        	
+	        	
+	        }
+	        
+}
+
+
+
+

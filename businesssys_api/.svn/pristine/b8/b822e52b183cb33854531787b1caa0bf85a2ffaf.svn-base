@@ -1,0 +1,87 @@
+<?php
+
+
+/**
+ * Created by PhpStorm.
+ * User: bordon
+ * Date: 2018-04-19
+ * Time: 8:57
+ */
+return [
+    ['name' => '1', 'title' => '业务委托', 'icon' => 'ios-paper', 'module' => '0', 'children' => [
+        [
+            'path' => '/system',
+            'icon' => 'wrench',
+            'name' => 'system',
+            'title' => '业务委托',
+            'component' => 'Main',
+            'children' => [
+                [
+                    'path' => 'menu',
+                    'icon' => 'navicon-round',
+                    'name' => 'menu',
+                    'title' => '交易担保',
+                    'component' => 'system/menu',
+                ],
+                [
+                    'path' => 'user',
+                    'icon' => 'navicon-round',
+                    'name' => 'user',
+                    'title' => '非交易担保',
+                    'component' => 'system/user',
+                ]
+            ],
+        ],
+//        [
+//            'path' => '/interface',
+//            'icon' => 'navigate',
+//            'name' => 'interface',
+//            'title' => '接口管理',
+//            'component' => 'Main',
+//            'children' => [
+//                [
+//                    'path' => 'group',
+//                    'icon' => 'folder',
+//                    'name' => 'interface_group',
+//                    'title' => '接口分组',
+//                    'component' => 'interface/group',
+//                ],
+//                [
+//                    'path' => 'list',
+//                    'icon' => 'document',
+//                    'name' => 'interface_list',
+//                    'title' => '接口列表',
+//                    'component' => 'interface/list',
+//                ]
+//            ],
+//        ]
+    ]],
+    ['name' => '2', 'title' => '风控管理', 'icon' => 'ios-people', 'module' => '1', 'children' => [
+        [
+            'path' => '/app',
+            'icon' => 'android-cloud',
+            'name' => 'app',
+            'title' => '审批管理',
+            'component' => 'Main',
+            'children' => [
+                [
+                    'path' => "group",
+                    'icon' => "ios-box",
+                    'name' => "app_group",
+                    'title' => "待审业务",
+                    'component' => 'app/group',
+                ],
+                [
+                    'path' => 'index',
+                    'icon' => 'navicon-round',
+                    'name' => 'app_index',
+                    'title' => '其他待审',
+                    'component' => 'app/list',
+                ]
+            ]
+        ],
+    ]],
+    ['name' => '3', 'title' => '赎楼管理', 'icon' => 'ios-keypad', 'module' => '2', 'children' => []],
+//            'finance'=>['name' => '4', 'title' => '财务管理', 'icon' => 'ios-people', 'module' => 'finance','children'=>[]],
+//            'warrant'=>['name' => '5', 'title' => '权证管理', 'icon' => 'ios-navigate', 'module' => 'warrant','children'=>[]]
+];

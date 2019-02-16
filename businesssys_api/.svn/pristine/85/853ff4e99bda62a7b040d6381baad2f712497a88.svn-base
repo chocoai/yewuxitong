@@ -1,0 +1,62 @@
+<?php
+/**
+ * 房产控制器
+ */
+namespace app\admin\controller;
+
+use app\model\Estate as modelEstate;
+use app\util\ReturnCode;
+
+class Estate extends Base{
+
+    /**
+     * @api {post} admin/Estate/addEstate 添加房产[admin/Estate/addEstate]
+     * @apiVersion 1.0.0
+     * @apiName addEstate
+     * @apiGroup Estate
+     * @apiSampleRequest admin/Estate/addEstate
+     * @apiParam {string}  orderSn   订单编号
+     * @apiParam {string}  estateName   房产名称
+     * @apiParam {string}  cityId   所属城市
+     * @apiParam {string}  districtId   所属城区
+     * @apiParam {string}  estateZone   所属片区
+     * @apiParam {float}  estateArea   房产面积
+     * @apiParam {int}  estateCerttype   产证类型
+     * @apiParam {int}  estateCertnum   产证编码
+     * @apiParam {int}  houseType   房屋类型
+     * @apiParam {string}  buildingName   楼盘名称
+     * @apiParam {string}  estateAlias   楼盘别名
+     * @apiParam {string}  estateUnit   栋阁名称
+     * @apiParam {string}  unitAlias   栋阁别名
+     * @apiParam {string}  estateFloor   楼层
+     * @apiParam {string}  floorPlusminus   楼层正负+-
+     * @apiParam {string}  estateHouse   房号
+     *
+     */
+    public function addEstate()
+    {
+        $data['order_sn'] = $this->request->post('orderSn');
+        $data['estate_name'] = $this->request->post('estateName','','trim');
+        $data['estate_ecity'] = $this->request->post('cityId');
+        $data['estate_district'] = $this->request->post('districtId');
+        $data['estate_zone'] = $this->request->post('estateZone');
+        $data['estate_area'] = $this->request->post('estateArea','','trim');
+        $data['estate_certtype'] = $this->request->post('estateCerttype');
+        $data['estate_certnum'] = $this->request->post('estateCertnum');
+        $data['house_type'] = $this->request->post('houseType');
+        $data['building_name'] = $this->request->post('buildingName','','trim');
+        $data['estate_alias'] = $this->request->post('estateAlias','','trim');
+        $data['estate_unit'] = $this->request->post('estateUnit');
+        $data['estate_unit_alias'] = $this->request->post('unitAlias','','trim');
+        $data['estate_floor'] = $this->request->post('estateFloor','','trim');
+        $data['estate_floor_plusminus'] = $this->request->post('floorPlusminus','','trim');
+        $data['estate_house'] = $this->request->post('estateHouse','','trim');
+        $msg = $this->validate($data,'EstateValidate');
+        if($msg !== true) return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+        $data['create_time'] = time();
+        $modelEstate = new modelEstate;
+        if($modelEstate->save($data) > 0) return $this->buildSuccess();
+        return $this->buildFailed(ReturnCode::ADD_FAILED,'房产信息添加失败');
+
+    }
+}

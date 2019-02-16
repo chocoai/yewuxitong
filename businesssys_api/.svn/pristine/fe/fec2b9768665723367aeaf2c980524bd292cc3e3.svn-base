@@ -1,0 +1,270 @@
+<?php
+
+namespace app\admin\controller;
+
+use app\model\Customer;
+use app\model\Dictionary;
+use app\model\CreditInquiry;
+
+class Credit extends Base {
+
+    private $customer;
+    private $dictionary;
+    private $creditinquiry;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->customer = new Customer();
+        $this->dictionary = new Dictionary();
+        $this->creditinquiry = new CreditInquiry();
+    }
+
+    /**
+     * @api {get} admin/Credit/Getallcardtype 获取所有个人证件类型[admin/Credit/Getallcardtype]
+     * @apiVersion 1.0.0
+     * @apiName Getallcardtype
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/Getallcardtype
+     *
+     * @apiSuccess {array} data    个人证件类型数据集
+     */
+    public function Getallcardtype() {
+        return $this->dictionary->getDictionaryByType('CERTTYPE');
+    }
+
+    /**
+     * @api {get} admin/Credit/Getallenterpricecardtype 获取所有企业证件类型[admin/Credit/Getallenterpricecardtype]
+     * @apiVersion 1.0.0
+     * @apiName Getallenterpricecardtype
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/Getallenterpricecardtype
+     *
+     * @apiSuccess {array} data    企业证件类型数据集
+     */
+    public function Getallenterpricecardtype() {
+        return $this->dictionary->getDictionaryByType('ENTERPRICE_CERTTYPE');
+    }
+
+    /*
+     * 根据电话号码模糊查询用户信息
+     * @return cname|用户姓名,certcode|用户证件号,mobile|用户电话,customermanager|理财经理，selectdata|eg:（张三）15170317525,carddata|3624281***(身份证)
+     * @author zhongjiaqi
+     */
+
+    public function GetcusinfoBymobile() {
+        $mobile = $this->request->get('mobile', '');
+        $where = [
+            'status' => 1,
+        ];
+        if ($mobile) {
+            $where['mobile'] = ['like', "%{$mobile}%"];
+        }
+        $field = "cname,certcode,mobile,customermanager_id,certtype,certother";
+        $res = $this->customer->GetcusinfoBywhere($where, $field);
+        if ($res) {
+            foreach ($res as $key => $value) {
+                $res[$key]['selectdata'] = "(" . $value['cname'] . ")" . $value['mobile']; // 用户列表数据组装
+                $res[$key]['carddata'][] = $value['certcode'] . "(" . $this->dictionary->getValnameByCode('CERTTYPE', $value['certtype']) . ")"; //证件类型
+//                $res[$key]['managerdata'] = $value['']; // 理财经理 ************待完成**********
+                if (!empty($value['certother'])) {
+                    foreach (json_decode($value['certother'], TRUE) as $k => $v) {
+                        $res[$key]['carddata'][] = $v['num'] . "(" . $v['type'] . ")"; //其他证件
+                    }
+                }
+            }
+        }
+        return $this->buildSuccess([
+                    'res' => $res
+        ]);
+    }
+
+    /**
+     * @api {post} admin/Credit/Addcustomer 新增用户[admin/Credit/Addcustomer]
+     * @apiVersion 1.0.0
+     * @apiName Addcustomer
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/Addcustomer
+     *
+     * @apiParam {int} gender    性别
+     * @apiParam {array} certdata    证件信息
+     * @apiParam {string} cname    用户/企业名称
+     * @apiParam {int} ctype    所属类型 ：(个人、企业)
+     * @apiParam {int} mobile    联系电话 
+     * @apiParam {int} customermanager_id    理财经理
+     *
+     */
+    public function Addcustomer() {
+        $adddata = $this->request->Post();
+        $adddata['gender'] = $adddata['ctype'] == 1 ? $this->request->post('gender') : '';
+        if (count($adddata['certdata']) > 1) {
+            foreach ($adddata['certdata'] as $key => $value) {
+                if ($value['type'] == 1) {
+                    $adddata['certtype'] = 1;
+                    $adddata['certcode'] = $value['num'];
+                    unset($adddata['certdata'][$key]);
+                    break;
+                }
+            }
+            foreach ($adddata['certdata'] as $key => $value) {
+                $othercert[] = $value;
+            }
+            $adddata['certother'] = json_encode($othercert, JSON_UNESCAPED_UNICODE);
+        } else {
+            $adddata['certtype'] = $adddata['certdata'][0]['type'];
+            $adddata['certcode'] = $adddata['certdata'][0]['num'];
+        }
+        unset($adddata['certdata']);
+        if (!empty($adddata['cname']) && !empty($adddata['mobile']) && !empty($adddata['customermanager_id'])) {
+            if ($this->customer->ChecksameCustomer($adddata['cname'], $adddata['mobile'])) {
+                if ($this->customer->AddCustomer($adddata))
+                    return $this->buildSuccess();
+                return $this->buildFailed(ReturnCode::ADD_FAILED, '客户添加失败');
+            } else {
+                return $this->buildFailed(ReturnCode::DATA_EXISTS, '系统已存在客户!');
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '有必填项未填写!');
+        }
+    }
+    /**
+     * @api {post} admin/Credit/Addcard 新增证件[admin/Credit/Addcard]
+     * @apiVersion 1.0.0
+     * @apiName Addcard
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/Addcard
+     *
+     * @apiParam {int} gender    性别
+     * @apiParam {array} certdata    证件信息
+     * @apiParam {string} cname    用户/企业名称
+     * @apiParam {int} ctype    所属类型 ：(个人、企业)
+     * @apiParam {int} mobile    联系电话 
+     * @apiParam {int} customermanager_id    理财经理
+     *
+     */
+    public function Addcard() {
+        $adddata = $this->request->Post();
+        $adddata = [
+            'ctype' => 1,
+            'cname' => '测试哦',
+            'gender' => '男',
+            'mobile' => '15170317548',
+            'customermanager_id' => 1,
+            'certdata' => array(
+                0 => [
+                    'num' => '362428199546584589',
+                    'type' => 1
+                ],
+            )
+        ];
+        $adddata['gender'] = $adddata['ctype'] == 1 ? $this->request->post('gender') : '';
+        if (count($adddata['certdata']) > 1) {
+            foreach ($adddata['certdata'] as $key => $value) {
+                if ($value['type'] == 1) {
+                    $adddata['certtype'] = 1;
+                    $adddata['certcode'] = $value['num'];
+                    unset($adddata['certdata'][$key]);
+                    break;
+                }
+            }
+            foreach ($adddata['certdata'] as $key => $value) {
+                $othercert[] = $value;
+            }
+            $adddata['certother'] = json_encode($othercert, JSON_UNESCAPED_UNICODE);
+        } else {
+            $adddata['certtype'] = $adddata['certdata'][0]['type'];
+            $adddata['certcode'] = $adddata['certdata'][0]['num'];
+        }
+        unset($adddata['certdata']);
+        if (!empty($adddata['cname']) && !empty($adddata['mobile']) && !empty($adddata['customermanager_id'])) {
+            if ($this->customer->ChecksameCustomer($adddata['cname'], $adddata['mobile'])) {
+                if ($this->customer->AddCustomer($adddata))
+                    return $this->buildSuccess();
+                return $this->buildFailed(ReturnCode::ADD_FAILED, '客户添加失败');
+            } else {
+                return $this->buildFailed(ReturnCode::DATA_EXISTS, '系统已存在客户!');
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '有必填项未填写!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/creditList 征信列表[admin/Credit/creditList]
+     * @apiVersion 1.0.0
+     * @apiName creditList
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/creditList
+     *
+     * @apiParam {int} endtime    结束时间
+     * @apiParam {int} starttime    开始时间
+     * @apiParam {int} time_type     时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)
+     * @apiParam {int} credit_result    征信结果 ：下拉框显示(正常、异常)
+     * @apiParam {int} checkstatus    查询状态 ：(正在查询、征信报告已出、查询失败)
+     * @apiParam {int} keywords    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {array} data    列表数据集
+     * @apiSuccess {string} msg    数据获取状态
+     * @apiSuccess {string} count    总条数
+     *
+     */
+    public function creditList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $keywords = $this->request->get('keywords', '');
+        $checkstatus = $this->request->get('checkstatus', '');
+        $credit_result = $this->request->get('credit_result', '');
+        $time_type = $this->request->get('time_type', '');
+        $time = $this->request->get('time_solt', '');
+        $where = [];
+        switch ($time_type) {
+            case 1:
+                $searchtime = 'apply_time';
+            case 2:
+                $searchtime = 'sub_bank_time';
+            case 3:
+                $searchtime = 'credit_input_time';
+            default :
+                break;
+        }
+        if (!empty($starttime) && empty($endtime)) {
+            $where[$searchtime] = ['egt', $time[0]];
+        }
+        if (empty($starttime) && !empty($endtime)) {
+            $where[$searchtime] = ['elt', $time[0]];
+        }
+        if (!empty($starttime) && !empty($endtime)) {
+            $where[$searchtime] = array('between', array($time));
+        }
+        if (!empty($credit_result)) {
+            $where['credit_result'] = $credit_result;
+        }
+        if (!empty($checkstatus)) {
+            $where['checkstatus'] = $checkstatus;
+        }
+        if (!empty($keywords)) {
+            $where['customer_name'] = ['like', "%{$keywords}%"];
+        }
+        $field = "id,order_sn,customer_name,cert,checkstatus,apply_time,sub_bank_time,credit_input_time,credit_result,financing_manager_id,financing_dept_id,dept_manager_id,remark";
+        $creditList = $this->creditinquiry->where($where)->field($field)->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as $key => $value) {
+                $cardinfo = json_decode($value['cert'], TRUE); // 证件json
+                $creditList['data'][$key]['cert'] = $cardinfo[0]['num']; // 默认取第一个证件用于展示
+                $creditList['data'][$key]['isshowhead'] = count($cardinfo) > 1 ? 1 : 2; // 是否展示人头（多个证件需要展示）
+                $creditList['data'][$key]['credit_result'] = $value['credit_result'] == 1 ? '正常' : '异常'; // 征信结果状态
+                if ($value['checkstatus'] == 1)
+                    $creditList['data'][$key]['checkstatus'] = '正在查询';
+                if ($value['checkstatus'] == 2)
+                    $creditList['data'][$key]['checkstatus'] = '征信报告已出';
+                if ($value['checkstatus'] == 3)
+                    $creditList['data'][$key]['checkstatus'] = '查询失败';
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+}

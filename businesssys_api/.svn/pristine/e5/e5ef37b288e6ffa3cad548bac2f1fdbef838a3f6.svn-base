@@ -1,0 +1,42 @@
+<?php
+
+
+namespace Workflow;
+
+//自定义验证脚本路径
+use think\Log;
+
+define('RESTPATH', realpath(dirname(__FILE__)) . '/restrict/');
+
+/**
+ * Class util
+ * @package Workflow
+ * @author: bordon
+ */
+class Util
+{
+
+    /**
+     * 加载自定义验证脚本
+     * @param $path 脚本路径 test/index
+     * @param $workflow
+     * @return mixed
+     * @throws \Exception
+     */
+    public function load_wf_class($path, $workflow = [])
+    {
+        list($classname, $func) = explode('/', $path);
+        Log::error("Class '{$classname}' not found");
+        $class = RESTPATH . ucfirst(strtolower($classname)) . '.php';
+        if (is_file($class)) {
+            require_once($class);
+        } else {
+            throw new \Exception("流转条件设置错误，无法流转，请联系流程设置人员");
+        }
+        if (class_exists($classname)) {
+            return (new $classname($workflow))->$func();
+        }
+        Log::error("Class '{$classname}' not found");
+        throw new \Exception("Class '{$classname}' not found");
+    }
+}

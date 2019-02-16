@@ -1,0 +1,42 @@
+<?php
+
+/**
+ * 按揭信息验证类
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class Guarantee extends Validate{
+    protected  $rule = [
+
+        'notarization' => 'dateFormat:Y-m-d',//公正日期
+        'self_financing' => 'float|length:0,11',
+        'guarantee_rate' => 'float',
+        'bussiness_loan' => 'float|length:0,11',
+        'accumulation_fund' => 'float|length:0,11',
+        'consumer_loan' => 'float|length:0,11',
+        'guarantee_fee' => 'float|length:0,11',
+        'fee' => 'require|float|length:0,11',
+        'info_fee' => 'require|float|length:0,11',
+
+        'return_money_amount'=>'float|length:0,11',
+        'project_money_date'=>'dateFormat:Y-m-d'//预计还款日
+
+    ];
+
+    protected $message = [
+        'notarization' => '公正日期格式有误',
+        'self_financing' => '自筹金额有误',
+        'guarantee_rate' => '担保费率有误',
+        'bussiness_loan' => '商贷贷款金额有误',
+        'accumulation_fund' => '公积金贷款金额有误',
+        'consumer_loan' => '消费贷贷款金额有误',
+        'guarantee_fee' => '担保费有误',
+        'fee' => '手续费有误',
+        'info_fee' => '预计信息费有误',
+        'return_money_amount' => '回款金额格式有误',
+        'project_money_date' => '预计还款日期有误',
+    ];
+}

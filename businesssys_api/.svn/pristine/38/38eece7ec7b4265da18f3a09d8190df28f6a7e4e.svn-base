@@ -1,0 +1,18 @@
+<?php
+/**
+按揭信息模型
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+
+class OrderMortgage extends Base{
+    public static function getDispatchList($orderSn)
+    {
+        return self::alias('a')
+            ->join('dictionary b','a.mortgage_type=b.code')
+            ->field('a.organization,a.mortgage_type,b.valname')
+            ->where(['a.order_sn'=>$orderSn,'a.type'=>'ORIGINAL','b.type'=>'MORTGAGE_TYPE'])
+            ->select();
+    }
+}

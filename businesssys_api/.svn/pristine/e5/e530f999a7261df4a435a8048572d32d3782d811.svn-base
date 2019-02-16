@@ -1,0 +1,95 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+
+class CreditInquiryAttachment extends Model {
+
+    protected $autoWriteTimestamp = true;
+    protected $updateTime = false;
+    protected $createTime = 'create_time';
+
+    /**
+     * 编辑征信申请图片处理
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 征信id  $type '附件类型  AUTH授权证附件  APPROVAL审核附件  CREDIT征信报告', $newids 上传图片id串
+     * @author zhongjiaqi 4.21
+     */
+    public function filterCreditpic($id, $type, $newids) {
+        $where = [
+            'credit_inquiry_id' => $id,
+            'type' => $type,
+            'status' => 1
+        ];
+        $addids = []; // 新增的图片
+        $saveids = []; //与原来的对比 需要保留的图片
+        $data = $this->where($where)->column('attachment_id');
+        foreach ($newids as $k => $v) {
+            if (in_array($v, $data)) {
+                $saveids[] = $v;
+            } else {
+                $addids[] = $v;
+            }
+        }
+        $delids = array_diff($data, $saveids); // 需要删除的图片
+        if (!empty($delids))
+            foreach ($delids as $key => $value) {
+                if (!$this->updateCreditpic($value, ['status' => -1])) {
+                    return FALSE;
+                }
+            }
+        $attach_pic = [];
+        if (!empty($addids)) {
+            foreach ($addids as $key => $value) {
+                $attach_pic[] = [
+                    'credit_inquiry_id' => $id,
+                    'type' => $type,
+                    'attachment_id' => $value
+                ];
+            }
+        }
+        return $this->saveAll($attach_pic);
+    }
+
+    /**
+     * 更新征信图片
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合  $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function updateCreditpic($id, $data) {
+        $res = $this->where('attachment_id', $id)->update($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 查询图片url
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $type  AUTH授权证附件  APPROVAL审核附件  CREDIT征信报告'  $id 需要查询数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function getUrl($id, $type) {
+        $where = [
+            'credit_inquiry_id' => $id,
+            'type' => $type,
+            'status' => 1
+        ];
+        $res = $this->where($where)->column('attachment_id');
+        $data = [];
+        if ($res) {
+            foreach ($res as $key => $value) {
+                $this->Attachment = new Attachment();
+                $data[] = $this->Attachment->where('id', $value)->field('name,url,id')->find();
+            }
+            foreach ($data as $key => $value) {
+                $data[$key]['url'] = config('uploadFile.url') . $value['url'];
+            }
+        }
+        return $data;
+    }
+
+}

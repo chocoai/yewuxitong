@@ -1,0 +1,26 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/11
+ * Time: 10:44
+ */
+namespace app\admin\validate;
+use think\Validate;
+
+
+class BankLending extends Validate{
+
+    protected $rule = [
+        'order_fund_channel_id|订单资金渠道表ID'  =>  'require|number|max:11',
+        'order_sn|订单编号' =>'require|max:20',
+        'finance_sn|财务序号'  =>  'require|number|max:10',
+        'loan_money|放款金额' =>  'require|max:12|number',
+        'lender_object|放款银行或者资金渠道' =>  'require',
+        'bank_card_id|收款账户id' =>'require',
+        'receivable_account|收款账户' =>'require',
+        'into_money_time|到账时间'  =>  'require',
+        'remark|备注' =>  'max:500'
+    ];
+
+}

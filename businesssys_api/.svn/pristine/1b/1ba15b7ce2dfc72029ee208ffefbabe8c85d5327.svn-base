@@ -1,0 +1,196 @@
+<?php
+
+namespace app\workflow\controller;
+
+use app\workflow\model\WorkflowFlow;
+use think\Controller;
+use think\Request;
+use think\Db;
+use app\workflow\model\WorkflowFlow as FlowModel;
+use app\workflow\model\WorkflowFlowlink;
+use app\workflow\model\WorkflowEntry;
+use app\workflow\model\WorkflowProc;
+use workflow\Workflow;
+use workflow\Util;
+
+class Flow extends Controller
+{
+
+    //
+    public function index()
+    {
+//        halt((new Util())->load_wf_class('test/index'));
+        session('user.id', 386);
+        session('user.username', '肖艳玲');
+        //我的申请
+        $entries = WorkflowEntry::alias('e')
+            ->join('__WORKFLOW_PROCESS__ p', 'p.id=e.process_id')
+            ->where(['e.user_id' => session('user.id'), 'e.pid' => 0])
+            ->field('e.*,p.flow_id,p.process_name,p.type,p.process_to')
+            ->select();
+        //我的待办
+        $procs = WorkflowProc::where(['user_id' => session('user.id'), 'status' => 0, 'current' => 1, 'is_deleted' => 1])->order('is_read asc')->select();
+        $flow = FlowModel::select();
+        return view('', [
+            'flow' => $flow,
+            'entries' => $entries,
+            'procs' => $procs
+        ]);
+    }
+
+    //发起流程
+    public function test(Request $request)
+    {
+        $data = $request->get();
+        $orde_sn = 'JYDB2018010002';
+        $order_id = 31;
+        $workflow = new Workflow();
+        Db::startTrans();
+        try {
+            $flow = FlowModel::where(['is_publish' => 1, 'status' => 1])->findOrFail($data['flow_id']);
+            $flowlink = WorkflowFlowlink::alias('fl')->join('__WORKFLOW_PROCESS__ po', 'po.id=fl.process_id')
+                ->where(['fl.flow_id' => $flow['id'], 'fl.type' => 'Condition', 'po.position' => 0])->find();
+            $entry = WorkflowEntry::create([
+                'title' => $data['title'],
+                'flow_id' => $data['flow_id'],
+                'user_id' => session('user.id'),
+                'order_sn' => $orde_sn,
+                'circle' => 1,
+                'mid' => $order_id,
+                'status' => 0
+            ]);
+
+            //进程初始化
+            //第一步看是否指定审核人
+            $workflow->init($entry, $flowlink);
+            Db::commit();
+            return redirect("pass");
+        } catch (\Exception $e) {
+            Db::rollback();
+            $this->error('操作失败' . $e->getMessage());
+        }
+    }
+
+    /**发布流程
+     * @param Request $request
+     */
+    public function publish(Request $request)
+    {
+        try {
+            $flow_id = $request->post('flow_id', 0);
+            $flow = FlowModel::findOrFail($flow_id);
+            if (WorkflowFlowlink::where(['flow_id' => $flow->id, 'type' => 'Condition'])->count() <= 1) {
+                throw new \Exception("发布失败，至少两个步骤");
+            }
+            if (WorkflowFlowlink::where(['flow_id' => $flow->id, 'type' => 'Condition', 'next_process_id' => -1])->count() > 1) {
+                throw new \Exception("发布失败，有步骤没有连线");
+            }
+            if (!$this->check_step(['fl.flow_id' => $flow_id, 'po.position' => 0])) {
+                throw new \Exception("发布失败，请设置起始步骤");
+            }
+            if (!$this->check_step(['fl.flow_id' => $flow_id, 'po.position' => 9])) {
+                throw new \Exception("发布失败，请设置结束步骤");
+            }
+            $flowlinks = $this->check_step(['fl.flow_id' => $flow_id, 'fl.type' => 'Condition', 'po.position' => ['neq', 0]]);
+            foreach ($flowlinks as $v) {
+                if (!$this->check_step(['fl.flow_id' => $flow_id, 'fl.process_id' => $v['process_id'], 'fl.type' => ['<>', 'Condition'], 'po.position' => ['<>', 0]])) {
+                    throw new \Exception("发布失败，请给设置步骤审批权限");
+                }
+            }
+            $flow->is_publish = 1;
+            $flow->save();
+            return json([
+                'code' => 1,
+                'msg' => '发布成功'
+            ]);
+        } catch (\Exception $e) {
+            return json([
+                'code' => 0,
+                'msg' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**检查流程是否设置步骤
+     * @param $where
+     * @return array|false|\PDOStatement|string|\think\Model
+     */
+    public function check_step($where)
+    {
+        $flowlink = WorkflowFlowlink::alias('fl')->join('__WORKFLOW_PROCESS__ po', 'po.id=fl.process_id')
+            ->where($where)
+            ->field('fl.*,po.position')
+            ->find();
+        return $flowlink;
+    }
+
+    /**设计流程
+     * @param Request $request
+     * @param $id
+     */
+    public function design($id = 0)
+    {
+        $flow = FlowModel::findOrFail($id);
+        return view('', ['flow' => $flow]);
+    }
+
+    /**添加流程
+     * @param Request $request
+     */
+    public function create(Request $request)
+    {
+        $data = $request->post();
+        if (isset($data['id'])) {
+            FlowModel::update($data);
+        } else {
+            FlowModel::create($data);
+        }
+        $this->success('操作成功', 'flow/index');
+    }
+
+    /**
+     * 审批
+     * @param $id
+     */
+    public function show($id)
+    {
+        $proc = WorkflowProc::findOrFail($id);
+        $entry = WorkflowEntry::findOrFail($proc->entry_id);
+        return view('');
+    }
+
+    public function add()
+    {
+        return view();
+    }
+
+    /**编辑流程信息
+     * @param $id
+     * @return \think\response\View
+     */
+    public function edit($id)
+    {
+        $flow = WorkflowFlow::findOrFail($id);
+        return view('add', ['flow' => $flow]);
+    }
+
+    /**删除流程
+     * @param $id
+     */
+    public function del($id)
+    {
+        $entry = WorkflowEntry::where(['flow_id' => $id])->find();
+        if ($entry) {
+            $this->error('已有发起流程，禁止删除！');
+        }else{
+            WorkflowFlow::del(['id' => $id]);
+            $this->success('删除成功');
+        }
+    }
+
+    public function pass()
+    {
+        return view();
+    }
+
+}

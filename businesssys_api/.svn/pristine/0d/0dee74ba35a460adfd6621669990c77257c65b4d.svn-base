@@ -1,0 +1,31 @@
+<?php
+
+namespace app\model;
+
+use think\Db;
+
+class OrderGuaranteeBank extends Base {
+
+    /**
+     * 判断当前订单是否全部完成核卡
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单号
+     * @author zhongjiaqi 7.11
+     */
+    public function checkiscomplete($order_sn) {
+        $flag = true;
+        $stage = $this->where(['order_sn' => $order_sn, 'status' => 1, 'type' => array('not in', '2,6')])->field('verify_card_status,account_status')->select();
+        foreach ($stage as $value) {
+            if ($value['verify_card_status'] != 3) {// || $value['account_status'] != 1  (核卡状态暂时不判断)
+                $flag = false;
+                break;
+            }
+        }
+        //订单中所有需要核卡的卡 核卡完成才需要更改主订单 是否核卡完成字段
+        if ($flag) {
+            Db::name('order_guarantee')->where('order_sn', $order_sn)->update(['is_verify_card' => 1, 'update_time' => time()]);
+        }
+    }
+
+}

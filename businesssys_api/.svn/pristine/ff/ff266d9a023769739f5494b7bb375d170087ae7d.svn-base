@@ -1,0 +1,242 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+use app\util\Tools;
+
+class CreditInquiry extends Model {
+
+    protected $autoWriteTimestamp = true;
+    protected $updateTime = 'update_time';
+    protected $createTime = 'create_time';
+
+    public function _initialize() {
+        parent::_initialize();
+    }
+
+    /**
+     * 新增用户
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合
+     * @author zhongjiaqi 4.20
+     */
+    public function addCredit($data) {
+        $res = $this->save($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 获取理财经理和对应部门 
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 与数据库字段对应的数组集合
+     * @author zhongjiaqi 4.20
+     */
+    public function getManagername($id) {
+        $res = $this->alias('ci')
+                ->field('su.name,sd.name as dname')
+                ->join('__SYSTEM_USER__ su', 'su.id=ci.financing_manager_id', 'LEFT')
+                ->join('__SYSTEM_DEPT__ sd', 'sd.id=ci.financing_dept_id', 'LEFT')
+                ->where('ci.id', $id)
+                ->find()
+                ->toArray();
+        return $res;
+    }
+
+    /**
+     * 获取理财经理上级和对应部门 
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 征信id
+     * @author zhongjiaqi 4.20
+     */
+    public function getupManagername($id) {
+        $res = $this->alias('ci')
+                ->field('su.name,su.mobile')
+                ->join('__SYSTEM_USER__ su', 'su.id=ci.dept_manager_id', 'LEFT')
+                ->where('ci.id', $id)
+                ->find()
+                ->toArray();
+        return $res;
+    }
+
+    /**
+     * 获取征信证件数据
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 征信id $type 1获取商品信息  2 详情数组组合
+     * @author zhongjiaqi 4.20
+     */
+    public function getCertdata($id, $type) {
+        $res = $this->where('id', $id)->field('type,certtype,certcode,certother')->find();
+        if ($res) {
+            $typecode = $res['type'] == 1 ? 'CERTTYPE' : 'ENTERPRICE_CERTTYPE';
+            $this->dictionary = new Dictionary();
+            if (!empty($res['certother'])) {
+                $Newarray = json_decode($res['certother'], TRUE);
+                foreach ($Newarray as $key => $value) {
+                    $Newarray[$key]['certname'] = $this->dictionary->getValnameByCode($typecode, $value['certtype']);
+                }
+            }
+            $Newarray[] = ['certcode' => $res['certcode'], 'certtype' => $res['certtype'], 'certname' => $this->dictionary->getValnameByCode($typecode, $res['certtype'])];
+            if ($type == 2) {
+                foreach ($Newarray as $key => $value) {
+                    $data[] = $value['certcode'] . "(" . $this->dictionary->getValnameByCode($typecode, $value['certtype']) . ")";
+                }
+                return $data;
+            }
+            return $Newarray;
+        }
+    }
+
+    /**
+     * 获取征信报告状态
+     * @return 征信报告状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  征信报告状态
+     * @author zhongjiaqi 4.20
+     */
+    public function getCheckstatus($status = '') {
+        $statusList = ['1' => '待查询', '2' => '正在查询', '3' => '查询失败', '4' => '征信报告已出'];
+        return empty($status) ? $statusList : $statusList[$status];
+    }
+
+    /**
+     * 获取征信报告结果状态
+     * @return 征信报告状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  征信报告状态
+     * @author zhongjiaqi 4.20
+     */
+    public function getCreditresult($status = '') {
+        $statusList = ['1' => '正常', '2' => '异常'];
+        return empty($status) ? '暂无' : $statusList[$status];
+    }
+
+    /**
+     * 更新征信
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合  $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function updateCredit($id, $data) {
+        $res = $this->where('id', $id)->update($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 筛选重复证件号
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 证件数据集  $id 被筛选用户
+     * @author zhongjiaqi 4.21
+     */
+    public function filterSamecard($id, $data, $remarkbase) {
+        $cuscardinfo = $this->where('id', $id)->field('certtype,certcode,certother')->find();
+        if (!empty($cuscardinfo['certother'])) {
+            $oldarray = $Newarray = json_decode($cuscardinfo['certother'], TRUE);
+        } else {
+            $oldarray = [];
+            $Newarray = [];
+        }
+        $Newarray[] = ['certcode' => $cuscardinfo['certcode'], 'certtype' => $cuscardinfo['certtype']];
+        foreach ($Newarray as $key => $value) {
+            foreach ($data as $k => $v) {
+                if ($v['certtype'] == $value['certtype']) {
+                    unset($data[$k]);
+                }
+            }
+        }
+        $newdata = json_encode(array_merge($oldarray, $data), JSON_UNESCAPED_UNICODE); // 重组新数据
+        return $this->updateCredit($id, ['certother' => $newdata, 'remark_base' => $remarkbase]);
+    }
+
+    /**
+     * 检测当前征信是否可删除或可编辑(只有征信报告查询状态为待查询才可以)
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param   $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function checkCredit($id) {
+        $res = $this->where('id', $id)->value('checkstatus');
+        return $flag = $res == 1 ? TRUE : FALSE;
+    }
+
+    /**
+     * 检测当前征信是否可上传征信(当查询状态为征信报告已出且征信未审核时)
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param   $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function checkIsupload($id) {
+        $flag = FALSE;
+        $res = $this->where('id', $id)->field('credit_result,checkstatus')->find();
+        if (empty($res['credit_result'])) {
+            $flag = TRUE;
+        }
+        return $flag;
+    }
+
+    /**
+     * 提交至人行
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param   $id 需要更新数据的用户id数组
+     * @author zhongjiaqi 4.21
+     */
+    public function submitTobank($id) {
+        $flag = TRUE;
+        foreach ($id as $key => $value) {
+            if ($this->checkCredit($value)) {
+                if (!$this->updateCredit($value, ['checkstatus' => 2, 'sub_bank_time' => time()])) {
+                    $flag = FALSE;
+                }
+            }
+        }
+        return $flag;
+    }
+
+    /**
+     * 处理新增身份证件信息（将身份证和其他证件区分，没有省份证默认其他证件存在certtype和certcode字段）
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param   $data 证件数据集
+     * @author zhongjiaqi 4.21
+     */
+    public function dealwithCarddata($data) {
+        $newarray = array();
+        if (count($data) > 1) {
+            foreach ($data as $key => $value) {
+                if ($value['certtype'] == 1) {
+                    $newarray['certtype'] = 1;
+                    $newarray['certcode'] = $value['certcode'];
+                    unset($data[$key]);
+                    break;
+                }
+            }
+            //判断是否存在省份证
+            if (count($newarray) == 0) {
+                $newarray['certtype'] = $data[0]['certtype'];
+                $newarray['certcode'] = $data[0]['certcode'];
+                unset($data[0]);
+                $othercert = $data;
+            } else {
+                foreach ($data as $key => $value) {
+                    $othercert[] = $value;
+                }
+            }
+            $newarray['certother'] = json_encode(array_values($othercert), JSON_UNESCAPED_UNICODE);
+        } else {
+            $newarray['certtype'] = $data[0]['certtype'];
+            $newarray['certcode'] = $data[0]['certcode'];
+            $newarray['certother'] = NULL;
+        }
+        return $newarray;
+    }
+
+}

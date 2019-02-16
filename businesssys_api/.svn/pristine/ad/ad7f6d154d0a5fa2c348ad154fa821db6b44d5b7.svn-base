@@ -1,0 +1,471 @@
+<?php
+
+/* 核卡控制器 */
+
+namespace app\admin\controller;
+
+use think\Db;
+use app\model\Order;
+use app\model\TrialProcess;
+use app\model\OrderGuaranteeBank;
+use app\model\OrderVerifyCard;
+use app\model\OrderVerifyCardRecord;
+use app\model\SystemUser;
+use app\util\OrderComponents;
+use app\util\ReturnCode;
+
+class Nuclearcard extends Base {
+
+    private $order;
+    private $orderguaranteebank;
+    private $orderverifycard;
+    private $orderverifycardrecord;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->order = new Order();
+        $this->orderguaranteebank = new OrderGuaranteeBank();
+        $this->orderverifycard = new OrderVerifyCard();
+        $this->systemuser = new SystemUser();
+        $this->orderverifycardrecord = new OrderVerifyCardRecord();
+    }
+
+    /**
+     * @api {get} admin/Nuclearcard/nuclearcardList 核卡列表[admin/Nuclearcard/nuclearcardList]
+     * @apiVersion 1.0.0
+     * @apiName nuclearcardList
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearcardList
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type     订单类型
+     * @apiParam {int} account_type     账号类型
+     * @apiParam {int} account_status    账号状态（1正常 2冻结 3锁卡 4挂失 5注销）
+     * @apiParam {int} verify_card_status    核卡状态（0待核卡 1待财务复核 2驳回待处理 3已完成）
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} account_type_text    账号类型
+     * @apiSuccess {string} bankcard    银行卡号
+     * @apiSuccess {string} bankaccount    银行户名
+     * @apiSuccess {string} openbank    开户银行
+     * @apiSuccess {string} verify_card_status_text    核卡状态
+     * @apiSuccess {string} account_status_text    账号状态
+     * @apiSuccess {string} check_time    最新查账时间
+     * @apiSuccess {string} financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function nuclearcardList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $create_uid = $this->request->get('create_uid', '');
+        $subordinates = $this->request->get('subordinates', 0);
+        $type = $this->request->get('type', '');
+        $account_type = $this->request->get('account_type', '');
+        $account_status = $this->request->get('account_status', '');
+        $verify_card_status = $this->request->get('verify_card_status/d', '');
+        $keywords = $this->request->get('keywords', '', 'trim');
+        //查询条件组装
+        $where = [];
+        if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($create_uid);
+            } else {
+                $userStr = $create_uid;
+            }
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        }
+        $type && $where['o.type'] = $type;
+        $account_type && $where['ogbt.type'] = $account_type;
+        $account_status && $where['x.account_status'] = $account_status;
+        if ($verify_card_status === 0 || !empty($verify_card_status)) {
+            $where['x.verify_card_status'] = $verify_card_status;
+        }
+        $keywords && $where['x.order_sn|e.estate_name|x.bankcard'] = ['like', "%{$keywords}%"];
+        $where['x.status'] = 1;
+        $field = "x.id,x.order_sn,x.bankaccount,x.bankcard,x.openbank,x.verify_card_status,x.check_time,x.verify_card_status,x.account_status,o.type,o.financing_manager_id,e.estate_name";
+        $creditList = $this->orderguaranteebank->alias('x')
+                        ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+                        ->join('__ESTATE__ e', 'e.order_sn=x.order_sn', 'left')
+                        ->join('__ORDER_VERIFY_CARD__ y', 'y.order_sn=x.order_sn', 'left')
+                        ->join('order_guarantee_bank_type ogbt', 'ogbt.order_guarantee_bank_id=x.id', 'left')
+                        ->where('ogbt.type', 'in', '1,3,4,5')
+                        ->where($where)->field($field)
+                        ->order('x.create_time', 'DESC')
+                        ->group('x.id')
+                        ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['type_text'] = $this->order->getType($value['type']); //订单类型
+                $value['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+                $value['account_status_text'] = $this->orderverifycard->getAccountstatus($value['account_status']); //账号状态
+                $value['verify_card_status_text'] = $this->orderverifycard->getCheckstatus($value['verify_card_status']); //核卡状态
+                $value['account_type_text'] = $this->orderverifycard->getAccounttype($value['id']); //账号类型
+                $value['check_time'] = empty($value['check_time']) ? '' : date('Y-m-d', strtotime($value['check_time'])); //最新查账时间
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+    /**
+     * @api {get} admin/Nuclearcard/redemptioncardInfo 赎楼卡信息[admin/Nuclearcard/redemptioncardInfo]
+     * @apiVersion 1.0.0
+     * @apiName redemptioncardInfo
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/redemptioncardInfo
+     *
+     * @apiParam {int} id    卡号id
+     *
+     * @apiSuccess {string} accounttype_text    账户类型
+     * @apiSuccess {string} accounttype    账户类型
+     * @apiSuccess {string} bankaccount    银行户名
+     * @apiSuccess {string} openbank    开户银行
+     * @apiSuccess {string} bankcard    银行卡号
+     *
+     */
+    public function redemptioncardInfo() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            //核卡信息
+            $nucleardata = OrderComponents::nuclearInfo($id);
+            return $this->buildSuccess($nucleardata);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/Nuclearcard/nuclearEntryinfo 核卡录入信息[admin/Nuclearcard/nuclearEntryinfo]
+     * @apiVersion 1.0.0
+     * @apiName nuclearEntryinfo
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearEntryinfo
+     *
+     * @apiParam {int} id    卡号id
+     *
+     * @apiSuccess {string} card_type    卡号类型
+     * @apiSuccess {string} cyber_bank    网银
+     * @apiSuccess {string} telephone_bank    手机银行
+     * @apiSuccess {string} mobile_bank    电话银行
+     * @apiSuccess {string} security_account    证券账号
+     * @apiSuccess {string} credit_card    信用卡
+     * @apiSuccess {string} verify_card_time    核卡时间
+     * @apiSuccess {string} verify_card_name    核卡人员
+     * @apiSuccess {array} verify_card_data   核卡资料
+     * @apiSuccess {string} remark    备注
+     *
+     */
+    public function nuclearEntryinfo() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            //核卡录入信息
+            $nuclearentry = OrderComponents::nuclearentryinfo($id);
+            return $this->buildSuccess($nuclearentry);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/Nuclearcard/nuclearRecord 核卡查询记录[admin/Nuclearcard/nuclearRecord]
+     * @apiVersion 1.0.0
+     * @apiName nuclearRecord
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearRecord
+     *
+     * @apiParam {int} id    卡号id
+     * @apiParam {int} is_more    是否查询更多（0：是 1否）
+     *
+     * @apiSuccess {string} card_type    卡号类型
+     * @apiSuccess {string} cyber_bank    网银
+     * @apiSuccess {string} telephone_bank    手机银行
+     * @apiSuccess {string} mobile_bank    电话银行
+     * @apiSuccess {string} security_account    证券账号
+     * @apiSuccess {string} credit_card    信用卡
+     * @apiSuccess {string} verify_card_time    核卡时间
+     * @apiSuccess {string} verify_card_name    核卡人员
+     * @apiSuccess {array} verify_card_data   核卡资料
+     * @apiSuccess {string} remark    备注
+     *
+     */
+    public function nuclearRecord() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $is_more = $this->request->get('is_more', '');
+            $limit = $is_more == 0 ? 0 : 10;
+            //核卡查询记录
+            $nuclearrecord = OrderComponents::nuclearInfoRecord($id, $limit);
+            return $this->buildSuccess($nuclearrecord);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {post} admin/Nuclearcard/addnuclearCarddata 录入核卡信息[admin/Nuclearcard/addnuclearCarddata]
+     * @apiVersion 1.0.0
+     * @apiName addnuclearCarddata
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/addnuclearCarddata
+     *
+     * @apiParam {int}  id  录入核卡信息id
+     * @apiParam {int} order_guarantee_bank_id    核卡id
+     * @apiParam {int}  card_type  卡号类型（1.个人 2.公司）
+     * @apiParam {int}  cyber_bank  网银（0.未开通 1.已开通 2.已关闭）
+     * @apiParam {int}  mobile_bank  手机银行（0.未开通 1.已开通 2.已关闭）
+     * @apiParam {int}  telephone_bank  电话银行（0.未开通 1.已开通 2.已关闭）
+     * @apiParam {int}  security_account  证券账号（0.未绑定 1.已绑定 2.已解绑）
+     * @apiParam {int}  credit_card  信用卡（0.未绑定 1.已绑定 2.已解绑）
+     * @apiParam {datatime}  verify_card_time  核卡时间
+     * @apiParam {array}   verify_card_data  核卡资料
+     * @apiParam {int}   remark  备注说明
+     *
+     */
+    public function addnuclearCarddata() {
+        $data = $this->request->Post('', null, 'trim');
+        $msg = $this->validate($data, 'AddnuclearCarddata');
+        if ($msg !== true)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $bankinfo = $this->orderguaranteebank->where(['id' => $data['order_guarantee_bank_id'], 'status' => 1])->field('order_sn')->find();
+        if (empty($bankinfo))
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '此卡信息已经不存在！');
+        $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname,name')->find(); //获取用户信息
+        $orderstatus = $this->order->where('order_sn', $bankinfo['order_sn'])->value('stage'); //获取当前主订单状态
+        $data['verify_card_data'] = implode(',', $data['verify_card_data']);
+        $data = array_merge($data, ['verify_card_name' => $user['name'], 'create_uid' => $userInfo['id'], 'order_sn' => $bankinfo['order_sn']]);
+        $where = $data['id'] == 0 ? [] : ['id' => $data['id']];
+        Db::startTrans();
+        try {
+            if ($this->orderverifycard->save($data, $where)) {
+                //将最新核卡状态加到担保赎楼银行账号信息表
+                $this->orderguaranteebank->where('id', $data['order_guarantee_bank_id'])->update(['verify_card_status' => 1]);
+                //加订单操作记录
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $type_text = $this->orderverifycard->getAccounttype($data['order_guarantee_bank_id']); //账号类型
+                $operate_det = "录入核卡信息:录入一张账号类型为" . $type_text . " 的核卡信息";
+                $operate_table = 'order_guarantee_bank';
+                $operate_table_id = $data['order_guarantee_bank_id'];
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $bankinfo['order_sn'], $stage = show_status_name($orderstatus, 'ORDER_JYDB_STATUS'), $operate = '提交核卡信息', '待核卡', $operate_det, $operate_reason = '', $orderstatus, $operate_table, $operate_table_id, 'CH_CARD')) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '录入核卡信息操作记录新增失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '核卡信息录入失败！');
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/Nuclearcard/addnuclearRecord 新增查账记录[admin/Nuclearcard/addnuclearRecord]
+     * @apiVersion 1.0.0
+     * @apiName addnuclearRecord
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/addnuclearRecord
+     *
+     * @apiParam {int} order_guarantee_bank_id    核卡id
+     * @apiParam {int}  account_balance  账户余额（1.个人 2.公司）
+     * @apiParam {int}  account_status  账号状态（1正常 2冻结 3锁卡 4挂失 5注销）
+     * @apiParam {int}  check_time  查询时间
+     * @apiParam {int}   remark  备注说明
+     *
+     */
+    public function addnuclearRecord() {
+        $data = $this->request->Post('', null, 'trim');
+        $msg = $this->validate($data, 'addnuclearRecord');
+        if ($msg !== true)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $bankinfo = $this->orderguaranteebank->where(['id' => $data['order_guarantee_bank_id'], 'status' => 1])->field('order_sn')->find();
+        if (empty($bankinfo))
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '此卡信息已经不存在！');
+        $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname,name')->find(); //获取用户信息
+        $orderstatus = $this->order->where('order_sn', $bankinfo['order_sn'])->value('stage'); //获取当前主订单状态
+        $data = array_merge($data, ['create_deptid' => $user['deptid'], 'create_deptname' => $user['deptname'], 'create_uid' => $userInfo['id'], 'create_name' => $user['name']]);
+        Db::startTrans();
+        try {
+            if ($this->orderverifycardrecord->save($data)) {
+                //将最新核卡状态加到担保赎楼银行账号信息表
+                $this->orderguaranteebank->where('id', $data['order_guarantee_bank_id'])->update(['account_status' => $data['account_status'], 'check_time' => $data['check_time']]);
+                //加订单操作记录
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $type_text = $this->orderverifycard->getAccounttype($data['order_guarantee_bank_id']); //账号类型
+                $operate_det = "新增查账记录：新增一笔账号类型为" . $type_text . " 的查账记录";
+                $operate_table = 'order_guarantee_bank';
+                $operate_table_id = $data['order_guarantee_bank_id'];
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $bankinfo['order_sn'], $stage = show_status_name($orderstatus, 'ORDER_JYDB_STATUS'), $operate = '新增查账记录', '已完成', $operate_det, $operate_reason = '', $orderstatus, $operate_table, $operate_table_id, 'CH_CARD')) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增查账记录操作记录新增失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增查账记录失败！');
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/Nuclearcard/nuclearReview 审核通过[admin/Nuclearcard/nuclearReview]
+     * @apiVersion 1.0.0
+     * @apiName nuclearReview
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearReview
+     *
+     * @apiParam {int} id    核卡id
+     *
+     */
+    public function nuclearReview() {
+        $id = $this->request->post('id', '');
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $bankinfo = $this->orderguaranteebank->where(['id' => $id, 'status' => 1])->field('order_sn')->find();
+        if (empty($bankinfo))
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '此卡信息已经不存在！');
+        $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname,name')->find(); //获取用户信息
+        $orderstatus = $this->order->where('order_sn', $bankinfo['order_sn'])->value('stage'); //获取当前主订单状态
+        Db::startTrans();
+        try {
+            if ($this->orderguaranteebank->where('id', $id)->update(['verify_card_status' => 3])) {
+                //修改主订单是否核卡完成
+                $this->orderguaranteebank->checkiscomplete($bankinfo['order_sn']);
+                //加订单操作记录
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $type_text = $this->orderverifycard->getAccounttype($id); //账号类型
+                $operate_det = "审批核卡信息：审批账号类型为：" . $type_text . " 的申请";
+                $operate_table = 'order_guarantee_bank';
+                $operate_table_id = $id;
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $bankinfo['order_sn'], $stage = show_status_name($orderstatus, 'ORDER_JYDB_STATUS'), $operate = '审批', '待财务复核', $operate_det, $operate_reason = '', $orderstatus, $operate_table, $operate_table_id, 'CH_CARD')) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '审批操作记录新增失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '审批失败！');
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/Nuclearcard/nuclearBack 驳回[admin/Nuclearcard/nuclearBack]
+     * @apiVersion 1.0.0
+     * @apiName nuclearBack
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearBack
+     *
+     * @apiParam {int} id    核卡id
+     * @apiParam {string} reason    驳回理由
+     *
+     */
+    public function nuclearBack() {
+        $data = $this->request->Post('', null, 'trim');
+        if (empty($data['id'] || empty($data['reason'])))
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $bankinfo = $this->orderguaranteebank->where(['id' => $data['id'], 'status' => 1])->field('order_sn')->find();
+        if (empty($bankinfo))
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '此卡信息已经不存在！');
+        $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname,name')->find(); //获取用户信息
+        $orderstatus = $this->order->where('order_sn', $bankinfo['order_sn'])->value('stage'); //获取当前主订单状态
+        Db::startTrans();
+        try {
+            if ($this->orderguaranteebank->where('id', $data['id'])->update(['verify_card_status' => 2])) {
+                //加订单操作记录
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $type_text = $this->orderverifycard->getAccounttype($data['id']); //账号类型
+                $operate_det = "驳回核卡信息：驳回账号类型为：" . $type_text . " 的申请";
+                $operate_table = 'order_guarantee_bank';
+                $operate_table_id = $data['id'];
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $bankinfo['order_sn'], $stage = show_status_name($orderstatus, 'ORDER_JYDB_STATUS'), $operate = '审批', '待财务复核', $operate_det, $data['reason'], $orderstatus, $operate_table, $operate_table_id, 'CH_CARD')) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '驳回操作记录新增失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '驳回失败！');
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/Nuclearcard/getOtherinfo 获取录卡信息[admin/Nuclearcard/getOtherinfo]
+     * @apiVersion 1.0.0
+     * @apiName getOtherinfo
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/getOtherinfo
+     *
+     * @apiParam {int} id    卡号id
+     * @apiParam {int} order_sn    订单号
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * {
+     * "vinfo": [
+     * {
+     * "id": 4,
+     * "order_sn": "JYDB2018070002",
+     * "process_name": "待审查经理审批",
+     * "item": "汇总问题没解决，限制了复审提交系统，未限制审查员提交系统"
+     * },
+     * "cinfo": [
+     * {
+     * "bankaccount": "杨丽娟",
+     * "accounttype": 1,
+     * "openbank": "建设银行",
+     * "bankcard": "6227007200050847179",
+     * "accounttype_text": "卖方"
+     * },
+     * ]
+     * }
+     * }
+     *
+     */
+    public function getOtherinfo() {
+        $getdata = $this->request->Post('', null, 'trim');
+//        $getdata['order_sn']='DQJK2018070017';
+//        $getdata['id']='199';
+        if (!empty($getdata['order_sn']) && !empty($getdata['id'])) {
+            //查询风控审核出的其他信息
+            $qtField = 'id,order_sn,process_name,item';
+            $qtList = TrialProcess::getAll(['order_sn' => $getdata['order_sn']], $qtField); //核卡信息
+            //查询组合好的其他信息
+            $data['vinfo'] = TrialProcess::show_Other_Information($qtList);
+            $data['cinfo'] = OrderComponents::nuclearInfo($getdata['id']);
+            return $this->buildSuccess($data);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+}

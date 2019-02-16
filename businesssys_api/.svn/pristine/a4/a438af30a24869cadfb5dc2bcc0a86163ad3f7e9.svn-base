@@ -1,0 +1,173 @@
+<?php
+
+
+/**
+ * Created by PhpStorm.
+ * User: bordon
+ * Date: 2018-07-24
+ * Time: 17:13
+ */
+
+namespace Workflow\service;
+
+use app\workflow\model\WorkflowFlowlink;
+use app\workflow\model\WorkflowEntry;
+use app\workflow\model\WorkflowProcess;
+use app\workflow\model\WorkflowProc;
+use app\workflow\model\SystemUser;
+use app\workflow\model\WorkflowProcessVar;
+use app\workflow\model\WorkflowFlow;
+
+class ProcService
+{
+
+    /**获取财务审批 处理记录
+     * @param $type
+     * @param $order_sn 订单编号
+     * @param $dispatch_id 派单id
+     * @return $is_approval 审批意见 1通过 则只能处理自己订单
+     * @param $user_id 用户id
+     */
+    static public function getDispatchProcId($type, $order_sn, $dispatch_id, $is_approval = null, $user_id = null)
+    {
+        $where = [
+            'wf.type' => $type,
+            'wf.status' => 1,
+            'wf.is_publish' => 1,
+            'we.order_sn' => $order_sn,
+            'we.mid' => $dispatch_id
+//            'we.flow_type' => 'finance'
+        ];
+        $info = WorkflowFlow::alias('wf')
+            ->join('__WORKFLOW_ENTRY__ we', 'we.flow_id = wf.id')
+            ->where($where)->field('we.id as entry_id,we.flow_id')
+            ->find();
+        if (!$info) {
+            throw new \Exception('数据异常！');
+        }
+        $map = [
+            'entry_id' => $info->entry_id,
+            'flow_id' => $info->flow_id
+        ];
+        if ($is_approval == 1) {
+            $map['user_id'] = $user_id;
+        }
+        $proc = WorkflowProc::where($map)->where([
+            'status' => 0,
+            'is_back' => 0,
+            'is_deleted' => 1
+        ])->field('id,entry_id,flow_id')->find();
+        if (!$proc) {
+            throw new \Exception('数据异常！');
+        }
+        return $proc;
+    }
+
+
+    /** 获取待审批信息
+     * @param $type 流程类型
+     * @param $order_sn 订单编号
+     * @param $mid 关联表id
+     * @param $user_id 用户id
+     * @return array|false|\PDOStatement|string|\think\Model
+     */
+    static public function getApprovalPendInfo($type, $order_sn, $mid, $user_id)
+    {
+        $where = [
+            'wf.type' => $type,
+            'wf.status' => 1,
+            'wf.is_publish' => 1,
+            'we.order_sn' => $order_sn,
+            'we.mid' => $mid
+        ];
+        $info = WorkflowFlow::alias('wf')
+            ->join('__WORKFLOW_ENTRY__ we', 'we.flow_id = wf.id')
+            ->where($where)->field('we.id as entry_id,we.flow_id')
+            ->find();
+        if (!$info) {
+            throw new \Exception('数据异常！');
+        }
+        $map = [
+            'entry_id' => $info->entry_id,
+            'flow_id' => $info->flow_id,
+            'user_id' => $user_id
+        ];
+        $proc = WorkflowProc::where($map)->where([
+            'status' => 0,
+            'is_back' => 0,
+            'is_deleted' => 1
+        ])->field('id,entry_id,flow_id')->find();
+        if (!$proc) {
+            throw new \Exception('数据异常！');
+        }
+        return $proc;
+    }
+
+    /**获取退回节点id
+     * @param $order_sn 订单编号
+     * @param $flow_id 流程flow_id
+     * @param $entry_id
+     * @param $wf_status 退回节点状态
+     * @return mixed
+     */
+    static public function getBackProcId($order_sn, $flow_id, $entry_id, $wf_status)
+    {
+        $where['wc.is_deleted'] = 1;
+        $where['wc.is_back'] = 0;
+        $where['wc.order_sn'] = $order_sn;
+        $where['wc.flow_id'] = $flow_id;
+        $where['wc.entry_id'] = $entry_id;
+        $where['wp.wf_status'] = $wf_status;
+        $res = WorkflowProcess::alias('wp')
+            ->join('__WORKFLOW_PROC__ wc', 'wc.process_id=wp.id')
+            ->where($where)->value('wc.id');
+        return $res;
+    }
+
+    /**
+     * 其它业务--审批结束获取退回指定节点
+     *  首期款垫资=>风控经理 303
+     * 其它=》退回核算专员 304
+     * @param $order_sn 订单编号
+     * @param $flow_id 流程flow_id
+     * @param $entry_id
+     * @param $wf_status 状态
+     * @return mixed
+     */
+    static public function getFinishBackProcId($order_sn, $flow_id, $entry_id, $wf_status)
+    {
+        $where['wc.is_deleted'] = 1;
+        $where['wc.is_back'] = 0;
+        $where['wc.status'] = 9;
+        $where['wc.order_sn'] = $order_sn;
+        $where['wc.flow_id'] = $flow_id;
+        $where['wc.entry_id'] = $entry_id;
+        $where['wp.wf_status'] = $wf_status;
+        $res = WorkflowProcess::alias('wp')
+            ->join('__WORKFLOW_PROC__ wc', 'wc.process_id=wp.id')
+            ->where($where)->order('wc.create_time')->value('wc.id');
+        return $res;
+    }
+
+    /**审批结束驳回
+     * @param $entry_id 当前流程entry_id
+     * @return false|int
+     */
+    static public function resetRackProcess($entry_id)
+    {
+        if (!$entry_id) {
+            throw new  \Exception("驳回实例id不能为空！");
+        }
+        $entry = WorkflowEntry::where('status', '9')->findOrFail($entry_id);
+        $entry->status = 0;
+        $entry->save();
+        $proc = WorkflowProc::where([
+            'flow_id' => $entry->flow_id,
+            'process_id' => $entry->process_id,
+            'entry_id' => $entry->id,
+            'status' => 9
+        ])->findOrFail();
+        $proc->status = 0;
+        return $proc->save();
+    }
+}

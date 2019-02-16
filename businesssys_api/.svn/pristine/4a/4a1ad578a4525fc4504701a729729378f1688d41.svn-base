@@ -1,0 +1,59 @@
+<?php
+
+/**
+ * 资金管理通用验证器
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class AddBackmoney extends Validate {
+
+    protected $rule = [
+        'order_sn' => 'require', //订单编号
+        'unmoney' => 'require', //待回款金额
+        'money' => 'checkmoney:unmoney,money', //回款金额
+        'bank' => 'require', //银行
+        'bank_card' => 'require', //银行卡号
+        'bank_account' => 'require', //银行户名
+        'bank_card_id' => 'require', //银行卡ID
+        'bank_name' => 'require', //银行别名
+        'customer_bank_account' => 'require', //业主回款卡开户人
+        'return_time' => 'require|date', //预计回款时间
+        'ac_return_time' => 'require|date', //实际回款时间
+        'attachment' => 'requireWith:attachment|array', //附件
+    ];
+    protected $message = [
+        'order_sn' => '订单编号不能为空', //订单编号
+        'unmoney' => '待回款金额不能为空', //待回款金额
+        'bank' => '回款银行不能为空', //银行
+        'bank_card' => '回款银行卡号不能为空', //银行卡号
+        'bank_account' => '回款银行户名不能为空', //银行户名
+        'bank_card_id' => '回款银行ID不能为空', //银行卡ID
+        'bank_name' => '回款银行别名不能为空', //银行别名
+        'customer_bank_account' => '业主回款卡开户人不能为空', //业主回款卡开户人
+        'return_time' => '预计回款时间不能为空', //预计回款时间
+        'return_time.date' => '预计回款时间参数格式不对', //预计回款时间
+        'ac_return_time' => '实际回款时间不能为空', //实际回款时间
+        'ac_return_time.date' => '实际回款时间参数格式不对', //实际回款时间
+        'attachment.array' => '附件参数格式不对', //附件
+    ];
+    protected $scene = [
+    ];
+
+    //自定义规则  
+    protected function checkmoney($value, $rule, $data) {
+        if (!isset($value)) {
+            return "回款金额不能为空";
+        }
+        if ($value > $data['unmoney']) {
+            return "回款金额不能大于待回款金额";
+        }
+        if ($value < 10) {
+            return "回款金额最低不能小于10";
+        }
+        return true;
+    }
+
+}

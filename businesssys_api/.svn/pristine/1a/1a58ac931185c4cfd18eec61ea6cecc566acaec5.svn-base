@@ -1,0 +1,36 @@
+<?php
+/**
+ * 城市
+ */
+namespace app\admin\controller;
+
+use app\model\Region;
+use app\util\ReturnCode;
+
+
+class Regions extends Base{
+
+    /**
+     * 获取城市
+     * @return array
+     */
+    public function getcity()
+    {
+        return $this->buildSuccess(Region::getAll(['level'=>2,'status'=>1],'id,shortname'));
+    }
+
+    /**
+     * 获取城区/片区
+     * @return array
+     */
+    public function getdistrict()
+    {
+        $parentId = $this->request->post('id');
+        if(empty($parentId))
+
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+
+        return $this->buildSuccess(Region::getAll(['parentid'=>$parentId,'status'=>1],'id,shortname'));
+    }
+
+}

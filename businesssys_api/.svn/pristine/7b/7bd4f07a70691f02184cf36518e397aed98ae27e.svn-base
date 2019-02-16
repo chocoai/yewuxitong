@@ -1,0 +1,445 @@
+<?php
+
+namespace app\workflow\controller;
+
+use think\Controller;
+use think\Request;
+use think\Db;
+use app\workflow\model\WorkflowFlow as FlowModel;
+use app\workflow\model\WorkflowProcess as ProcessModel;
+use app\workflow\model\WorkflowFlowlink as FlowlinkModel;
+use app\workflow\model\WorkflowProcessVar as ProcessVarModel;
+
+class Process extends Controller
+{
+    /**添加步骤
+     * @param Request $request
+     * @return \think\response\Json
+     */
+    public function store(Request $request)
+    {
+        Db::startTrans();
+        try {
+            //{"status":1,"msg":"success","info":{"id":"9036","flow_id":1660,"process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"","style":"left:1105px;top:162px;color:#0e76a8;"}}
+            $data = $request->post();
+            $flow = FlowModel::find($data['flow_id']);
+
+            // {"total":9,"list":[{"id":"9023","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-lock","style":"width:30px;height:30px;line-height:30px;color:#78a300;left:492px;top:175px;"},{"id":"9024","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:453px;top:427px;"},{"id":"9025","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"9023,9026","icon":"icon-heart","style":"width:120px;height:30px;line-height:30px;color:#f70;left:871px;top:219px;"},{"id":"9026","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:865px;top:328px;"},{"id":"9028","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:201px;top:244px;"},{"id":"9033","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:572px;top:427px;"},{"id":"9036","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:1105px;top:162px;"},{"id":"9037","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:235px;top:109px;"},{"id":"9038","flow_id":"1660","process_name":"\u65b0\u5efa\u6b65\u9aa4","process_to":"","icon":"icon-star","style":"width:120px;height:30px;line-height:30px;color:#0e76a8;left:460px;top:91px;"}]}
+
+            $process = ProcessModel::create([
+                'flow_id' => $flow->id,
+                'process_name' => '新建步骤',
+                'style' => 'width:30px;height:30px;line-height:30px;color:#78a300;left:' . $data['left'] . ';top:' . $data['top'] . ';',
+                'position_left' => $data['left'],
+                'position_top' => $data['top']
+            ]);
+
+            if ($flow->jsplumb == '') {
+                //第一次新建
+                $jsplumb = [
+                    'total' => 1,
+                    "list" => [],
+                ];
+            } else {
+                //更新
+                $jsplumb = json_decode($flow->jsplumb, true);
+            }
+
+            $jsplumb['list'][] = [
+                'id' => $process->id,
+                'flow_id' => $flow->id,
+                'process_name' => $process->process_name,
+                'process_to' => '',
+                'icon' => '',
+                'style' => $process->style
+            ];
+
+            $flow->jsplumb = json_encode($jsplumb);
+            $flow->is_publish = 0;
+            $flow->save();
+
+            $res = [
+                "code" => 0,
+                "msg" => 'success',
+                'data' => [
+                    'id' => $process->id,
+                    'flow_id' => $flow->id,
+                    'process_name' => $process->process_name,
+                    'process_to' => '',
+                    'icon' => '',
+                    'style' => 'left:' . $data['left'] . ';top:' . $data['top'] . ';color:#0e76a8;'
+                ]
+            ];
+            Db::commit();
+            return json($res);
+        } catch (\Exception $e) {
+            Db::rollback();
+            return json(['code' => -1, 'msg' => $e->getMessage()]);
+        }
+    }
+
+    /**保存步骤配置
+     * @param Request $request
+     * @param $id  步骤id
+     * @return \think\response\Json
+     */
+    public function update(Request $request, $id)
+    {
+        $data = $request->post();
+        Db::startTrans();
+        try {
+            //更新当前步骤的基本信息以及样式
+            $process_name = $data['process_name'];
+            $style_color = $data['style_color'];
+            $style_icon = $data['style_icon'];
+            $style_height = $data['style_height'];
+            $style_width = $data['style_width'];
+
+            $process = ProcessModel::find($id);  //当前步骤
+
+            if (in_array($data['process_position'], [9])) {
+                if (FlowlinkModel::where('process_id', $id)->where("type", "Condition")->count() > 1) {
+                    throw new \Exception("该节点是分支节点，不能设置为结束步骤");
+                }
+            }
+
+            //position 0第一步 1正常步骤 9最后一步 2转入子流程
+            if (in_array($data['process_position'], [0])) {
+                ProcessModel::where(['flow_id' => $process->flow_id, 'position' => 0])->update(['position' => 1]);
+                ProcessModel::where(['flow_id' => $process->flow_id, 'id' => $id])->update(['position' => 0]);
+            }
+
+            //不允许会签
+//            if($data['is_sign']==0){
+//                $data['approval_num'] = '';
+//                $data['approval_type'] = '';
+//            }
+            //更新步骤
+            $process->update([
+                'id' => $id,
+                'process_name' => $process_name,
+                'style_color' => $style_color,
+                'style_height' => $style_height,
+                'style_width' => $style_width,
+                'style' => 'width:' . $style_width . 'px;height:' . $style_height . 'px;line-height:30px;color:' . $style_color . ';left:' . $process->position_left . ';top:' . $process->position_top . ';',
+                'icon' => $style_icon,
+                'position' => $data['process_position'],
+                'child_flow_id' => $data['child_flow_id'],
+                'child_after' => $data['child_after'],
+                'child_back_process' => $data['child_back_process'],
+                'backtype' => $data['backtype'],
+                'is_sign' => $data['is_sign'],
+                'approval_num' => $data['approval_num'],
+                'approval_type' => $data['approval_type'],
+                'wf_status' => $data['wf_status'],
+                'wf_nextuser' => isset($data['wf_nextuser'])?$data['wf_nextuser']:0
+            ]);
+
+            // 同步更新jsplumb json数据
+            $flow = FlowModel::find($process->flow_id);
+            $jsplumb = json_decode($flow->jsplumb, true);
+            foreach ($jsplumb['list'] as $k => $v) {
+                if ($v['id'] == $id) {
+                    $jsplumb['list'][$k]['process_name'] = $process_name;
+                    $jsplumb['list'][$k]['style'] = $process->style;
+                    $jsplumb['list'][$k]['icon'] = $process->icon;
+                }
+            }
+            $flow->jsplumb = json_encode($jsplumb);
+            $flow->is_publish = 0;
+            $flow->save();
+
+            //更新步骤 流转条件 process_condition
+            $condition = $request->post('process_condition', ',', 'trim');
+            if (!empty($condition)) {
+                $process_condition = explode(',', $condition);
+                foreach ($process_condition as $v) {
+                    //获取流转设置的表达式'$day' > '3'  AND '$day' <= '14'
+                    if ($exp = $request->post('process_in_set_' . $v, '')) {
+
+                        //匹配变量
+                        // $exp='$day > 3  AND $day <= 14';
+                        preg_match_all("/\\$(\w+)/", $exp, $variables);
+                        if (empty($variables) && empty($variables[1])) {
+                            throw new \Exception("非法参数");
+                        }
+                        foreach ($variables[1] as $var) {
+                            $flow_var = ProcessVarModel::where(['expression_field' => $var, 'process_id' => $id, 'next_process_id' => $v])->find();
+                            if (!$flow_var) {
+                                ProcessVarModel::create([
+                                    'process_id' => $id,
+                                    'next_process_id' => $v,
+                                    'flow_id' => $flow->id,
+                                    'expression_field' => $var,
+                                    'table_name' => $request->post('process_in_table_' . $v, '')
+                                ]);
+                            } else {
+                                $flow_var->update([
+                                    'id' => $flow_var->id,
+                                    'expression_field' => $var,
+                                    'table_name' => $request->post('process_in_table_' . $v, '')
+                                ]);
+                            }
+                        }
+                        //当前流转
+                        $link = FlowlinkModel::where(['flow_id' => $flow->id, 'process_id' => $id, 'next_process_id' => $v])->find();
+                        $exp = str_replace(PHP_EOL, " ", str_replace("'", "", $exp));
+                        $link->update([
+                            'id' => $link->id,
+                            'expression' => $exp
+                        ]); //更新条件
+                    }
+                }
+            }
+            //权限处理
+
+            if ($data['auto_person'] != 0) {
+                //系统自动选人
+                if ($flowlink = FlowlinkModel::where(['flow_id' => $flow->id, 'type' => 'Sys', 'process_id' => $id])->find()) {
+                    $flowlink->update([
+                        'id' => $flowlink->id,
+                        'auditor' => $data['auto_person']
+                    ]);
+                } else {
+                    FlowlinkModel::create([
+                        'flow_id' => $flow->id,
+                        'type' => 'Sys',
+                        'process_id' => $id,
+                        'auditor' => $data['auto_person'],
+                        'next_process_id' => 0,
+                        'sort' => 100
+                    ]);
+                }
+                //删除
+                FlowlinkModel::where(['flow_id' => $flow->id, 'process_id' => $id])
+                    ->where('type', '<>', 'Condition')
+                    ->where('type', '<>', 'Sys')
+                    ->delete();
+            } else {
+                //指定角色
+                if ($role_ids = $data['range_role_ids']) {
+                    if ($flowlink = FlowlinkModel::where(['flow_id' => $flow->id, 'type' => 'Role', 'process_id' => $id])->find()) {
+                        $flowlink->update([
+                            'id' => $flowlink->id,
+                            'auditor' => $role_ids
+                        ]);
+                    } else {
+                        FlowlinkModel::create([
+                            'flow_id' => $flow->id,
+                            'type' => 'Role',
+                            'process_id' => $id,
+                            'auditor' => $role_ids,
+                            'next_process_id' => 0,
+                            'sort' => 100
+                        ]);
+                    }
+                } else {
+                    FlowlinkModel::where(['flow_id' => $flow->id, 'process_id' => $id])->where('type', 'Role')->delete();
+                }
+
+                //指定部门
+                if ($dept_ids = $data['range_dept_ids']) {
+                    if ($flowlink = FlowlinkModel::where(['flow_id' => $flow->id, 'type' => 'Dept', 'process_id' => $id])->find()) {
+                        $flowlink->update([
+                            'id' => $flowlink->id,
+                            'auditor' => $dept_ids
+                        ]);
+                    } else {
+                        FlowlinkModel::create([
+                            'flow_id' => $flow->id,
+                            'type' => 'Dept',
+                            'process_id' => $id,
+                            'auditor' => $dept_ids,
+                            'next_process_id' => 0,
+                            'sort' => 100
+                        ]);
+                    }
+                } else {
+                    FlowlinkModel::where(['flow_id' => $flow->id, 'process_id' => $id])->where('type', 'Dept')->delete();
+                }
+
+                //指定员工
+                if ($emp_ids = $data['range_emp_ids']) {
+                    if ($flowlink = FlowlinkModel::where(['flow_id' => $flow->id, 'type' => 'Emp', 'process_id' => $id])->find()) {
+                        $flowlink->update([
+                            'id' => $flowlink->id,
+                            'auditor' => $emp_ids
+                        ]);
+                    } else {
+                        FlowlinkModel::create([
+                            'flow_id' => $flow->id,
+                            'type' => 'Emp',
+                            'process_id' => $id,
+                            'auditor' => $emp_ids,
+                            'next_process_id' => 0,
+                            'sort' => 100
+                        ]);
+                    }
+                } else {
+                    FlowlinkModel::where(['flow_id' => $flow->id, 'process_id' => $id])->where('type', 'Emp')->delete();
+                }
+            }
+            Db::commit();
+            return json(['code' => 1, 'msg' => '保存成功']);
+        } catch (\Exception $e) {
+            Db::rollback();
+            return json(['code' => 0, 'msg' => $e->getMessage()]);
+        }
+    }
+
+    /**删除步骤
+     * @param Request $request
+     * @return \think\response\Json
+     */
+    public function destroy(Request $request)
+    {
+        Db::startTrans();
+        try {
+            $data = $request->post();
+            $id = $data['id'];
+            $flow = FlowModel::find($data['flow_id']);
+
+            FlowlinkModel::del(['flow_id' => $flow->id, 'process_id' => $id]);
+
+            FlowlinkModel::where(['flow_id' => $flow->id, 'next_process_id' => $id])->update([
+                'next_process_id' => -1
+            ]);
+            ProcessModel::del($data);
+            $jsplumb = json_decode($flow->jsplumb, true);
+            foreach ($jsplumb['list'] as $k => $v) {
+                if ($v['id'] == $id) {
+                    unset($jsplumb['list'][$k]);
+                }
+            }
+            $flow->jsplumb = json_encode($jsplumb);
+            $flow->is_publish = 0;
+            $flow->save();
+            Db::commit();
+            return json(['status_code' => 0, 'message' => '删除成功']);
+        } catch (\Exception $e) {
+            Db::rollback();
+            return json(['status_code' => -1, 'message' => $e->getMessage()]);
+        }
+    }
+
+
+    /**节点属性
+     * @param Request $request
+     */
+    public function attribute(Request $request)
+    {
+        $id = input('id');
+        $process = ProcessModel::find($id);
+        //当前步骤的下一步操作
+        $next_process = FlowlinkModel::where(['process_id' => $process->id, 'flow_id' => $process->flow_id, 'type' => 'Condition'])->select();
+        foreach ($next_process as &$item) {
+            $item->next_process_name = ProcessModel::where('id', $item->next_process_id)->value('process_name');
+        }
+        $beixuan_process = FlowlinkModel::where(['flow_id' => $process->flow_id, 'type' => 'Condition'])
+            ->where('process_id', '<>', $process->id)
+            ->whereNotIn('process_id', array_column($next_process, 'next_process_id'))
+            ->group('process_id')
+            ->select();
+        //流程模板 表单字段
+        $flow = FlowModel::find($process->flow_id);
+        $fields = [];
+        //当前选择员工
+        $select_emps = Db::name('SystemUser')->whereIn('id', explode(',', FlowlinkModel::where('type', 'Emp')->where('process_id', $process->id)->value('auditor')))->select();
+        $sys = FlowlinkModel::where(['process_id' => $process->id, 'flow_id' => $process->flow_id, 'type' => 'Sys'])->value('auditor');
+        $select_depts = Db::name('SystemDept')->whereIn('id', explode(',', FlowlinkModel::where('type', 'Dept')->where('process_id', $process->id)->value('auditor')))->select();
+        $select_role = Db::name('SystemPosition')
+            ->whereIn('id', explode(',', FlowlinkModel::where('type', 'Role')
+                ->where('process_id', $process->id)->value('auditor')))->field('id,name')->select();
+        $flows = FlowModel::where('is_publish', 1)->where('id', '<>', $process->flow_id)->select();
+        $processes = ProcessModel::where('flow_id', $process->flow_id)->select();
+        $can_child = FlowlinkModel::where(['process_id' => $process->id, "type" => "Condition"])->count() == 1;
+        $data_info = [
+            '0' => '可设置一人',
+            '1' => '所有人同意时，流程才流转到下一节点。任意一人不同意时退回到指定节点',
+            '2' => '只要任意一审批人通过,流程就流转到下一审批节点',
+            '3' => '所有审批人依次审批通过，流程流转到下一节点',
+        ];
+        return view('', [
+            'next_process' => $next_process,
+            'beixuan_process' => $beixuan_process,
+            'fields' => $fields,
+            'select_emps' => $select_emps,
+            'sys' => $sys,
+            'select_depts' => $select_depts,
+            'select_role' => $select_role,
+            'flows' => $flows,
+            'process' => $process,
+            'processes' => $processes,
+            'can_child' => $can_child,
+            'data_info' => $data_info
+        ]);
+    }
+
+
+    /** 转出条件
+     * @param Request $request
+     * @return \think\response\Json
+     */
+    public function condition(Request $request)
+    {
+        $flow_id = $request->post('flow_id');
+        $process_id = $request->post('process_id');
+        $next_process_id = $request->post('next_process_id');
+
+        //当前流转
+        $flowlink = FlowlinkModel::where(['process_id' => $process_id, 'next_process_id' => $next_process_id, 'flow_id' => $flow_id, 'type' => 'Condition'])
+            ->field('id,process_id,next_process_id,flow_id,expression')->findOrFail();
+        $flowlink['table'] = ProcessVarModel::where(['process_id' => $flowlink['process_id'], 'flow_id' => $flowlink['flow_id'], 'next_process_id' => $next_process_id])->value('table_name');
+        $data = [];
+        $data[$flowlink->next_process_id] = $flowlink;
+        return json($data);
+    }
+
+    /**设置为第一步
+     * @param Request $request
+     * @return \think\response\Json
+     */
+    public function setFirst(Request $request)
+    {
+        $flow_id = $request->post('flow_id', 0);
+        $process_id = $request->post('process_id', 0);
+        Db::startTrans();
+        try {
+            if (FlowlinkModel::where('process_id', $process_id)->where("type", "Condition")->where('next_process_id', '>', '-1')->count() > 1) {
+                throw new \Exception("该节点是分支节点，不能设置为开始步骤", 1);
+            }
+            //原有第一步设置为正常步骤
+            ProcessModel::where(['flow_id' => $flow_id, 'position' => 0])->update(['position' => 1]);
+            ProcessModel::where(['flow_id' => $flow_id, 'id' => $process_id])->update(['position' => 0]);
+            Db::commit();
+        } catch (\Exception $e) {
+            return json(['code' => 0, 'msg' => $e->getMessage()]);
+            Db::rollback();
+        }
+        return json(['code' => 1, 'msg' => '设置成功']);
+    }
+
+    /**
+     * @param Request $request
+     * @return \think\response\Json 设置为最后一步
+     */
+    public function setLast(Request $request)
+    {
+        $flow_id = $request->post('flow_id', 0);
+        $process_id = $request->post('process_id', 0);
+        Db::startTrans();
+        try {
+            if (FlowlinkModel::where('process_id', $process_id)->where("type", "Condition")->where('next_process_id', '>', '-1')->count() > 1) {
+                throw new \Exception("该节点是分支节点，不能设置为结束步骤", 1);
+            }
+            ProcessModel::where(['flow_id' => $flow_id, 'position' => 9])->update(['position' => 1]);
+            ProcessModel::where(['flow_id' => $flow_id, 'id' => $process_id])->update(['position' => 9]);
+            Db::commit();
+        } catch (\Exception $e) {
+            return json(['code' => 0, 'msg' => $e->getMessage()]);
+            Db::rollback();
+        }
+        return json(['code' => 1, 'msg' => '设置成功']);
+    }
+
+}

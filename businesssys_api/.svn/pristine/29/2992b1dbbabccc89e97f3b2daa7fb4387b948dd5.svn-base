@@ -1,0 +1,27 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/9
+ * Time: 17:58
+ */
+namespace app\admin\validate;
+use think\Validate;
+
+
+class FinanVail extends Validate{
+
+    protected $rule = [
+        'order_sn|订单编号' =>'require',
+        'finance_sn|财务序号'  =>  'require|number',
+        'guarantee_fee|担保费' =>  'max:12|number',
+        'fee|手续费'=> 'max:12|number',
+        'self_financing|自筹金额' =>'max:12|number',
+        'short_loan_interest|短贷利息'  =>  'max:12|number',
+        'return_money|赎楼返还款' =>  'max:12|number',
+        'default_interest|罚息'=> 'max:12|number',
+        'overdue_money|逾期金额' =>'max:12|number',
+        'other_money|其它'  =>  'max:12|number'
+    ];
+
+}

@@ -1,0 +1,657 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+
+namespace app\model;
+
+use app\util\Tools;
+use think\Db;
+use app\util\OrderComponents;
+
+class Order extends Base
+{
+
+    protected $dateFormat = 'Y-m-d';
+//（现金类业务才有回款）回款状态
+    public static $returnMoneyStatusMap = [
+        1 => '回款待完成',
+        2 => '回款完成待复核',
+        3 => '回款完成待核算',
+        4 => "回款已完成"
+    ];
+
+    /**
+     * /* @author 林桂均
+     * 订单列表查询
+     * @param array $where
+     * @param $page
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderList($where, $page, $pageSize)
+    {
+
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $where['y.status'] = 1;
+        $where['z.status'] = 1;
+        $where['x.status'] = 1;
+        return self::alias('x')
+            ->field('x.order_sn,x.financing_manager_id,x.type,x.create_time,x.stage,x.status,y.estate_region,estate_name,y.estate_owner,x.is_mortgage_finish,x.is_foreclosure_finish,z.is_loan_finish,z.guarantee_fee_status,x.is_data_entry')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'left')
+            ->join('order_guarantee z', 'x.order_sn=z.order_sn')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * /* @author 林桂均
+     * 订单详情
+     * @param $orderSn
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderDetail($orderSn, $type)
+    {
+
+        $orderModel = self::alias('x');
+        $field = 'x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,x.create_uid';
+        if ($type === 'TMXJ' || $type === 'GMDZ') {
+            $field = 'x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,x.create_uid,y.evaluation_price,y.now_mortgage';
+            $orderModel->join('order_guarantee y', 'x.order_sn=y.order_sn', 'left');
+        }
+        $orderInfo = $orderModel->field($field)->where(['x.order_sn' => $orderSn, 'x.status' => 1, 'x.type' => $type])->find();
+
+        if (!$orderInfo)
+            return false;
+        return $orderInfo;
+    }
+
+    /* @author 赵光帅
+     * 费用入账列表查询
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function costList($map, $page, $pageSize)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.finance_sn,x.type,z.name,estate_name,y.estate_owner,n.ac_guarantee_fee_time,n.guarantee_fee,n.ac_guarantee_fee,n.guarantee_fee_status')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'LEFT')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+    }
+
+    /* @author 赵光帅
+     * 导出费用入账列表查询
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function exportFinanceList($map)
+    {
+        //根据条件查询出所有符合要求的订单
+        $orderSnInfo = Db::name('order')->alias('x')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'LEFT')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->column('x.order_sn');
+        //组装房产的数据
+        $estatesInfo = self::assembleEstate($orderSnInfo);
+        //获取业主姓名
+        $sellerName = self::customerName($orderSnInfo, 1);
+        //获取买方姓名
+        $buyerName = self::customerName($orderSnInfo, 2);
+
+        $field = 'x.order_sn,x.finance_sn,x.type,
+            y.estate_name,y.estate_owner,y.estate_area,z.name,z.deptname,
+            n.guarantee_fee,n.fee,n.ac_guarantee_fee,n.ac_fee,n.ac_self_financing
+            ,n.ac_short_loan_interest,n.ac_return_money,n.ac_default_interest,n.ac_overdue_money
+            ,n.ac_exhibition_fee,n.ac_transfer_fee,n.ac_deposit,n.ac_other_money
+            ,x.order_source,x.source_info,n.ac_guarantee_fee_time';
+        $resInfo = Db::name('order')->alias('x')
+            ->field($field)
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'LEFT')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->select();
+        $dictonaryType = ['ORDER_TYPE', 'CUSTOMERSOURCE'];
+        $dictonaryTypeArr = dictionary_reset(Dictionary::dictionaryMultiType($dictonaryType), 1);
+        if ($resInfo) {
+            $num = 1;
+            foreach ($resInfo as &$val) {
+                //添加序号
+                array_unshift($val, $num);
+                $num++;
+                $val['type'] = !empty($dictonaryTypeArr['ORDER_TYPE'][$val['type']]) ? $dictonaryTypeArr['ORDER_TYPE'][$val['type']] : '';
+                $val['order_source'] = !empty($dictonaryTypeArr['CUSTOMERSOURCE'][$val['order_source']]) ? $dictonaryTypeArr['CUSTOMERSOURCE'][$val['order_source']] : '';
+                if ($val['ac_guarantee_fee_time']) {
+                    $val['ac_guarantee_fee_time'] = date('Y-m-d H:i:s', $val['ac_guarantee_fee_time']);
+                }
+                //应收金额
+                $val['guarantee_fee'] = $val['guarantee_fee'] + $val['fee'];
+                //实收金额
+                $val['fee'] = $val['ac_guarantee_fee'] + $val['ac_fee'] + $val['ac_self_financing'] + $val['ac_short_loan_interest']
+                    + $val['ac_return_money'] + $val['ac_default_interest'] + $val['ac_overdue_money'] + $val['ac_exhibition_fee'] + $val['ac_transfer_fee']
+                    + $val['ac_deposit'] + $val['ac_other_money'];
+                //更改房产
+                if (isset($estatesInfo[$val['order_sn']]) && !empty($estatesInfo[$val['order_sn']])) {
+                    $val['estate_name'] = join('；', $estatesInfo[$val['order_sn']]);
+                } else {
+                    $val['estate_name'] = '';
+                }
+
+                //更改业主姓名
+                if (isset($sellerName[$val['order_sn']]) && !empty($sellerName[$val['order_sn']])) {
+                    $val['estate_owner'] = join('；', $sellerName[$val['order_sn']]);
+                } else {
+                    $val['estate_owner'] = '';
+                }
+
+                //更改买方姓名
+                if (isset($buyerName[$val['order_sn']]) && !empty($buyerName[$val['order_sn']])) {
+                    $val['estate_area'] = join('；', $buyerName[$val['order_sn']]);
+                } else {
+                    $val['estate_area'] = '';
+                }
+
+            }
+        }
+        return $resInfo;
+    }
+
+
+    /*
+    * 组装卖家买家姓名
+    * @param {arr}  $orderSnInfo   订单编号
+    * @param {int}  type  1卖家姓名  2买家姓名
+    * */
+    public static function customerName($orderSnInfo, $type)
+    {
+        if ($type === 1) {
+            $customerInfo = Db::name('customer')->where(['order_sn' => ['in', $orderSnInfo], 'is_seller' => 2, 'status' => 1])->field('order_sn,cname')->select(); //业主姓名
+        } else {
+            $customerInfo = Db::name('customer')->where(['order_sn' => ['in', $orderSnInfo], 'is_seller' => 1, 'status' => 1])->field('order_sn,cname')->select(); //业主姓名
+        }
+
+        $returnArr = [];
+        foreach ($orderSnInfo as $k => $v) {
+            foreach ($customerInfo as $key => $val) {
+                if ($val['order_sn'] == $v) {
+                    $returnArr[$v][] = $val['cname'];
+                }
+            }
+        }
+        return $returnArr;
+    }
+
+
+    /*
+     * 组装房产名称
+     * @Param {arr}  $orderSnInfo   订单编号
+     * */
+    public static function assembleEstate($orderSnInfo)
+    {
+        //查询出所有的房产名称
+        $where['order_Sn'] = ['in', $orderSnInfo];
+        $where['estate_usage'] = 'DB';
+        $where['delete_time'] = null;
+        $where['status'] = 1;
+        $estateInfo = Db::name('estate')->where($where)->field('order_sn,estate_name')->select();
+        $returnArr = [];
+        foreach ($orderSnInfo as $k => $v) {
+            foreach ($estateInfo as $key => $val) {
+                if ($val['order_sn'] == $v) {
+                    $returnArr[$v][] = $val['estate_name'];
+                }
+            }
+        }
+        return $returnArr;
+    }
+
+
+    /* @author 赵光帅
+     * 订单信息与财务入账流水明细
+     * @apiParam {string}  order_sn   订单编号
+     */
+
+    public static function booksDetail($order_sn)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,z.name,z.deptname,x.finance_sn,n.self_financing,n.guarantee_fee,n.fee,n.guarantee_fee_status')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->where(['x.order_sn' => $order_sn])
+            ->find();
+    }
+
+    /* @author 赵光帅
+     * 订单信息与银行放款流水明细
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function bankList($map, $page, $pageSize)
+    {
+        $resInfo = self::alias('x')
+            ->field('x.order_sn,x.finance_sn,x.type,z.name,estate_name,y.estate_owner,n.loan_money_time,n.money,n.loan_money,n.loan_money_status')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'LEFT')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('n.loan_money_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if ($resInfo) {
+            foreach ($resInfo['data'] as &$val) {
+                $val['type_text'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']] : '';
+            }
+        }
+        return $resInfo;
+    }
+
+    /* @author 赵光帅
+     * 银行放款入账流水订单信息
+     * @apiParam {string}  order_sn   订单编号
+     */
+
+    public static function banksDetail($order_sn)
+    {
+        $resInfo = self::alias('x')
+            ->field('x.order_sn,x.type,z.name,z.deptname,x.finance_sn,n.money,n.loan_money,n.is_loan_finish,n.loan_money_status,n.out_account_total,y.dp_redeem_bank')
+            ->join('order_guarantee n', 'x.order_sn = n.order_sn', 'LEFT')
+            ->join('system_user z', 'x.financing_manager_id = z.id', 'LEFT')
+            ->join('order_dp y', 'x.order_sn = y.order_sn', 'LEFT')
+            ->where(['x.order_sn' => $order_sn])
+            ->find();
+        $resInfo['chuzhang_money'] = $resInfo['out_account_total'];
+        $orderTypeArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if ($resInfo) {
+            $resInfo['type'] = $orderTypeArr[$resInfo['type']] ? $orderTypeArr[$resInfo['type']] : '';
+        }
+        return $resInfo;
+    }
+
+    /* @author 赵光帅
+     * 发送指令列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function instructionList($map, $page, $pageSize)
+    {
+        $resInfo = self::alias('x')
+            ->field('x.order_sn,x.finance_sn,x.type,z.name,y.estate_name,y.estate_owner,n.instruct_status,n.is_loan_finish')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('n.loan_money_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if ($resInfo) {
+            foreach ($resInfo['data'] as &$val) {
+                $val['type_text'] = $val['type'];
+                $val['type'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']] : '';
+            }
+        }
+        return $resInfo;
+    }
+
+    /* @author 赵光帅
+     * 资料入架列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function dataList($map, $page, $pageSize)
+    {
+        $resInfo = self::alias('x')
+            ->field('x.order_sn,x.type,x.stage,x.create_time,z.name,y.estate_name,y.estate_region,y.estate_owner,n.is_combined_loan,w.id as proc_id')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'LEFT')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->join('workflow_proc w', 'x.order_sn=w.order_sn')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        foreach ($resInfo['data'] as $k => $v) {
+            $resInfo['data'][$k]['create_time'] = date('Y-m-d H:i', strtotime($v['create_time']));
+            $resInfo['data'][$k]['type_text'] = $v['type'];
+            $resInfo['data'][$k]['type'] = $orderTypeArr[$v['type']] ? $orderTypeArr[$v['type']] : '';
+            $resInfo['data'][$k]['order_status'] = show_status_name($v['stage'], 'ORDER_JYDB_STATUS');
+            unset($resInfo['data'][$k]['stage']);
+            $estate_ecity_arr = explode('|', $v['estate_region']);
+            if (is_array($estate_ecity_arr)) {
+                $resInfo['data'][$k]['estate_ecity_name'] = $estate_ecity_arr[0];
+                if (!empty($estate_ecity_arr[1])) {
+                    $resInfo['data'][$k]['estate_district_name'] = $estate_ecity_arr[1];
+                } else {
+                    $resInfo['data'][$k]['estate_district_name'] = '';
+                }
+            } else {
+                $resInfo['data'][$k]['estate_ecity_name'] = '';
+                $resInfo['data'][$k]['estate_district_name'] = '';
+            }
+            unset($resInfo['data'][$k]['estate_region']);
+            $organization = OrderComponents::showMortgage($v['order_sn'], 'organization', 'ORIGINAL');
+            $resInfo['data'][$k]['organization'] = $organization;
+        }
+        return $resInfo;
+    }
+
+    /* @author 赵光帅
+     * 财务结单列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function finanStateList($map, $page, $pageSize)
+    {
+        $resInfo = Db::name('order')->alias('x')
+            ->field('x.id,x.order_sn,x.finance_sn,x.stage,x.type,x.order_finish_achievement,x.order_finish_date,x.info_fee_date,x.return_money_finish_date,x.remortgage_date,z.name,z.deptname,y.estate_name,c.cname,n.money,n.guarantee_fee,n.info_fee,n.ac_guarantee_fee,n.ac_guarantee_fee_time,n.ac_exhibition_fee,n.ac_overdue_money,n.ac_transfer_fee')
+            ->join('order_guarantee n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'LEFT')
+            ->join('customer c', 'x.order_sn=c.order_sn', 'LEFT')
+            ->join('system_user z', 'x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.order_finish_date desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if ($resInfo) {
+            foreach ($resInfo['data'] as &$val) {
+                $val['type_text'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']] : '';
+                $val['hang_achievement'] = $val['ac_guarantee_fee'] + $val['ac_exhibition_fee'] + $val['ac_overdue_money'] + $val['ac_transfer_fee'] - $val['info_fee'];
+                unset($val['ac_exhibition_fee']);
+                unset($val['ac_overdue_money']);
+                unset($val['ac_transfer_fee']);
+                if ($val['stage'] == 1026) {
+                    $val['statement_state'] = "待结单";
+                } else {
+                    $val['statement_state'] = "已结单";
+                }
+                if ($val['ac_guarantee_fee_time'])
+                    $val['ac_guarantee_fee_time'] = date('Y-m-d H:i:s', $val['ac_guarantee_fee_time']);
+                //查询出每个订单所有的担保申请人
+                $val['customer_sum'] = Db::name('customer')->where(['is_guarantee' => 1, 'order_sn' => $val['order_sn']])->column('cname');
+            }
+        }
+        return $resInfo;
+    }
+
+    /**
+     * 获取业务类型
+     * @return 业务类型
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $type
+     * @author zhongjiaqi 5.18
+     */
+    public function getType($type = '')
+    {
+        $types = (new Dictionary())->getValnameByCode('ORDER_TYPE', $type);
+        return empty($types) ? '' : $types;
+    }
+
+    /**
+     * 赎楼正常派单列表
+     * @param $where
+     * @param $page
+     * @param $pageSize
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function ransomerList($where = [], $page, $pageSize)
+    {
+        $where['x.status'] = 1;
+        $where['z.is_dispatch'] = 1; //正常派单
+        $where['x.is_data_entry'] = 1; //资料已入架
+        $where['z.guarantee_fee_status'] = 2; //担保费已收齐
+        $where['z.is_loan_finish'] = 1; //银行放款完成或者全部渠道放款完成
+        $where['x.stage'] = 1013; //待指派赎楼员
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        return self::alias('x')
+            ->field('x.order_sn,x.financing_manager_id,x.finance_sn,x.type,y.estate_owner,z.is_combined_loan')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'left')
+            ->join('order_guarantee z', 'x.order_sn=z.order_sn', 'left')
+            ->where($where)
+            ->where("z.is_need_verify_card=0 or (z.is_need_verify_card=1 and z.is_verify_card=1)")
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 其他派单列表
+     * @param array $where
+     * @param $page
+     * @param $pageSize
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function ortherRansomerList($where = [], $page, $pageSize)
+    {
+        $where['x.is_data_entry'] = 1; //资料已入架
+        $where['z.guarantee_fee_status'] = 2; //担保费已收齐
+        $where['z.is_loan_finish'] = 1; //银行放款完成
+        $where['z.is_dispatch'] = 2; //其他派单
+        $where['x.stage'] = 1013; //待指派赎楼员
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        return self::alias('x')
+            ->field('x.order_sn,x.financing_manager_id,x.finance_sn,x.type,y.estate_owner,z.is_combined_loan')
+            ->join('estate y', 'x.order_sn=y.order_sn')
+            ->join('order_guarantee z', 'x.order_sn=z.order_sn')
+            ->where($where)
+            ->where("z.is_need_verify_card=0 or (z.is_need_verify_card=1 and z.is_verify_card=1)")
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 退回派单列表
+     * @param $where
+     * @param $page
+     * @param $pageSize
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function returnRansomerList($where = [], $page, $pageSize)
+    {
+        $where['a.status'] = 1;
+        $where['a.is_dispatch'] = 2;
+        $where['x.status'] = 1;
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        return self::alias('x')
+            ->field('x.order_sn,x.financing_manager_id,x.finance_sn,x.type,y.estate_owner,z.is_combined_loan,a.ransom_bank,a.ransomer,a.create_time,a.ransom_type,a.id,a.is_dispatch')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'left')
+            ->join('order_guarantee z', 'x.order_sn=z.order_sn')
+            ->join('order_ransom_dispatch a', 'x.order_sn=a.order_sn')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->group('a.id')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 权证列表
+     */
+    public static function orderWarrant($where = [], $page, $pageSize)
+    {
+        $where['x.status'] = 1;
+        $where['y.status'] = 1;
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        return self::alias('x')
+            ->field('x.order_sn,x.type,y.estate_owner,z.is_finish,z.create_time,a.name,a.deptname,z.id')
+            ->join('estate y', 'x.order_sn=y.order_sn')
+            ->join('order_warrant z', 'x.order_sn=z.order_sn')
+            ->join('system_user a ', 'a.id=x.financing_manager_id')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 权证列表
+     */
+    public static function orderWarrantRedbook($where = [], $page, $pageSize)
+    {
+        $where['x.status'] = 1;
+        $where['y.status'] = 1;
+
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        return self::alias('x')
+            ->field('x.order_sn,x.type,y.estate_owner,z.is_finish,z.create_time,a.name,a.deptname,z.id')
+            ->join('order_guarantee b', 'x.order_sn=b.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn')
+            ->join('order_warrant z', 'x.order_sn=z.order_sn')
+            ->join('system_user a ', 'a.id=x.financing_manager_id')
+            ->where($where)
+            ->where("b.is_instruct=0 or (b.is_instruct=1 and b.instruct_status=3)")//需要发送指令并且指令状态为已发送
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 订单短期借款列表
+     * @param array $where
+     * @param $page
+     * @param $pageSize
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function dqjkList($where = [], $page, $pageSize)
+    {
+        $search = input('post.search', '', 'trim');
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $where['x.status'] = 1;
+        $where['z.status'] = 1;
+        $model = self::alias('x')->field('x.order_sn,x.money,x.financing_manager_id,x.type,x.create_time,x.stage,z.turn_into_date,z.turn_back_date,x.is_return_money_finish,x.is_data_entry,z.guarantee_fee_status');
+        if (!empty($search)) {
+            $where['y.openbank'] = ['like', "%{$search}%"];
+            $model->join('order_guarantee_bank y', 'x.order_sn=y.order_sn');
+        }
+
+        $model->join('order_guarantee z', 'x.order_sn=z.order_sn');
+        $model->where($where);
+        $model->order('x.create_time desc');
+        return $model->group('x.order_sn')->paginate(['list_rows' => $pageSize, 'page' => $page])->toArray();
+    }
+
+    /**
+     * 资料送审列表
+     * @param array $where
+     * @param $page
+     * @param $pageSize
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function dataSendList($where, $page, $pageSize)
+    {
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $where['x.status'] = 1;
+        $where['y.status'] = 1;
+        $where['z.status'] = 1;
+//        $where['x.is_data_entry'] = 1; //风控完成
+        $where['x.stage'] = array('egt', 1012); //待资料入架就能资料送审  2018.8.21
+        return self::alias('x')
+            ->field('x.order_sn,x.financing_manager_id,x.type,x.create_time,x.stage,x.status,y.estate_owner,y.estate_region,estate_name,z.fund_channel_name,z.money,z.delivery_status,z.fund_channel_id,z.id,a.name')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'left')
+            ->join('order_fund_channel z', 'x.order_sn=z.order_sn')
+            ->join('system_user a', 'x.financing_manager_id=a.id')
+            ->where($where)
+            ->where("x.type not in('SQDZ','DQJK')")
+            ->order('z.create_time desc')
+            ->group('z.id')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 订单综合列表查询
+     * @param array $where
+     * @param $page
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function totalOrderList($where, $page, $pageSize)
+    {
+        !$pageSize && $pageSize = config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $where['z.status'] = 1;
+        $where['x.status'] = 1;
+        return self::alias('x')
+            //->field('x.order_sn,x.finance_sn,x.financing_manager_id,x.type,x.create_time,x.stage,x.status,y.estate_region,estate_name,y.estate_owner')
+            ->field('x.order_sn,x.finance_sn,x.financing_manager_id,x.type,x.create_time,x.stage,x.status')
+            ->join('estate y', 'x.order_sn=y.order_sn', 'left')
+            ->join('order_guarantee z', 'x.order_sn=z.order_sn')
+            ->where($where)
+            //->where( "y.status=1 or y.status is null")
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows' => $pageSize, 'page' => $page])
+            ->toArray();
+    }
+
+    /**
+     * 根据订单号查询出房产信息
+     * @param array $resultInfo
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function getOrderInfo($resultInfo)
+    {
+        $estatearr = ['estate_region' => "", "estate_name" => "", "estate_owner" => ""];
+        foreach ($resultInfo['data'] as $k => $v) {
+            if ($v['type'] == "DQJK") {
+                $resultInfo['data'][$k] = array_merge($v, $estatearr);
+            } else {
+                $estateInfo = Db::name("estate")->where(['order_sn' => $v['order_sn'], "estate_usage" => "DB", "status" => 1])->field('estate_region,estate_name,estate_owner')->find();
+                if (empty($estateInfo)) {
+                    $resultInfo['data'][$k] = array_merge($v, $estatearr);
+                } else {
+                    $resultInfo['data'][$k] = array_merge($v, $estateInfo);
+                }
+            }
+        }
+        return $resultInfo;
+    }
+
+}

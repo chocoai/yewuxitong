@@ -1,0 +1,25 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+
+class OrderCostDetail extends Base
+{
+    /**操作类型
+     * @var array
+     */
+    public static $typeMap = [
+        1 => '出账',
+        2 => '入账',
+        3 => '回款'
+    ];
+    /**状态
+     * @var array
+     */
+    public static $statusMap = [
+        1 => '正常',
+        2 => '驳回',
+        3 => '退回'
+    ];
+}

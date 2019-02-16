@@ -1,0 +1,42 @@
+{
+    "name": "businesssysapi",
+    "description": "the api manager",
+    "type": "project",
+    "keywords": [
+        "api",
+        "businesssys_api",
+        "tp5"
+    ],
+    "homepage": "http://api.ezczx.net/",
+    "license": "Apache-2.0",
+    "authors": [{
+        "name": "房帮帮",
+        "email": "fbb@ezczx.com"
+    }],
+    "autoload": {
+        "psr-4": {
+            "app\\": "application"
+        }
+    },
+    "require": {
+        "php": ">=5.6.0",
+        "php-curl-class/php-curl-class": "^8.0",
+        "topthink/framework": "5.0.20",
+        "topthink/think-image": "^1.0",
+        "topthink/think-worker": "^1.0",
+        "workerman/workerman-for-win": "^3.5",
+        "phpoffice/phpexcel": "^1.8"
+    },
+    "extra": {
+        "think-path": "thinkphp"
+    },
+    "config": {
+        "preferred-install": "dist"
+    },
+    "repositories": {
+        "packagist": {
+            "type": "composer",
+            "url": "https://packagist.phpcomposer.com"
+        }
+    }
+}

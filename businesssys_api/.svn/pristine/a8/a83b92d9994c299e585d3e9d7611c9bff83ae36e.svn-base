@@ -1,0 +1,13 @@
+<?php
+
+namespace app\model;
+
+
+/**回款
+ * Class OrderRansomReturn
+ * @package app\model
+ */
+class OrderRansomReturn extends Base
+{
+
+}

@@ -1,0 +1,144 @@
+<?php
+
+/**
+ * 登录登出
+ * @since   2017-11-02
+ * @author  zhaoxiang <zhaoxiang051405@gmail.com>
+ */
+
+namespace app\admin\controller;
+
+use app\model\SystemAuthGroupAccess;
+use app\model\SystemAuthRule;
+use app\model\SystemMenu;
+use app\model\SystemUser;
+use app\model\SystemUserData;
+use app\model\SystemAuthGroup;
+use app\util\ReturnCode;
+use app\util\Tools;
+use \think\Db;
+
+class Login extends Base {
+
+    /**
+     * @api {post} admin/Login/index 用户登录[admin/Login/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup Login
+     * @apiSampleRequest admin/Login/index
+     *
+     *
+     * @apiParam {string} username    用户名
+     * @apiParam {string} password    密码
+     *
+     * @apiSuccess {string} headImg    用户图像
+     * @apiSuccess {int} id    用户id
+     * @apiSuccess {string} username    用户名
+     * @apiSuccess {string} apiAuth    api接口权限验证秘钥
+     *
+     */
+    public function index() {
+        $username = input('username', 'trim');
+        $password = input('password', 'trim');
+        if (!$username) {
+            return $this->buildFailed(ReturnCode::LOGIN_ERROR, '缺少用户名!');
+        }
+        if (!$password) {
+            return $this->buildFailed(ReturnCode::LOGIN_ERROR, '缺少密码!');
+        } else {
+            $password = Tools::userMd5($password);
+        }
+        $userInfo = SystemUser::where(['num' => $username, 'password' => $password])->find();
+        if (!empty($userInfo)) {
+            if ($userInfo['status']) {
+                //更新用户数据
+                SystemUserData::updateLoginData($userInfo['id']);
+            } else {
+                return $this->buildFailed(ReturnCode::LOGIN_ERROR, '用户已被封禁，请联系管理员');
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::LOGIN_ERROR, '用户名密码不正确');
+        }
+
+        $return['access'] = [];
+        $userInfo['group'] = [];
+        $naccess = $menu_ids = [];
+        $isSupper = Tools::isAdministrator($userInfo['id']);
+        $access = [];
+        $system_name = \app\model\System::where(['hide' => 1])->order('sort')->column('id,tagname');
+        $userInfo['is_privileged_people'] = false; //是否有特权人权限
+        if ($isSupper) {
+            $access = SystemMenu::all(['status' => 1]);
+            $access = Tools::buildArrFromObj($access);
+            foreach ($access as $key => $value) {
+                $naccess[$value['system_id']][] = $value;
+            }
+            foreach ($naccess as $k => $v) {
+                $return['access'][$system_name[$k]] = array_values(array_unique(array_filter(array_column($v, 'url'))));
+                $menu_ids[$k] = array_column($v, 'id');
+            }
+        } else {
+            $groups = SystemAuthGroupAccess::where(['uid' => $userInfo['id']])->find();
+            if (!empty($groups)) {
+                $userInfo['group'] = str2arr($groups->groupid);
+                if (in_array('117', $userInfo['group'])) {//判断是否有特权人权限，bs_system_auth_group表id为177的数据
+                    $userInfo['is_privileged_people'] = true;
+                }
+                $access = SystemAuthRule::whereIn('groupid', $userInfo['group'])->group('menu_id')->select();
+                $access = Tools::buildArrFromObj($access);
+                foreach ($access as $key => $value) {
+                    $naccess[$value['system_id']][] = $value;
+                }
+                foreach ($naccess as $k => $v) {
+//                    $return['access'][$system_name[$k]] = array_values(array_unique(array_filter(array_column($v, 'url'))));
+                    $menu_ids[$k] = array_column($v, 'menu_id');
+                }
+            }
+        }
+        $apiAuth = md5(uniqid() . time());
+        cache('Login:' . $apiAuth, json_encode($userInfo), config('apiBusiness.ONLINE_TIME'));
+        cache('Login:' . $userInfo['id'], $apiAuth, config('apiBusiness.ONLINE_TIME'));
+        //查询菜单
+        if (!$menu_ids) {
+            return $this->buildFailed(ReturnCode::LOGIN_ERROR, '没有权限登录系统，请联系系统管理员');
+        }
+        foreach ($menu_ids as $key => $value) {
+            $system_names = $system_name[$key];
+            $where = [
+                'id' => ['in', $value],
+                'status' => 1,
+                'type' => 1,
+                'hide' => 0,
+                'system_id' => $key
+            ];
+            $menus = SystemMenu::getMenuList($where);
+            $menuarr = Tools::buildArrFromObj($menus);
+            $return['menu'][$system_names] = listToTree($menuarr, 'id', 'fid', 'children'); //导航菜单
+        }
+        $access = array_unique(array_filter(array_column($access, 'url')));
+        $return['access'] = $access;
+        $return['userinfo'] = ['name' => $userInfo['name'], 'username' => $userInfo['username'], 'avatar' => $userInfo['avatar'], 'is_privileged_people' => $userInfo['is_privileged_people']];
+        $return['apiAuth'] = $apiAuth;
+        return $this->buildSuccess($return, '登录成功');
+    }
+
+    /**
+     * @api {get} admin/Login/logout 退出登录[admin/Login/logout]
+     * @apiVersion 1.0.0
+     * @apiName logout
+     * @apiGroup Login
+     * @apiSampleRequest admin/Login/logout
+     *
+     *
+     * @apiParam {string} apiAuth    api接口权限验证秘钥
+     *
+     */
+    public function logout() {
+        $ApiAuth = $this->request->header('ApiAuth');
+        cache('Login:' . $ApiAuth, null);
+        cache('Login:' . $this->userInfo['id'], null);
+
+        return $this->buildSuccess(['ApiAuth' => $ApiAuth], '登出成功');
+    }
+
+}

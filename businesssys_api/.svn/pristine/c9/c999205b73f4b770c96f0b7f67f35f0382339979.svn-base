@@ -1,0 +1,27 @@
+<?php
+/***用户*/
+namespace app\admin\controller;
+
+use app\model\SystemUser;
+use app\util\ReturnCode;
+
+class User extends Base{
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/User/userSearch 模糊匹配用户获取部门[admin/User/userSearch]
+     * @apiVersion 1.0.0
+     * @apiName userSearch
+     * @apiGroup User
+     * @apiSampleRequest admin/User/userSearch
+     * @apiParam {string}  name   用户编号
+     *
+     */
+    public function userSearch(){
+        $name = $this->request->post('name');
+        if(empty($name)){
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        }
+        return $this->buildSuccess(SystemUser::userSearch($name));
+    }
+}

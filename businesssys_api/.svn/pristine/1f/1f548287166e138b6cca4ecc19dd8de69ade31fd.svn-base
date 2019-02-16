@@ -1,0 +1,35 @@
+<?php
+
+
+namespace Workflow\behavior;
+
+use think\Db;
+
+/**
+ * Class AfterAction 流程审批通过后处理
+ * @author: bordon
+ */
+class AfterAction
+{
+
+    /**
+     *交易担保流程审批通过后处理
+     */
+    public function JYDB_RISK($proc)
+    {
+        $is_dispatch = Db::name('OrderGuarantee')->where(['order_sn' => $proc->order_sn, 'status' => 1])->value('is_dispatch');  // 是否需要派单
+        if (!in_array($is_dispatch,[0,1,2])) {
+            throw new \Exception("数据异常！");
+        }
+        if (in_array($is_dispatch,[1,2])) {
+            $status = 1013;  // 待指派赎楼员
+        } else {
+            $status = 1015;  // 带取红本
+        }
+        $result = Db::name('order')->where(['stage'=>1012,'order_sn'=>$proc->order_sn])->find();
+        if(!$result){
+            throw new \Exception('a数据异常31');
+        }
+        return Db::name('order')->where(['stage'=>1012,'order_sn'=>$proc->order_sn])->update(['stage' => $status]);
+    }
+}

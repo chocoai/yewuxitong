@@ -1,0 +1,154 @@
+define({ "api": [
+  {
+    "type": "post",
+    "url": "admin/Approval/show_approval_list",
+    "title": "审批列表[admin/Approval/show_approval_list]",
+    "version": "1.0.0",
+    "name": "show_approval_list",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/show_approval_list"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>美业师id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "type",
+            "description": "<p>技术类型</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>美业师id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "type",
+            "description": "<p>技术类型</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Login/index",
+    "title": "用户登录[admin/Login/index]",
+    "version": "1.0.0",
+    "name": "index",
+    "group": "Login",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Login/index"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "username",
+            "description": "<p>用户名</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "password",
+            "description": "<p>密码</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "headImg",
+            "description": "<p>用户图像</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>用户id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "username",
+            "description": "<p>用户名</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "apiAuth",
+            "description": "<p>api接口权限验证秘钥</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Login.php",
+    "groupTitle": "Login"
+  },
+  {
+    "type": "get",
+    "url": "admin/Login/logout",
+    "title": "退出登录[admin/Login/logout]",
+    "version": "1.0.0",
+    "name": "logout",
+    "group": "Login",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Login/logout"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "apiAuth",
+            "description": "<p>api接口权限验证秘钥</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Login.php",
+    "groupTitle": "Login"
+  }
+] });

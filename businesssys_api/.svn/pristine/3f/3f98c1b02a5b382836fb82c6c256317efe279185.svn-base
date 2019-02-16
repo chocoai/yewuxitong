@@ -1,0 +1,38 @@
+<?php
+/**
+ * 楼盘信息
+ */
+namespace app\admin\controller;
+
+use app\admin\service\Zcdc;
+use app\util\ReturnCode;
+
+class BuildingInfo extends Base {
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingInfo/getBuilding 获取楼盘名称[admin/BuildingInfo/getBuilding]
+     * @apiVersion 1.0.0
+     * @apiName getBuilding
+     * @apiGroup BuildingInfo
+     * @apiSampleRequest admin/BuildingInfo/getBuilding
+     * @apiParam {string}  districtId   地区表id
+     */
+    public function getBuilding()
+    {
+        $districtId = $this->request->post('districtId');
+        $buildingName = input('post.buildingName','');
+        $zcdc = new Zcdc;
+        $par['districtId'] = $districtId;
+        $buildingName && $par['buildingName'] = $buildingName;
+        $result = $zcdc->getBuilding($par);
+        if($result !== false) return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼盘信息读取失败!');
+    }
+
+
+
+
+
+
+}

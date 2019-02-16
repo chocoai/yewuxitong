@@ -1,0 +1,23 @@
+<?php
+
+/**
+ * 赎楼
+ */
+
+namespace app\model;
+
+class OrderRansomDispatch extends Base {
+
+    /**
+     * 获取赎楼类型
+     * @return 赎楼类型
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  赎楼类型
+     * @author zhongjiaqi 5.21
+     */
+    public function getRansomtype($status = '') {
+        $statusList = ['1' => '公积金贷款', '2' => '商业贷款', '3' => '装修贷/消费贷'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+}

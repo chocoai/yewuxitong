@@ -1,0 +1,155 @@
+<?php
+
+namespace Workflow\Traits;
+
+use app\workflow\model\SystemUser;
+use app\workflow\model\WorkflowEntry;
+use app\workflow\model\WorkflowFlow;
+use app\workflow\model\WorkflowFlowlink;
+use app\workflow\model\WorkflowProc;
+use think\Db;
+use think\Log;
+
+/**
+ * Trait WorkflowTrait
+ * @package Workflow\Traits
+ */
+trait WorkflowTrait
+{
+    /**通过审批
+     * @param $proc_id
+     */
+    public function pass()
+    {
+        $this->flowlink($this->option['proc_id']);
+    }
+
+    /**工作流退回
+     * @param $proc_id  当前id
+     * @param string $backproc_id 退回id
+     */
+    public function unpass()
+    {
+        $proc_id = $this->option['proc_id'];
+        $proc = WorkflowProc::where(['is_back' => 0, "status" => 0, 'is_deleted' => 1, 'id' => $proc_id])->find();
+//        $proc = WorkflowProc::where(['user_id' => $this->option['user_id'], "status" => 0, 'is_deleted' => 1, 'id' => $proc_id])->find();
+        if (!$proc) {
+            throw new \Exception("请勿异常操作！");
+        }
+
+        //当前步骤process_id
+        $this->option['next_process_id'] = $proc->process_id;
+        //驳回
+        WorkflowProc::where(['entry_id' => $proc->entry_id, 'process_id' => $proc->process_id, 'circle' => $proc->entry->circle, 'status' => 0, 'id' => ['neq', $proc_id]])
+            ->setField('is_deleted', -1);
+        $backproc = WorkflowProc::find($this->option['back_proc_id']);
+        WorkflowProc::where('id', $proc_id)->update([
+            'status' => -1,
+            'auditor_id' => $this->option['user_id'],
+            'auditor_name' => $this->option['user_name'],
+            'auditor_dept' => SystemUser::find($this->option['user_id'])->department->name,
+            'content' => $this->option['content'],
+            'is_back' => -1,
+            'back_proc_id' => $this->option['back_proc_id'],
+            'status_desc'=>'驳回：'.$backproc->process_name,
+            'finish_time' => time()
+        ]);
+        if (!$backproc) {
+            throw new \Exception("请勿异常操作！");
+        }
+        $inspector_status = 1004;
+        // 退回审查员审批，审查员不改变
+        if ($backproc->process->wf_status == $inspector_status) {
+            $this->option['next_user_id'] = $backproc->user_id;
+        }
+        // 退回审查助理并且未勾选直接返回之前节点
+        if ($backproc->process->wf_status == 1003 && !$this->option['backtoback']) {
+            $proc->entry->is_check_inspector = 1;
+        }
+        //退回步骤process_id
+        $process_id = $backproc->process_id;
+        if ($process_id && $backproc->process->position !== 0) {
+            // 前往指定流程步骤
+            $this->option['is_back_ids'] = [$this->option['back_proc_id'], $proc_id];
+            $this->goToProcess($proc->entry, $process_id, $this->option['backtoback']);
+        } else {
+            //  退回初始节点更新订单状态
+            if (!empty($this->option['backtoback'])) {
+                $proc->entry->is_back_ids = implode(',', [$this->option['back_proc_id'], $proc_id]);
+                $proc->entry->back_proc_id = $proc->process_id; // 退回之后返回节点
+            }
+            $wf_status = $backproc->process->wf_status;
+            $entry = $backproc->entry;
+            if (!empty($wf_status)) {
+                //   更新订单状态
+                Db::name($entry->flow->table_name)->where('id', $entry->mid)->setField($entry->flow->field, $wf_status);
+                Log::write('退回第一步更新订单状态...68--trait');
+            }
+        }
+        $where = [
+            'is_back' => 0,
+            'entry_id' => $proc->entry_id,
+            'flow_id' => $proc->flow_id,
+            'is_deleted' => 1,
+            'id' => ['between', [$this->option['back_proc_id'], $proc_id]]
+        ];
+        WorkflowProc::where($where)->setField('is_back', -1);
+        //判断是否存在父进程
+        if ($proc->entry->pid > 0) {
+            $proc->entry->parentEntry->update([
+                'id' => $proc->entry->pid,
+                'status' => -1,
+                'child' => $proc->process_id
+            ]);
+        }
+        $proc->entry->wf_status = $backproc->process->wf_status;
+        $proc->entry->status = '-1';
+        $proc->entry->process_id = $process_id;
+        $proc->entry->save();
+
+        //通知
+    }
+
+
+    /**
+     *提交后下一步还未审核 可以撤回 status =>2
+     * @param $entry_id
+     */
+    public function callBackProcess($entry_id)
+    {
+        $entry = WorkflowEntry::where(['status' => -1])->findOrFail($entry_id);
+        $entry->status = -2;
+        $entry->save();
+    }
+
+
+    /**退回后重新提交
+     * @param $entry_id
+     * @param $user_id
+     */
+    public function resend($entry_id, $user_id)
+    {
+        $entry = WorkflowEntry::where(['status' => -1])->findOrFail($entry_id);
+        $flow = WorkflowFlow::where('is_publish', 1)->findOrFail($entry->flow_id);
+        $flowlink = WorkflowFlowlink::alias('fl')->join('__WORKFLOW_PROCESS__ po', 'po.id=fl.process_id')
+            ->where(['fl.flow_id' => $entry->flow_id, 'fl.type' => 'Condition', 'po.position' => 0])->find();
+        if (!empty($entry->back_proc_id)) {
+            $flowlink->next_process_id = $entry->back_proc_id;
+            $this->restIsBack([
+                'is_back_ids' => $entry->is_back_ids,
+                'entry_id' => $entry->id,
+                'flow_id' => $entry->flow_id,
+            ]);
+        } else {
+            $entry->circle = $entry->circle + 1;
+        }
+        $entry->child = 0;
+        $entry->status = 0;
+        $entry->is_back_ids = null;
+        $entry->back_proc_id = null;
+        $entry->save();
+        //进程初始化
+        $this->setFirstProcessAuditor($entry, $flowlink);
+    }
+
+}

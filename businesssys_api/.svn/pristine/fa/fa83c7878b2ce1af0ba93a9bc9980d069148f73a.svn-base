@@ -1,0 +1,41 @@
+######使用示例
+```php
+use Workflow\Workflow;
+
+$workflow = new Workflow();
+//风控 RISK
+//财务 FINANCIAL
+$flow_id = $workflow->getFlowId(['JYXJ', 'RISK']);
+//流程初始化
+$params = [
+    'flow_id' => $flow_id,  workflow_flow表id
+    'user_id' => $user_id,
+    'order_sn' => $orde_sn,
+    'mid' => $order_id
+];
+$workflow->init($params);
+// 相关参数
+$config = [
+        'user_id' => '', // 用户id
+        'user_name' => '', // 用户姓名
+        'proc_id' => '',  // 当前步骤id
+        'content' => '',  // 审批意见
+        'next_user_id' => '',  // 下一步审批人员
+        'backtoback' => '',  //是否退回之后直接返回本节点
+        'back_proc_id' => '',  // 退回节点id
+    ];
+ $workflow = new Workflow($config);
+ 
+ // 审批通过
+ $workflow->pass();
+ // 审批拒绝
+ $workflow->unpass();
+// 获取当前流程相关信息
+当前流程信息、可退回节点、下一步审批人员、下一步流程节点、审批记录
+ $workflow->workflowInfo()
+ 
+```
+###修改记录
+- 2018-08-01 风控审批选择审查员修改。把选择审查员后不可修改，修改为直接退回审查助理(没勾选直接返回本节点)可以重新选择审查员，
+如果是退回审查助理之前节点则不可修改审查员。 1003 1004 状态不允许在风控审批使用
+- 2018-08-13 风控审批、财务审批订单审批分发金额根据order_guarantee表total_acount判断

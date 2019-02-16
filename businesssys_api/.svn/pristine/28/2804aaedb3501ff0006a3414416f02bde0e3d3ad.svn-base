@@ -1,0 +1,74 @@
+<?php
+
+
+namespace app\api\controller;
+
+use think\Request;
+use think\Db;
+use Workflow\Workflow;
+use Workflow\service\ProcService;
+use app\workflow\model\SystemUser;
+
+/**
+ * Class AppFlow APP端驳回派单接口
+ * @package app\api\controller
+ * @author: bordon
+ */
+class AppFlow
+{
+
+    /**财务审批--驳回派单
+     */
+    public function Reject(Request $request)
+    {
+        $data = $request->post();
+        if (!$data) {
+            return json([
+                'code' => -1,
+                'msg' => '参数不能为空'
+            ]);
+        }
+        Db::startTrans();
+        try {
+            $proc = ProcService::getDispatchProcId($data['order_type'] . '_FINANCIAL', $data['order_sn'], $data['dispatch_id']);
+            $user = SystemUser::find($data['user_id']);
+            $back_proc_id = self::getBackProcId($data['order_sn'], $proc['flow_id'], $proc['entry_id']);
+            $config = [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'proc_id' => $proc['id'],
+                'content' => $data['content'],
+                'back_proc_id' => $back_proc_id,
+                'order_sn' => $data['order_sn']
+            ];
+            $workflow = new Workflow($config);
+            $workflow->unpass();
+            Db::commit();
+            return json([
+                'code' => 1,
+                'msg' => 'ok'
+            ]);
+        } catch (\Exception $e) {
+            Db::rollback();
+            return json([
+                'code' => -1,
+                'msg' => $e->getMessage()
+            ]);
+        }
+    }
+
+    //获取退回节点id
+    private function getBackProcId($order_sn, $flow_id, $entry_id)
+    {
+        $where['wp.wf_status'] = '201';
+        $where['wc.is_deleted'] = 1;
+        $where['wc.is_back'] = 0;
+        $where['wc.order_sn'] = $order_sn;
+        $where['wc.flow_id'] = $flow_id;
+        $where['wc.entry_id'] = $entry_id;
+        $res = Db::name('workflow_process')->alias('wp')
+            ->join('__WORKFLOW_PROC__ wc', 'wc.process_id=wp.id')
+            ->where($where)->value('wc.id');
+        return $res;
+    }
+}

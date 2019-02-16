@@ -1,0 +1,21 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+
+class CreditInquiry extends Model {
+
+    /**
+     * 根据条件获取用户信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $where 查询条件  $field查询字段
+     * @author zhongjiaqi 4.18
+     */
+    public function CreditList($where = [], $field = '') {
+        $data = $this->where($where)->field($field)->select();
+        return $data = Tools::buildArrFromObj($data);
+    }
+
+}

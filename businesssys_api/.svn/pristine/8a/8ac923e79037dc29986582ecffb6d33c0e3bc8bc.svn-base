@@ -1,0 +1,673 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/9
+ * Time: 9:46
+ */
+//订单相关组件类
+
+namespace app\util;
+
+use app\model\OrderLog;
+use app\model\TrialData;
+use app\model\TrialProcess;
+use app\model\OrderCostRecord;
+use app\model\OrderAccountRecord;
+use app\model\SystemUser;
+use app\model\Estate;
+use app\model\Order;
+use app\model\Attachment;
+use app\model\OrderGuarantee;
+use app\model\OrderRansomOut;
+use app\model\OrderRansomDispatch;
+use think\Db;
+use app\model\Dictionary;
+use app\model\OrderVerifyCard;
+
+class OrderComponents {
+
+    /**
+     * 添加订单日志的静态方法
+     * @param int $userInfo  用户信息
+     * @param string $order_sn 订单编号
+     * @param string $stage 主订单状态
+     * @param string $operate  当前操作描述（指派赎楼员）
+     * @param string $operate_node 当前节点,如果没有节点就是主订单状态（待指派赎楼员）
+     * @param string $operate_det  操作详情
+     * @param string $operate_reason  操作原因（只有存在输入框的时候才填写）
+     * @param string $stage_code  主订单code
+     * @param string $operate_table  操作表
+     * @param string $operate_table_id  操作表对应的id
+     * @param string tag  日志标签
+     */
+    public static function addOrderLog($userInfo, $order_sn, $stage, $operate = '', $operate_node = '', $operate_det = '', $operate_reason = '', $stage_code = '', $operate_table = '', $operate_table_id = '', $tag = '') {
+        //添加操作日志
+        $logData['dept_id'] = $userInfo['deptid'];
+        $logData['dept_name'] = $userInfo['deptname'];
+        $logData['create_uid'] = $userInfo['id'];
+        $logData['stage'] = $stage;
+        $logData['order_sn'] = $order_sn;
+        $logData['operate'] = $operate;
+        $logData['operate_node'] = $operate_node;
+        $logData['operate_det'] = $operate_det;
+        $logData['operate_reason'] = $operate_reason;
+        $logData['stage_code'] = $stage_code;
+        $logData['operate_table'] = $operate_table;
+        $logData['operate_table_id'] = $operate_table_id;
+        $logData['create_time'] = time();
+        $logData['stage_tag'] = $tag;
+        return OrderLog::create($logData);
+    }
+
+    /**
+     * 财务赎楼出账表 基本信息
+     * @param string $order_sn 订单编号
+     */
+    public static function orderJbInfo($order_sn) {
+        $orderInfo = Db::name('order')->alias('a')
+                ->field('a.order_sn,a.stage,a.type,a.finance_sn,a.financing_manager_id,a.dept_manager_id,order_source,source_info')
+                ->join('order_guarantee b', 'a.order_sn = b.order_sn')
+                ->where(['a.order_sn' => $order_sn, 'a.status' => 1, 'a.delete_time' => NULL])
+                ->find();
+        $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_YWLY'));
+        $orderInfo['order_source_str'] = !empty($orderInfo['order_source']) ? $newStageArr[$orderInfo['order_source']] : '';
+        $orderInfo['financing_manager_name'] = Db::name('system_user')->where(['id' => $orderInfo['financing_manager_id']])->value('name');
+        $deptManagerInfo = Db::name('system_user')->where(['id' => $orderInfo['dept_manager_id']])->field('name,deptname')->find();
+        $orderInfo['dept_manager_name'] = $deptManagerInfo['name'];
+        $orderInfo['deptname'] = $deptManagerInfo['deptname'];
+        $orderInfo['type_text'] = (new Order())->getType($orderInfo['type']); //订单类型
+        unset($orderInfo['financing_manager_id']);
+        unset($orderInfo['dept_manager_id']);
+        return $orderInfo;
+    }
+
+    /**
+     * 财务赎楼出账表 房产信息
+     * @param string $order_sn 订单编号
+     */
+    public static function showEstateList($orderSn, $field, $type = false) {
+        $condition['status'] = 1;
+        $condition['order_sn'] = $orderSn;
+        $type && $condition['estate_usage'] = $type;
+        return Db::name('estate')->where($condition)->field($field)->select();
+    }
+
+    /**
+     * 订单客户信息
+     * @param $orderSn
+     * @param bool $isSeller 买方|卖方
+     * @param bool $isComborrower 是否共同借款人
+     * @param bool $isGuarantee 是否担保申请人
+     * @param $field
+     */
+    public static function showCustomerInfo($orderSn, $field, $isSeller = false, $isComborrower = false, $isGuarantee = false) {
+        $condition['order_sn'] = $orderSn;
+        $condition['status'] = 1;
+        $isSeller !== false && $condition['is_seller'] = $isSeller;
+        $isComborrower !== false && $condition['is_comborrower'] = $isComborrower;
+        $isGuarantee !== false && $condition['is_guarantee'] = $isGuarantee;
+        $res = Db::name('customer')->where($condition)->field($field)->select();
+        foreach ($res as &$v) {
+            if ($v['is_seller'] == 1) {
+                $v['is_seller_str'] = "买方";
+                if ($v['is_comborrower'] == 1) {
+                    $v['is_comborrower_str'] = "买方共同借款人";
+                } else {
+                    $v['is_comborrower_str'] = "买方";
+                }
+            } else {
+                $v['is_seller_str'] = "卖方";
+                if ($v['is_comborrower'] == 1) {
+                    $v['is_comborrower_str'] = "卖方共同借款人";
+                } else {
+                    $v['is_comborrower_str'] = "卖方";
+                }
+            }
+            if ($v['ctype'] == 1) {
+                $v['ctype_str'] = "个人";
+            } else {
+                $v['ctype_str'] = "企业";
+            }
+        }
+        return $res;
+    }
+
+    /**
+     * 订单按揭信息
+     * @param $orderSn
+     * @param $field
+     * @param bool $type 'ORIGINAL','NOW'
+     */
+    public static function showMortgage($orderSn, $field, $type = false) {
+        $condition['order_sn'] = $orderSn;
+        $condition['status'] = 1;
+        $type !== false && $condition['type'] = $type;
+        return Db::name('order_mortgage')->where($condition)->field($field)->select();
+    }
+
+    /**
+     * 赎楼银行信息
+     * @param $orderSn
+     * @param $field
+     * @param bool $repayType 'BOOK','ACTUAL'
+     * @param bool $type 1赎楼还款账户  2尾款账号信息'
+     * @param bool $accountType 账户类型：1卖方 2卖方共同借款人 3买方 4买方共同借款人 5其它
+     */
+    public static function showGuaranteeBank($orderSn, $field, $type = false, $accountType = false) {
+        $condition['order_sn'] = $orderSn;
+        $condition['status'] = 1;
+        $type !== false && $condition['type'] = ['in', $type];
+        $accountType !== false && $condition['accounttype'] = $accountType;
+        $data = Db::name('order_guarantee_bank')->where($condition)->field($field)->select();
+        if (!empty($data)) {
+            foreach ($data as &$value) {
+                $value['type_text'] = isset($value['type']) ? (new \app\model\OrderGuaranteeBank())->getBankuse($value['type']) : ''; //银行卡用途
+                $value['verify_card_status_text'] = isset($value['verify_card_status']) ? (new \app\model\OrderGuaranteeBank())->getAccountstatus($value['verify_card_status']) : ''; //核卡状态
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * 获取订单附件信息
+     * @param $orderSn
+     * @return false|\PDOStatement|string|\think\Collection
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function attachInfo($orderSn) {
+        $attachInfo = Db::name('order_attachment')
+                ->alias('a')
+                ->join('attachment b', 'a.attachment_id=b.id')
+                ->where(['a.order_sn' => $orderSn, 'status' => 1])
+                ->field("b.name,a.id,b.url,b.ext")
+                ->select();
+        if ($attachInfo) {
+            foreach ($attachInfo as $key => $val) {
+                $attachInfo[$key]['url'] = config('uploadFile.url') . $val['url'];
+            }
+        }
+        return $attachInfo;
+    }
+
+    /**
+     * 首期款信息
+     * @param $orderSn
+     * @param $field
+     * @return array|false|\PDOStatement|string|\think\Model
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function orderDp($orderSn, $field = 'dp_strike_price,dp_earnest_money,dp_money,dp_supervise_bank,dp_supervise_bank_branch,dp_buy_way,dp_now_mortgage,dp_redeem_bank,dp_redeem_bank_branch,dp_supervise_guarantee,dp_supervise_buyer,dp_supervise_date') {
+        return Db::name('order_dp')->field($field)->where(['order_sn' => $orderSn, 'status' => 1])->find();
+    }
+
+    /**
+     * 财务赎楼出账表 欠款及出账金额
+     * @param string $order_sn 订单编号
+     */
+    public static function showArrearsInfo($order_sn, $field, $type) {
+        $dispatchInfo = Db::name('order_ransom_dispatch')->field('ransom_status,ransomer,mortgage_id')->where(['order_sn' => $order_sn, 'status' => 1])->select();
+        $mortgateInfo = [];
+        if (!empty($dispatchInfo)) {
+            foreach ($dispatchInfo as $k => $value) {
+                if ($value['mortgage_id']) {
+                    $datainfo = Db::name('order_mortgage')->field($field)->where('id', $value['mortgage_id'])->find();
+                    $mortgateInfo[$k]['ransom_status_text'] = (new Dictionary())->getValnameByCode('ORDER_JYDB_FINC_STATUS', $value['ransom_status']); //赎楼状态
+                    $mortgateInfo[$k]['ransomer'] = $value['ransomer']; //赎楼员
+                    $mortgateInfo[$k]['mortgage_type'] = $datainfo['mortgage_type'];
+                    $mortgateInfo[$k]['organization'] = $datainfo['organization'];
+                    $mortgateInfo[$k]['interest_balance'] = $datainfo['interest_balance'];
+                    if ($datainfo['mortgage_type'] == 1) {
+                        $mortgateInfo[$k]['mortgage_type_name'] = '公积金贷款';
+                        $mortgateInfo[$k]['accumulation_fund'] = Db::name('order_guarantee')->where(['order_sn' => $order_sn])->value('accumulation_fund');
+                    }
+                    if ($datainfo['mortgage_type'] == 2) {
+                        $mortgateInfo[$k]['mortgage_type_name'] = '商业贷款';
+                        $mortgateInfo[$k]['accumulation_fund'] = Db::name('order_guarantee')->where(['order_sn' => $order_sn])->value('bussiness_loan');
+                    }
+                    if ($datainfo['mortgage_type'] == 3) {
+                        $mortgateInfo[$k]['mortgage_type_name'] = '装修贷/消费贷';
+                        $mortgateInfo[$k]['accumulation_fund'] = Db::name('order_guarantee')->where(['order_sn' => $order_sn])->value('bussiness_loan');
+                    }
+                    unset($mortgateInfo[$k]['mortgage_type']);
+                }
+            }
+        } else {
+            $mortgateInfo = Db::name('order_mortgage')->field($field)->where(['order_sn' => $order_sn, 'type' => $type, 'status' => 1, 'delete_time' => NULL])->select();
+            foreach ($mortgateInfo as $k => $v) {
+                $mortgateInfo[$k]['ransom_status_text'] = '-'; //赎楼状态
+                $mortgateInfo[$k]['ransomer'] = '-'; //赎楼员
+                if ($v['mortgage_type'] == 1) {
+                    $mortgateInfo[$k]['mortgage_type_name'] = '公积金贷款';
+                    $mortgateInfo[$k]['accumulation_fund'] = Db::name('order_guarantee')->where(['order_sn' => $order_sn])->value('accumulation_fund');
+                }
+                if ($v['mortgage_type'] == 2) {
+                    $mortgateInfo[$k]['mortgage_type_name'] = '商业贷款';
+                    $mortgateInfo[$k]['accumulation_fund'] = Db::name('order_guarantee')->where(['order_sn' => $order_sn])->value('bussiness_loan');
+                }
+                if ($v['mortgage_type'] == 3) {
+                    $mortgateInfo[$k]['mortgage_type_name'] = '装修贷/消费贷';
+                    $mortgateInfo[$k]['accumulation_fund'] = Db::name('order_guarantee')->where(['order_sn' => $order_sn])->value('bussiness_loan');
+                }
+                unset($mortgateInfo[$k]['mortgage_type']);
+            }
+        }
+        return $mortgateInfo;
+    }
+
+    /**
+     * 财务赎楼出账表 预录赎楼还款账户
+     * @param string $order_sn 订单编号
+     */
+    public static function showReimbursementInfo($order_sn) {
+        
+    }
+
+    /**
+     * 财务赎楼出账表 风控初审问题汇总
+     * @param string $order_sn 订单编号
+     */
+    public static function showPreliminary($order_sn) {
+        $problemMap['order_sn'] = $order_sn;
+        $problemMap['type'] = 'QUESTION';
+        $problemMap['delete_time'] = NULL;
+        return TrialData::getAll($problemMap, 'describe,status');
+    }
+
+    /**
+     * 财务赎楼出账表 风控提醒注意事项
+     * @param string $order_sn 订单编号
+     */
+    public static function showNeedAtten($order_sn) {
+        $qtField = 'process_name,item';
+        return TrialProcess::getAll(['order_sn' => $order_sn], $qtField);
+    }
+
+    /**
+     * 预收费用信息 实际费用入账
+     * @param string $order_sn 订单编号
+     */
+    public static function showChargeList($order_sn) {
+        $res = Db::name('order_guarantee')->where(['order_sn' => $order_sn])
+                        ->field('ac_guarantee_fee,ac_fee,ac_self_financing,ac_short_loan_interest short_loan_interest,ac_return_money return_money,ac_default_interest default_interest,ac_overdue_money overdue_money,ac_exhibition_fee exhibition_fee,ac_transfer_fee transfer_fee,ac_other_money other_money,notarization,money,project_money_date,guarantee_per,guarantee_rate,guarantee_fee,account_per,fee,self_financing,info_fee,total_fee,bussiness_loan,accumulation_fund,consumer_loan,return_money_mode,return_money_amount')->find();
+        $res['chuzhangsummoney'] = $res['bussiness_loan'] + $res['accumulation_fund'] + $res['consumer_loan'];
+        unset($res['bussiness_loan']);
+        unset($res['accumulation_fund']);
+        unset($res['consumer_loan']);
+        $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_REPAY_METHOD'));
+        $res['return_money_mode_str'] = !empty($res['return_money_mode']) ? $newStageArr[$res['return_money_mode']] : '';
+        return $res;
+    }
+
+    /**
+     * 财务赎楼出账表 银行放款入账列表
+     * @param string $order_sn 订单编号
+     */
+    public static function showBankList($order_sn) {
+        $field = 'loan_money,lender_object,receivable_account,into_money_time,remark,create_uid';
+        $booksWaterInfo = OrderAccountRecord::getAll(['order_sn' => $order_sn], $field, 'create_time desc');
+        foreach ($booksWaterInfo as $k => $v) {
+            $booksWaterInfo[$k]['operation_name'] = SystemUser::where(['id' => $v['create_uid']])->value('name');
+            unset($booksWaterInfo[$k]['create_uid']);
+        }
+        return $booksWaterInfo;
+    }
+
+    /**
+     * 财务赎楼出账表 查询出该订单赎楼信息的各种状态
+     * @param string $order_sn 订单编号
+     * @param int $channelId 资金渠道表id
+     */
+    public static function showStstusInfo($order_sn, $channelId = false) {
+        $field = 'guarantee_fee_status,loan_money_status,is_dispatch,instruct_status,is_loan_finish,loan_money,com_loan_money,guarantee_fee';
+        $resInfo = OrderGuarantee::getOne(['order_sn' => $order_sn], $field);
+        $resInfo['is_comborrower_sell'] = Db::name('order')->where(['order_sn' => $order_sn])->value('is_comborrower_sell');
+        if (isset($channelId)) {
+            $resInfo['chile_instruct_status'] = Db::name('order_fund_channel')->where(['id' => $channelId])->value('instruct_status');
+        }
+        return $resInfo;
+    }
+
+    /*
+     * 财务审核详情页 赎楼状态组件
+     * @param string $order_sn 订单编号
+     * */
+
+    public static function showRedeem($id) {
+        $field = 'id as dispatch_id,ransom_type,ransom_bank,ransom_status,ransomer';
+        $resInfo = Db::name('order_ransom_dispatch')->field($field)->where(['id' => $id])->find();
+        if ($resInfo) {
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_JYDB_FINC_STATUS'));
+            $resInfo['stageStr'] = $newStageArr[$resInfo['ransom_status']] ? $newStageArr[$resInfo['ransom_status']] : '';
+            if ($resInfo['ransom_type'] == 1) {
+                $resInfo['ransom_type_name'] = "公积金贷款";
+            } elseif ($resInfo['ransom_type'] == 2) {
+                $resInfo['ransom_type_name'] = "商业贷款";
+            } else {
+                $resInfo['ransom_type_name'] = "装修贷/消费贷";
+            }
+        }
+
+        //$newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_JYDB_STATUS'));
+        /* if($resInfo){
+          foreach($resInfo as &$val){
+          $val['stageStr'] = $newStageArr[$val['ransom_status']] ? $newStageArr[$val['ransom_status']]:'';
+          if($val['ransom_type'] == 1){
+          $val['ransom_type_name'] = "公积金贷款";
+          }elseif($val['ransom_type'] == 2){
+          $val['ransom_type_name'] = "商业贷款";
+          }else{
+          $val['ransom_type_name'] = "装修贷/消费贷";
+          }
+          }
+          } */
+        return $resInfo;
+    }
+
+    /**
+     * 订单信息
+     * @param string $order_sn 订单编号
+     * @param string $ransom_status 对应状态
+     * @param string $type 1赎楼组件  2出账组件
+     */
+    public static function showDebitorderInfo($order_sn, $ransom_status, $type) {
+        $where = ['order_sn' => $order_sn];
+        $info['estate_name'] = Db::name('estate')->where(['order_sn' => $order_sn, 'estate_usage' => 'DB', 'status' => 1])->column('estate_name'); //房产名称
+        $info['estate_owner'] = implode('、', Db::name('customer')->where(['order_sn' => $order_sn, 'is_seller' => 2, 'status' => 1])->column('cname')); //业主姓名
+        $order_type = Db::name('order')->where($where)->value('type');
+        $info['type_text'] = (new Order())->getType($order_type); //订单类型
+        $info['type'] = $order_type; //订单类型
+        $info['finance_sn'] = Db::name('order')->where($where)->value('finance_sn'); //财务序号
+        $info['order_sn'] = $order_sn; //订单编号
+        if ($type == 2) {
+            $info['account_status_text'] = (new OrderRansomOut())->getAccountstatus($ransom_status); //出账状态
+        } else {
+            $info['ransom_status_text'] = (new Dictionary())->getValnameByCode('ORDER_JYDB_FINC_STATUS', $ransom_status); //赎楼状态
+        }
+        $info['ransom_status'] = $ransom_status; //赎楼状态、出账状态
+        $moneyinfo = Db::name('order_guarantee')->where($where)->field('loan_money,money,ac_self_financing,ac_short_loan_interest,ac_default_interest,com_loan_money')->find();
+        $info['money'] = $moneyinfo['money']; //担保金额
+        $info['default_interest'] = $moneyinfo['ac_default_interest']; //罚息
+        $info['self_financing'] = $moneyinfo['ac_self_financing']; //自筹金额
+        if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type == 'GMDZ' || $order_type == 'SQDZ' || $order_type == 'PDXJ' || $order_type == 'DQJK') {
+            $info['channel_money'] = $moneyinfo['loan_money']; //渠道放款
+            $info['company_money'] = $moneyinfo['com_loan_money']; //公司放款
+            $info['can_money'] = $info['channel_money'] + $info['self_financing'] + $info['company_money'] + $info['default_interest']; //可出账金额
+        } elseif ($order_type == 'JYDB') {
+            $info['loan_money'] = $moneyinfo['loan_money']; //银行放款
+            $info['short_loan_interest'] = $moneyinfo['ac_short_loan_interest']; //短贷利息
+            $info['can_money'] = $moneyinfo['money'] + $info['self_financing'] + $info['short_loan_interest'] + $info['default_interest']; //可出账金额
+        }
+        $whereone['account_status'] = ['neq', 4];
+        $whereone['order_sn'] = $order_sn;
+        $info['out_money'] = Db::name('order_ransom_out')->where($whereone)->sum('money'); //已出账金额
+        $info['use_money'] = $info['can_money'] - $info['out_money']; //可用余额
+        return $info;
+    }
+
+    /**
+     * 出账申请
+     * @param string $outid 出账表id(对应order_ransom_out表)
+     */
+    public static function showDebitInfo($outid) {
+        $data = Db::name('order_ransom_out')->where('id', $outid)->field('order_sn,account_type,receipt_bank,receipt_bank_account,is_prestore,receipt_bank_card,money,ransom_dispatch_id,item,way,bank,cheque_num,create_time')->find();
+        $where = ['id' => $data['ransom_dispatch_id']];
+        $otherdata = Db::name('order_ransom_dispatch')->where($where)->field('ransomer,ransom_bank')->find();
+        $info['ransomer'] = $otherdata['ransomer']; //赎楼员
+        $info['money'] = $data['money']; //金额
+        $info['way_text'] = $data['way'] == 1 ? '现金' : '支票'; //出账方式
+        $order_type = Db::name('order')->where(['order_sn' => $data['order_sn']])->value('type');
+        if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type == 'GMDZ' || $order_type == 'JYDB') {
+            $info['ransom_bank'] = $otherdata['ransom_bank']; //赎楼银行
+            $info['item_text'] = (new OrderRansomOut())->getItem($data['item']); //出账项目
+        } elseif ($order_type == 'PDXJ' || $order_type == 'DQJK' || $order_type == 'SQDZ') {
+            $info['ransom_bank'] = '-'; //赎楼银行
+            $info['item_text'] = (new Order())->getType($order_type); //出账项目
+        }
+        $info['create_time'] = date('Y-m-d H:i', $data['create_time']); //派单时间
+        if ($data['way'] == 1) {
+            //现金
+            $info['is_prestore_text'] = $data['is_prestore'] == 1 ? '是' : '否'; //是否预存
+            $info['account_type_text'] = (new OrderRansomOut())->getAccounttype($data['account_type']); //出账项目
+            $info['receipt_bank'] = $data['receipt_bank']; //银行
+            $info['receipt_bank_account'] = $data['receipt_bank_account']; //银行账户
+            $info['receipt_bank_card'] = $data['receipt_bank_card']; //银行卡号
+        } else {
+            //支票
+            $info['cheque_num'] = $data['cheque_num']; //支票号码
+            $info['bank'] = $data['bank']; //支票银行
+        }
+        return $info;
+    }
+
+    /**
+     * 赎楼派单信息
+     * @param string $id 赎楼派单表id(对应order_ransom_dispatch表)
+     */
+    public static function redemptionDispatch($id) {
+        $data = Db::name('order_ransom_dispatch')->where('id', $id)->field('order_sn,ransom_type,ransom_status,ransomer,mortgage_id,ransome_id,ransom_bank')->find();
+        $where = ['order_sn' => $data['order_sn']];
+        $order_type = Db::name('order')->where($where)->value('type');
+        if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type == 'GMDZ' || $order_type == 'JYDB') {
+            $info['ransom_type_text'] = (new OrderRansomDispatch())->getRansomtype($data['ransom_type']); //赎楼类型
+            $info['ransom_status_text'] = (new Dictionary())->getValnameByCode('ORDER_JYDB_FINC_STATUS', $data['ransom_status']); //赎楼状态
+            $info['ransomer'] = $data['ransomer']; //赎楼员
+            $info['ransomer_id'] = $data['ransome_id']; //赎楼员id
+            $info['ransom_bank'] = $data['ransom_bank']; //赎楼银行
+            $info['arrears'] = Db::name('order_mortgage')->where(['id' => $data['mortgage_id']])->value('interest_balance'); //欠款金额
+        } elseif ($order_type == 'PDXJ' || $order_type == 'DQJK' || $order_type == 'SQDZ') {
+            $info['ransomer'] = $data['ransomer']; //赎楼员
+            $info['ransomer_id'] = $data['ransome_id']; //赎楼员id
+            $info['ransom_status_text'] = (new Dictionary())->getValnameByCode('ORDER_JYDB_FINC_STATUS', $data['ransom_status']); //赎楼状态
+            $info['ransom_bank'] = '-'; //赎楼银行
+            $info['arrears'] = '-'; //欠款金额
+            $info['ransom_type_text'] = '-'; //赎楼类型
+        }
+        return $info;
+    }
+
+    /**
+     * 赎楼派单出账申请记录（订单出账流水）
+     * @param string $order_sn
+     * @param string $ransom_dispatch_id 申请记录针对某个赎楼派单，订单出账流水针对整个订单
+     */
+    public static function showDebitInfolog($order_sn, $ransom_dispatch_id = '') {
+        if (!empty($ransom_dispatch_id)) {
+            $where['ransom_dispatch_id'] = $ransom_dispatch_id;
+            $info['cut_money'] = Db::name('order_ransom_out')->where(['order_sn' => $order_sn, 'ransom_dispatch_id' => $ransom_dispatch_id])->sum('cut_money'); //确认扣款金额
+        } else {
+            $moneyInfo = OrderComponents::showDebitorderInfo($order_sn, '', 2);
+            $info['out_money'] = $moneyInfo['out_money'];
+            $info['use_money'] = $moneyInfo['use_money'];
+        }
+        $where['order_sn'] = $order_sn;
+        $data = Db::name('order_ransom_out')->where($where)->field('id,money,account_type,ransom_dispatch_id,outok_time,item,is_prestore,way,account_status,create_time,cut_money,cut_status,create_uid')->select();
+        $totlearr = [];
+        $order_type = Db::name('order')->where(['order_sn' => $order_sn])->value('type');
+        foreach ($data as $value) {
+            $newarr = [];
+            $newarr['id'] = $value['id']; //id
+            $newarr['money'] = $value['money']; //金额
+            $newarr['cut_status'] = $value['cut_status']; //是否确认扣款
+            if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type == 'GMDZ' || $order_type == 'JYDB') {
+                $newarr['item_text'] = (new OrderRansomOut())->getItem($value['item']); //出账项目
+                $newarr['cut_money'] = $value['cut_money']; //确认扣款金额
+                $newarr['last_money'] = $newarr['money'] - $value['cut_money']; //剩余尾款
+            } elseif ($order_type == 'PDXJ' || $order_type == 'DQJK' || $order_type == 'SQDZ') {
+                $newarr['item_text'] = (new Order())->getType($order_type); //出账项目
+            }
+            $newarr['way_text'] = $value['way'] == 1 ? '现金' : '支票'; //出账方式
+            if ($value['way'] == 1) {
+                $newarr['is_prestore_text'] = $value['is_prestore'] == 1 ? '是' : '否'; //是否预存
+                $newarr['account_type_text'] = (new OrderRansomOut())->getAccounttype($value['account_type']); //账户类型
+            } else {
+                $newarr['is_prestore_text'] = '/';
+                $newarr['account_type_text'] = '/';
+            }
+            $newarr['ransomer'] = Db::name('system_user')->where(['id' => $value['create_uid']])->value('name'); //出账申请人
+            $newarr['create_time'] = !empty($value['create_time']) ? date('Y-m-d H:i', $value['create_time']) : null; //申请时间
+            $newarr['account_status'] = $value['account_status']; //出账状态
+            $newarr['account_status_text'] = (new OrderRansomOut())->getAccountstatus($value['account_status']); //出账状态
+            $newarr['outok_time'] = !empty($value['outok_time']) ? date('Y-m-d H:i', $value['outok_time']) : null; //出账时间
+            $totlearr [] = $newarr;
+        }
+        return ['info' => $info, 'totlearr' => $totlearr];
+    }
+
+    /**
+     * 赎楼派单回执
+     * @param string $id 赎楼派单id
+     */
+    public static function showReceiptimg($id) {
+        $receipt_img = Db::name('order_ransom_dispatch')->where('id', $id)->value('receipt_img');
+        $data = [];
+        if (!empty($receipt_img)) {
+            $picinfo = explode(',', $receipt_img);
+            foreach ($picinfo as $value) {
+                $data[] = (new Attachment())->getUrl($value);
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * 核卡信息
+     * @param string $id 核卡id
+     */
+    public static function nuclearInfo($id) {
+        $data = Db::name('order_guarantee_bank')->where('id', $id)->field('bankaccount,accounttype,openbank,bankcard')->find();
+        $data['accounttype_text'] = (new Dictionary)->getValnameByCode('JYDB_ACCOUNT_TYPE', $data['accounttype']);
+        return $data;
+    }
+
+    /**
+     * 核卡录入信息
+     * @param string $id 核卡id
+     */
+    public static function nuclearentryinfo($id) {
+        $data = Db::name('order_verify_card')->where('order_guarantee_bank_id', $id)->field('id,order_guarantee_bank_id,card_type,verify_card_time,cyber_bank,telephone_bank,mobile_bank,security_account,credit_card,verify_card_data,verify_card_name,remark')->find();
+        if (!empty($data)) {
+            $diccode = $data['card_type'] == 1 ? 'PERSONAL_NUCLEAR_INFORMATION' : 'COMPANY_NUCLEAR_INFORMATION';
+            $data['verify_card_status'] = Db::name('order_guarantee_bank')->where('id', $id)->value('verify_card_status');
+            $data['card_type_text'] = $data['card_type'] == 1 ? '个人' : '企业';
+            $data['cyber_bank_text'] = (new OrderVerifyCard)->getOpentype($data['cyber_bank']);
+            $data['telephone_bank_text'] = (new OrderVerifyCard)->getOpentype($data['telephone_bank']);
+            $data['mobile_bank_text'] = (new OrderVerifyCard)->getOpentype($data['mobile_bank']);
+            $data['security_account_text'] = (new OrderVerifyCard)->getBindtype($data['security_account']);
+            $data['credit_card_text'] = (new OrderVerifyCard)->getBindtype($data['credit_card']);
+            $data['verify_card_time'] = date('Y-m-d', strtotime($data['verify_card_time']));
+            $data['verify_card_data'] = explode(',', $data['verify_card_data']);
+            $data['all_code'] = Db::name('dictionary')->where('type', $diccode)->field('code,valname')->select();
+        }
+        return $data;
+    }
+
+    /**
+     * 核卡状态查询记录
+     * @param string $id 核卡id
+     */
+    public static function nuclearInfoRecord($id, $limit) {
+        $data = Db::name('order_verify_card_record')->where('order_guarantee_bank_id', $id)->field('remark,account_balance,create_deptname,account_status,check_time,create_name')->order('check_time', 'DESC')->limit($limit)->select();
+        if (!empty($data)) {
+            foreach ($data as &$value) {
+                $value['account_status'] = (new OrderVerifyCard)->getAccountstatus($value['account_status']);
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * 查询订单操作记录
+     * @param bool $type
+     * @param string $field
+     * @return false|\PDOStatement|string|\think\Collection
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function showLog($orderSn, $type, $tag, $operate_table_id, $field = "FROM_UNIXTIME(a.create_time, '%Y-%m-%d %H:%i:%S') as create_time,operate_node,a.operate_det,a.operate_reason,a.operate,b.name") {
+        $where = ['a.order_sn' => $orderSn];
+        $type && $where['a.stage_code'] = $type;
+        $tag && $where['a.stage_tag'] = $tag;
+        $operate_table_id > 0 && $where['a.operate_table_id'] = $operate_table_id;
+        return Db::name('order_log')
+                        ->alias('a')
+                        ->join('system_user b', 'a.create_uid=b.id')
+                        ->where($where)
+                        ->field($field)
+                        ->order('a.create_time desc')
+                        ->select();
+    }
+
+    /**
+     * 获取订单派单员列表
+     * @param $orderSn
+     * @param int $dispatch 指派状态，默认已派单
+     * @return $this
+     */
+    public static function orderDispatch($orderSn, $dispatch = 1, $filed = 'ransom_type,ransomer,ransom_bank,ransom_status') {
+        $condition['order_sn'] = $orderSn;
+        $condition['status'] = 1;
+        $condition['is_dispatch'] = $dispatch;
+        return Db::name('order_ransom_dispatch')->where($condition)->field($filed)->select();
+    }
+
+    /**
+     * 获取订单出账基本信息
+     * @param $orderSn
+     * @param string $field
+     * @return array|bool|false|\PDOStatement|string|\think\Model
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function orderBaseInfo($orderSn, $type, $field = '') {
+        $field === '' && $field = 'a.order_sn,a.stage,a.type,a.finance_sn,a.financing_manager_id,a.dept_manager_id,a.financing_dept_id,a.is_comborrower_sell,b.money,b.guarantee_per,b.is_dispatch_finance,b.guarantee_fee_status,b.is_loan_finish,b.is_dispatch_finance,b.ac_guarantee_fee,b.ac_fee,b.ac_self_financing,b.ac_exhibition_fee,b.ac_return_money,b.ac_default_interest,b.ac_overdue_money,b.ac_other_money,b.ac_short_loan_interest,b.is_foreclosure,b.loan_money';
+        $baseInfo = Db::name('order')->alias('a')
+                ->field($field)
+                ->join('order_guarantee b', 'a.order_sn = b.order_sn')
+                ->where(['a.order_sn' => $orderSn, 'a.status' => 1, 'a.type' => $type])
+                ->find();
+        if (!$baseInfo) {
+            return false;
+        }
+        $baseInfo['financing_manager_id'] = Db::name('system_user')->where(['id' => $baseInfo['financing_manager_id']])->value('name'); //当时理财经理
+        $baseInfo['financing_dept_id'] = Db::name('system_dept')->where(['id' => $baseInfo['financing_dept_id']])->value('name'); //当时部门
+        $baseInfo['dept_manager_id'] = Db::name('system_user')->where(['id' => $baseInfo['dept_manager_id']])->value('name'); //当时部门经理
+        return $baseInfo;
+    }
+
+    /**
+     * 获取资金渠道信息
+     * @param $orderSn
+     * @return false|\PDOStatement|string|\think\Collection
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function fundChannel($orderSn, $field = 'fund_channel_id,fund_channel_name,money,id,trust_contract_num,loan_day') {
+        $condition = ['order_sn' => $orderSn];
+        $condition['status'] = 1;
+        return Db::name('order_fund_channel')->where($condition)->field($field)->select();
+    }
+
+    /**
+     * 垫资费计算信息
+     * @param $orderSn
+     * @return false|\PDOStatement|string|\think\Collection
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function advanceMoney($orderSn) {
+        $condition['order_sn'] = $orderSn;
+        $condition['status'] = 1;
+        return Db::name('order_advance_money')->where($condition)->field('advance_money,advance_day,advance_rate,advance_fee,remark,id')->select();
+    }
+
+}

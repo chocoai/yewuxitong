@@ -1,0 +1,38 @@
+<?php
+namespace app\task\controller;
+
+use think\Controller;
+use Workerman\Lib\Timer;
+
+class Index extends Controller
+{
+
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    public function add_timer()
+    {
+        Timer::add(10, array($this, 'index'), array(), true); //时间间隔过小，运行会崩溃
+    }
+    /**
+     * 采集数据
+     */
+
+    public function index()
+    {
+
+        $total = $this->get_jinse();
+        return json(['msg' => "success"]);
+    }
+
+    /**
+     * 获取金色财经资讯
+     */
+    public function get_jinse()
+    {
+        echo "run1";
+    }
+
+}

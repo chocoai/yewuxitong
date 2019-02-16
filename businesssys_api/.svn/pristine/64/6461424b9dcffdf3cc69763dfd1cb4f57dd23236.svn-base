@@ -1,0 +1,360 @@
+<?php
+/**
+ * 权限相关配置
+ * @since   2018-04-21
+ * @author  CGenJ
+ */
+
+namespace app\admin\controller;
+
+
+use app\model\SystemAuthGroup;
+use app\model\SystemAuthGroupAccess;
+use app\model\SystemAuthRule;
+use app\model\SystemMenu;
+use app\util\ReturnCode;
+use app\util\Tools;
+
+class Auth extends Base
+{
+
+    /**
+     * @api {get} admin/Auth/index 获取权限组列表[admin/Auth/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/index
+     * @apiParam {int} keywords    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     * @apiParam {int} status  状态
+     *
+     */
+    public function index()
+    {
+
+        $limit = $this->request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $start = $this->request->get('page', 1);
+        $keywords = $this->request->get('keywords', '');
+        $status = $this->request->get('status', '');
+
+        $where['name'] = ['like', "%{$keywords}%"];
+        if ($status === '1' || $status === '0') {
+            $where['status'] = $status;
+        }
+        $listObj = (new SystemAuthGroup())->where($where)->order('id DESC')
+            ->paginate($limit, false, ['page' => $start])->toArray();
+        return $this->buildSuccess([
+            'list' => $listObj['data'],
+            'count' => $listObj['total']
+        ]);
+    }
+
+    /**
+     * @api {get} admin/Auth/getGroups 获取全部已开放的可选组[admin/Auth/getGroups]
+     * @apiVersion 1.0.0
+     * @apiName getGroups
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/getGroups
+     *
+     */
+    public function getGroups()
+    {
+        $listInfo = SystemAuthGroup::where(['status' => 1])->order('id', 'asc')->select();
+        $count = count($listInfo);
+        $listInfo = Tools::buildArrFromObj($listInfo);
+
+        return $this->buildSuccess([
+            'list' => $listInfo,
+            'count' => $count
+        ]);
+    }
+
+    /**
+     * @api {get} admin/Auth/getRuleList 获取组所在权限列表[admin/Auth/getRuleList]
+     * @apiVersion 1.0.0
+     * @apiName getRuleList
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/getRuleList
+     * @apiParam {int} groupid  组id
+     *
+     */
+    public function getRuleList()
+    {
+        $groupId = $this->request->get('groupId', 0);
+        $system_id = $this->request->get('system_id', 0);
+
+        $list = SystemMenu::where('system_id', $system_id)->order('sort', 'asc')->select();
+        $list = Tools::buildArrFromObj($list);
+        $list = listToTree($list, 'id', 'fid', '_child');
+        $rules = [];
+        if ($groupId) {
+            $rules = SystemAuthRule::where(['groupid' => $groupId, 'system_id' => $system_id])->column('menu_id');
+        }
+        $newList = $this->buildList($list, $rules);
+        return $this->buildSuccess([
+            'list' => $newList
+        ]);
+    }
+
+    /**
+     * @api {post} admin/Auth/add 新增组[admin/Auth/add]
+     * @apiVersion 1.0.0
+     * @apiName add
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/add
+     * @apiParam {int} groupid  组id
+     * @apiParam {array} rules    组权限
+     * @apiParam {string} description  组描述
+     *
+     */
+    public function add()
+    {
+        $rules = [];
+        $postData = $this->request->post();
+        if ($postData['rules']) {
+            $rules = $postData['rules'];
+            $rules = array_filter($rules);
+        }
+        unset($postData['rules']);
+        $res = SystemAuthGroup::create($postData);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            if ($rules) {
+                $insertData = [];
+                foreach ($rules as $value) {
+                    if ($value) {
+                        $insertData[] = [
+                            'groupid' => $res->id,
+                            'menu_id' => $value['menu_id'],
+                            'url' => $value['url'],
+                            'system_id' => $postData['system_id']
+                        ];
+                    }
+                }
+                (new SystemAuthRule())->saveAll($insertData);
+            }
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * @api {get} admin/Auth/changeStatus 权限组状态编辑[admin/Auth/changeStatus]
+     * @apiVersion 1.0.0
+     * @apiName changeStatus
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/changeStatus
+     * @apiParam {int} id        组id
+     * @apiParam {int} status    组状态
+     *
+     */
+    public function changeStatus()
+    {
+        $id = $this->request->get('id');
+        $status = $this->request->get('status');
+        $res = SystemAuthGroup::update([
+            'id' => $id,
+            'status' => $status
+        ]);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * @api {post} admin/Auth/edit 编辑用户[admin/Auth/edit]
+     * @apiVersion 1.0.0
+     * @apiName edit
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/edit
+     * @apiParam {int} groupid  组id
+     * @apiParam {array} rules    组权限
+     * @apiParam {string} description  组描述
+     *
+     */
+    public function edit()
+    {
+        $postData = $this->request->post();
+        if ($postData['rules']) {
+            $this->editRule();
+        }
+        unset($postData['rules']);
+        $res = SystemAuthGroup::update($postData);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * @api {get} admin/Auth/del 删除组[admin/Auth/del]
+     * @apiVersion 1.0.0
+     * @apiName del
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/del
+     * @apiParam {int} id  组id
+     *
+     */
+    public function del()
+    {
+        $id = $this->request->get('id');
+        if (!$id) {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '缺少必要参数');
+        }
+
+        $listInfo = (new SystemAuthGroupAccess())->where(['groupid' => ['like', "%{$id}%"]])->select();
+        if ($listInfo) {
+            foreach ($listInfo as $value) {
+                $valueArr = $value->toArray();
+                $oldGroupArr = explode(',', $valueArr['groupid']);
+                $key = array_search($id, $oldGroupArr);
+                unset($oldGroupArr[$key]);
+                $newData = implode(',', $oldGroupArr);
+                $value->groupId = $newData;
+                $value->save();
+            }
+        }
+
+        SystemAuthGroup::destroy($id);
+        SystemAuthRule::destroy(['groupid' => $id]);
+
+        return $this->buildSuccess([]);
+    }
+
+    /**
+     * @api {get} admin/Auth/delMember 从指定组中删除指定用户[admin/Auth/delMember]
+     * @apiVersion 1.0.0
+     * @apiName delMember
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/delMember
+     * @apiParam {int} gid  组id
+     * @apiParam {int} uid  用户id
+     *
+     */
+    public function delMember()
+    {
+        $gid = $this->request->get('gid', 0);
+        $uid = $this->request->get('uid', 0);
+        if (!$gid || !$uid) {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '缺少必要参数');
+        }
+        $oldInfo = SystemAuthGroupAccess::get(['uid' => $uid])->toArray();
+        $oldGroupArr = explode(',', $oldInfo['groupid']);
+        $key = array_search($gid, $oldGroupArr);
+        unset($oldGroupArr[$key]);
+        $newData = implode(',', $oldGroupArr);
+        $res = SystemAuthGroupAccess::update([
+            'groupid' => $newData
+        ], [
+            'uid' => $uid
+        ]);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * 构建适用前端的权限数据
+     * @param $list
+     * @param $rules
+     * @return array
+     * @author CGenJ
+     */
+    private function buildList($list, $rules)
+    {
+        $newList = [];
+        foreach ($list as $key => $value) {
+            $newList[$key]['id'] = $value['id'];
+            $newList[$key]['title'] = $value['title'];
+            $newList[$key]['key'] = $value['url'];
+            if (isset($value['_child'])) {
+                $newList[$key]['expand'] = true;
+                $newList[$key]['children'] = $this->buildList($value['_child'], $rules);
+            } else {
+                if (in_array($value['id'], $rules)) {
+                    $newList[$key]['checked'] = true;
+                }
+            }
+        }
+        return $newList;
+    }
+
+    /**
+     * @api {post} admin/Auth/editRule 编辑权限细节[admin/Auth/editRule]
+     * @apiVersion 1.0.0
+     * @apiName editRule
+     * @apiGroup Auth
+     * @apiSampleRequest admin/Auth/editRule
+     * @apiParam {int} id  组id
+     * @apiParam {array} rules  权限组
+     * @apiParam {string} description  组描述
+     *
+     */
+    private function editRule()
+    {
+        $postData = $this->request->post();
+        $needAdd = [];
+        $has = SystemAuthRule::where(['groupid' => $postData['id'], 'system_id' => $postData['system_id']])->select();
+        $has = Tools::buildArrFromObj($has);
+        $hasRule = array_column($has, 'id');
+        $needDel = array_flip($hasRule);
+        foreach ($postData['rules'] as $key => $value) {
+            if (!empty($value)) {
+                if (!in_array($value['menu_id'], $hasRule)) {
+                    $data['url'] = $value['url'];
+                    $data['menu_id'] = $value['menu_id'];
+                    $data['groupid'] = $postData['id'];
+                    $data['system_id'] = $postData['system_id'];
+                    $needAdd[] = $data;
+                } else {
+                    unset($needDel[$value['menu_id']]);
+                }
+            }
+        }
+        if (count($needAdd)) {
+            (new SystemAuthRule())->saveAll($needAdd);
+        }
+        if (count($needDel)) {
+            $urlArr = array_keys($needDel);
+            SystemAuthRule::destroy([
+                'groupid' => $postData['id'],
+                'url' => ['in', $urlArr]
+            ]);
+        }
+//        $postData = $this->request->post();
+//        $needAdd = [];
+//        $has = SystemAuthRule::where(['groupid' => $postData['id']])->select();
+//        $has = Tools::buildArrFromObj($has);
+//        $hasRule = array_column($has, 'url');
+//        $needDel = array_flip($hasRule);
+//        foreach ($postData['rules'] as $key => $value) {
+//            if (!empty($value)) {
+//                if (!in_array($value, $hasRule)) {
+//                    $data['url'] = $value;
+//                    $data['groupid'] = $postData['id'];
+//                    $data['system_id'] = 1;
+//                    $needAdd[] = $data;
+//                } else {
+//                    unset($needDel[$value]);
+//                }
+//            }
+//        }
+//        if (count($needAdd)) {
+//            (new SystemAuthRule())->saveAll($needAdd);
+//        }
+//        if (count($needDel)) {
+//            $urlArr = array_keys($needDel);
+//            SystemAuthRule::destroy([
+//                'groupid' => $postData['id'],
+//                'url' => ['in', $urlArr]
+//            ]);
+//        }
+    }
+
+}

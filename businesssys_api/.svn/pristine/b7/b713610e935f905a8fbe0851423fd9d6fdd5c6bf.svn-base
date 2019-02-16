@@ -1,0 +1,104 @@
+<?php
+
+namespace app\task\controller;
+
+use think\Cache;
+use think\Config;
+use think\Controller;
+use think\Db;
+use think\Log;
+use Workerman\Lib\Timer;
+
+class Index extends Controller
+{
+    protected $app_push_unit_url = 'umeng/sendUniCast'; //友盟单播推送
+
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    /**
+     * 添加定时器
+     *
+     */
+    public function add_timer()
+    {
+        /******************************** 业务系统 定时任务 START *************************/
+        //Timer::add(60 * 60, array($this, 'syncOAUser'), array(), true); //同步OA用户数据到业务系统
+
+        /********************************  APP 定时任务  START   *************************/
+        Timer::add(10, array($this, 'sendMsgUserBusiness'), array(), true); //推送
+    }
+
+    /************************************************* 业务系统 定时任务 START *******************************************************/
+    /**
+     * 同步OA系统用户数据到业务系统
+     * 每天 0 点执行，定时器设置 60*60 秒执行一次
+     */
+    public function syncOAUser()
+    {
+        if (date('H') == 0) {
+            $oaDB = Db::connect(config('thirdDb.oa_db'));
+            $userinfo = $oaDB->query("select a.state,a.jobfamily,a.email,a.mobile,a.ranking,a.jobname,a.sex,b.user,b.pass,b.status,b.deptname,b.superman,b.deptid,b.deptallname,b.superid,b.superman,b.deptpath,b.id,b.name,b.num,b.superpath,b.adddt,b.companyid from oa_userinfo a left join oa_admin b on a.id=b.id");
+            unset($oaDB);
+            if ($userinfo) {
+                foreach ($userinfo as $val) {
+                    $data = array();
+                    $data['username'] = $val['user']; //用户名
+                    $data['password'] = '2bb13a8d67e4b23b98f102c79abe53a2'; //Tools::userMd5($val['pass'], '', false); //密码
+                    $data['num'] = $val['num']; //工号
+                    $data['name'] = $val['name']; //姓名
+                    //name oa没有用户昵称
+                    $data['state'] = $val['state']; //状态(来自userstate) 0试用 1转正 2实习 3兼职 4临时工 5离职 6外协 7社会分配
+                    $data['jobfamily'] = $val['jobfamily']; // 职系
+                    $data['mobile'] = $val['mobile']; //电话
+                    $data['email'] = $val['email']; //邮箱
+                    //$data['position_id'] = Db::name('system_position')->where(['name'=>$val['ranking']])->value('id');
+                    //position_id
+                    $data['ranking'] = $val['ranking']; //职级
+                    $data['gender'] = $this->getSex($val['sex']); //性别
+                    $data['position'] = $val['jobname']; //岗位
+                    $data['deptid'] = $val['deptid']; //部门id
+                    $data['deptname'] = $val['deptname']; //部门名称
+                    $data['deptallname'] = $val['deptallname']; //部门全路径
+                    $data['superid'] = $val['superid']; //上级主管id
+                    $data['superman'] = $val['superman']; //上级主管名称
+                    $data['deptpath'] = $val['deptpath']; //部门路径
+                    $data['superpath'] = $val['superpath']; //上级主管路径
+                    $data['companyid'] = $val['companyid']; //公司id
+                    //remark备注说明
+                    $data['status'] = $val['status'];
+
+                    $result = Db::name('system_user')->where(['num' => $val['num']])->find();
+                    if ($result) {
+                        $data['update_time'] = time();
+                        $data['oa_user_id'] = $val['id'];
+                        Db::name('system_user')->where('id', $result['id'])->update($data);
+                    } else {
+                        $data['oa_user_id'] = $val['id'];
+                        $data['create_time'] = $val['adddt'] ? strtotime($val['adddt']) : time();
+                        Db::name('system_user')->insert($data);
+                    }
+                }
+                Log::record("sync user success!", 'info');
+            }
+            Log::record("not sync user!", 'info');
+        }
+    }
+
+    private function getSex($sex)
+    {
+        switch ($sex) {
+            case '男':
+                return 1;
+                break;
+            case '女':
+                return 2;
+                break;
+            default:
+                return 0;
+        }
+    }
+    /************************************************* 业务系统 定时任务 END  *******************************************************/
+}

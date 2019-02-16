@@ -1,0 +1,717 @@
+<?php
+
+namespace app\admin\controller;
+
+use think\Request;
+use think\Db;
+use app\model\OrderOther;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\SystemDept;
+use app\model\OrderOtherDiscount;
+use app\model\OrderAdvanceMoney;
+use app\model\OrderGuarantee;
+use app\model\OrderOtherAttachment;
+use app\workflow\model\WorkflowEntry;
+use think\Loader;
+use app\util\ReturnCode;
+use Workflow\Workflow;
+use Workflow\service\ProcService;
+
+/**折扣申请
+ * Class OrderOthers
+ * @package app\admin\controller
+ * @author: bordon
+ */
+class OrderOthers extends Base
+{
+    /**
+     * @api {get} admin/OrderOthers/discountApplyList 折扣申请列表[admin/OrderOthers/discountApplyList]
+     * @apiVersion 1.0.0
+     * @apiName discountApplyList
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/discountApplyList
+     *
+     * @apiParam {string} create_uid    理财经理id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {string} start_time    开始时间
+     * @apiParam {string} end_time    结束时间
+     * @apiParam {string} stage    审批状态
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {Object}  list       订单基本信息.
+     * @apiSuccess {string} list.process_sn    流程编号
+     * @apiSuccess {string} list.order_sn    业务单号
+     * @apiSuccess {string} list.finance_sn    财务编号
+     * @apiSuccess {string} list.estate_name    房产名称
+     * @apiSuccess {string} list.estate_owner    业主姓名
+     * @apiSuccess {string} list.stage_text    审批状态
+     * @apiSuccess {string} list.name    理财经理
+     * @apiSuccess {string} list.create_time    申请时间
+     */
+    public function discountApplyList(Request $request)
+    {
+        $create_uid = $request->get('create_uid', '');
+        $subordinates = $request->get('subordinates', 0);
+        $page = $request->get('page', 1);
+        $pageSize = $request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $keywords = $request->get('keywords', '');
+        $start_time = $request->get('start_time');
+        $end_time = $request->get('end_time');
+        $stage = $request->get('stage');
+        if ($start_time && $end_time) {
+            $start_time_stamp = strtotime($start_time);
+            $end_time_stamp = strtotime($end_time);
+            if ($start_time_stamp > $end_time_stamp) {
+                $map['r.create_time'] = ['between', [$end_time, $start_time]];
+            } else {
+                $map['r.create_time'] = ['between', [$start_time, $end_time]];
+            }
+        } else {
+            $start_time && $map['r.create_time'] = ['egt', $start_time];
+            $end_time && $map['r.create_time'] = ['elt', $end_time];
+        }
+        $where = [];
+        if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($create_uid);
+            } else {
+                $userStr = $create_uid;
+            }
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        }
+        $stage && $where['or.stage'] = $stage;
+        $keywords && $where['o.order_sn|e.estate_name|o.finance_sn'] = ['like', "%{$keywords}%"];
+        $where['o.status'] = 1;
+        $where['or.process_type'] = ['in', ['ED_DISCOUNT', 'XJ_DISCOUNT']];
+        $where['or.status'] = 1;
+        $where['e.estate_usage'] = 'DB';
+        $list = OrderOther::discountApplyList($where, ['page' => $page, 'list_rows' => $pageSize]);
+        return $this->buildSuccess([
+            'count' => $list['total'],
+            'list' => $list['data']
+        ]);
+    }
+
+    /**
+     * @api {get} admin/OrderOthers/getStage 获取审批状态 [admin/OrderOthers/getStage]
+     * @apiVersion 1.0.0
+     * @apiName getStage
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/getStage
+     *
+     * @apiSuccess {string} orderInfo.order_sn    业务单号
+     */
+    public function getStage()
+    {
+        return $this->buildSuccess(OrderOtherDiscount::$stageStatus);
+    }
+
+    /**
+     * @api {post} admin/OrderOthers/discountOrderDetail 新增折扣申请订单基本信息[admin/OrderOthers/discountOrderDetail]
+     * @apiVersion 1.0.0
+     * @apiName discountOrderDetail
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/discountOrderDetail
+     *
+     * @apiParam {string} order_sn    订单编号
+     *
+     * @apiSuccess {Object}  orderInfo       订单基本信息.
+     * @apiSuccess {string} orderInfo.order_sn    业务单号
+     * @apiSuccess {string} orderInfo.finance_sn    财务编号
+     * @apiSuccess {string} orderInfo.estate_name    房产信息
+     * @apiSuccess {string} orderInfo.money    担保金额
+     * @apiSuccess {string} list.self_financing    自筹金额
+     * @apiSuccess {string} orderInfo.ac_guarantee_fee    实收担保费
+     * @apiSuccess {string} orderInfo.order_dept    所属部门
+     * @apiSuccess {string} orderInfo.financing_manager_name    理财经理
+     * @apiSuccess {string} orderInfo.financing_manager_mobile    理财经理电话
+     * @apiSuccess {string} orderInfo.dept_manger_name    部门经理
+     * @apiSuccess {string} orderInfo.dept_manger_mobile    部门经理电话
+     * @apiSuccess {string} orderInfo.guarantee_rate    担保费率
+     * @apiSuccess {string} orderInfo.guarantee_fee    预计担保费
+     * @apiSuccess {Object}  advanceMoney       垫资信息
+     * @apiSuccess {string} advanceMoney.advance_money    垫资金额
+     * @apiSuccess {string} advanceMoney.advance_day    垫资天数
+     * @apiSuccess {string} advanceMoney.advance_rate    原日垫资费率/%
+     * @apiSuccess {string} advanceMoney.advance_fee    原垫资费/元
+     */
+    //@author: bordon
+    public function discountOrderDetail(Request $request)
+    {
+        $order_sn = $request->post('order_sn');
+        if (!$order_sn) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数错误');
+        }
+        $result = $this->getOrderBaseInfo($order_sn);
+        unset($result['financing_dept_id']);
+        unset($result['dept_manager_id']);
+        // 现金类
+        if ($this->checkOrderType($result->type)) {
+            $advanceMoney = OrderAdvanceMoney::where('order_sn', $result->order_sn)->where('status', 1)
+                ->field('id,advance_money,advance_day,advance_rate,advance_fee')->select();
+        }
+        return $this->buildSuccess([
+            'orderInfo' => $result,
+            'advanceMoney' => isset($advanceMoney) ? $advanceMoney : []]);
+    }
+
+    /**
+     * @api {post} admin/OrderOthers/addDiscount 新增折扣申请[admin/OrderOthers/addDiscount]
+     * @apiVersion 1.0.0
+     * @apiName addDiscount
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/addDiscount
+     *
+     * @apiParam {string} order_sn    订单编号
+     * @apiParam {string} order_type    订单类型
+     * @apiParam {string} reason    折扣原因
+     * @apiParam {array} attachment    附件ids [1,2,3]
+     * @apiParam {string} guarantee_rate    担保费率(额度类JYDB、FJYDB) 必须
+     * @apiParam {array} otherDiscount    垫资金额(现金类'JYXJ', 'TMXJ', 'DQJK', 'PDXJ', 'GMDZ', 'SQDZ') 必须
+     * @apiParam {string} otherDiscount.id    垫资费表 id (详情advanceMoney里对应记录id)
+     * @apiParam {string} otherDiscount.new_rate    现日垫资费率
+     * @apiParamExample {json} Request-Example:
+     *     {
+     *       "otherDiscount": [
+     *              [id:1,new_rate:0.2]
+     *              [id:2,new_rate:0.2]
+     *          ]
+     *     }
+     *
+     */
+    public function addDiscount(Request $request)
+    {
+        $data = $request->post();
+//        $data['order_sn'] = 'JYDB2018080003';
+//        $data['order_type'] = 'JYDB';
+//        $data['reason'] = '八卦四路意馨居A#-B#栋B201,此物业是我司员工欧小利购买，特向领导申请此单额度赎楼按0.5收费，请领导审批谢谢！';
+//        $data['attachment'] = [];
+//        $data['guarantee_rate'] = '0.06';
+//        $data['otherDiscount'] = [];
+        $validate = Loader::validate('OrderOther');
+        if (!$validate->scene('addDiscount')->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        $isXj = $this->checkOrderType($data['order_type']);
+        $orderOther = new OrderOther;
+        $orderOther->category = $isXj ? 2 : 1;
+        $orderOther->process_type = $isXj ? 'XJ_DISCOUNT' : 'ED_DISCOUNT';
+        $orderOther->process_sn = $this->getProcesssn();
+        $orderOther->order_sn = $data['order_sn'];
+        $orderOther->create_uid = $this->userInfo['id'];
+        $orderOther->reason = $data['reason'];
+        $orderOther->stage = 301;
+        $orderOther->order_sn = $data['order_sn'];
+        Db::startTrans();
+        try {
+            $orderOther->save();
+            $arr = [];
+            //现金
+            $orderTee = OrderGuarantee::where('order_sn', $data['order_sn'])->field('guarantee_rate,guarantee_fee,money')->find();
+            if ($isXj) {
+                foreach ($data['otherDiscount'] as $discount) {
+                    $advance = OrderAdvanceMoney::get($discount['id']);
+                    $arr[] = [
+                        'order_other_id' => $orderOther->id,
+                        'old_rate' => $advance->advance_rate,
+                        'old_money' => $advance->advance_fee,
+                        'new_rate' => $discount['new_rate'],
+                        'new_money' => sprintf('%.2f', $advance->advance_money * $advance->advance_day * $discount['new_rate'] / 100), //现金现垫资费
+                        'order_advance_money_id' => $advance->id
+                    ];
+                }
+            } else {
+                $arr[] = [
+                    'order_other_id' => $orderOther->id,
+                    'old_rate' => $orderTee->guarantee_rate,
+                    'old_money' => $orderTee->guarantee_fee,
+                    'new_rate' => $data['guarantee_rate'], // 额度现担保费率
+                    'new_money' => sprintf('%.2f', $orderTee->money * $data['guarantee_rate'] / 100)  // 额度现担保费
+                ];
+            }
+            (new OrderOtherDiscount())->insertAll($arr);
+            //添加附件
+            if (!empty($data['attachment'])) {
+                OrderOtherAttachment::addAttachment($data['attachment'], $orderOther->id);
+            }
+            // 初始化流程
+            $this->initWorkflow($orderOther);
+            Db::commit();
+            return $this->buildSuccess();
+        } catch (\Exception $e) {
+            // 回滚事务
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/OrderOthers/editDiscount 编辑折扣申请[admin/OrderOthers/editDiscount]
+     * @apiVersion 1.0.0
+     * @apiName editDiscount
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/editDiscount
+     *
+     * @apiParam {string} order_sn    订单编号
+     * @apiParam {string} other_id    他业务表主键id
+     * @apiParam {string} order_type    订单类型
+     * @apiParam {string} reason    折扣原因
+     * @apiParam {array} attachment    附件ids [1,2,3]
+     * @apiParam {string} guarantee_rate    担保费率(额度类JYDB、FJYDB) 必须
+     * @apiParam {array} otherDiscount    垫资金额(现金类'JYXJ', 'TMXJ', 'DQJK', 'PDXJ', 'GMDZ', 'SQDZ') 必须
+     * @apiParam {string} otherDiscount.id    垫资费表 id (详情advanceMoney里对应记录id)
+     * @apiParam {string} otherDiscount.new_rate    现日垫资费率
+     * @apiParamExample {json} Request-Example:
+     *     {
+     *       "otherDiscount": [
+     *              [id:1,new_rate:0.2]
+     *              [id:2,new_rate:0.2]
+     *          ]
+     *     }
+     *
+     */
+    public function editDiscount(Request $request)
+    {
+        $data = $request->post();
+        $data['order_sn'] = 'TMXJ2018080008';
+        $data['other_id'] = '112';
+        $data['order_type'] = 'TMXJ';
+        $data['reason'] = '编辑后提交';
+        $data['attachment'] = [15, 16];
+        $data['guarantee_rate'] = '';
+        $data['otherDiscount'] = [
+            ['id' => 1,
+                'new_rate' => 0.04]
+        ];
+        $validate = Loader::validate('OrderOther');
+        if (!$validate->scene('addDiscount')->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        $orderOther = OrderOther::where(['id' => $data['other_id'], 'order_sn' => $data['order_sn'], 'status' => 1, 'stage' => 301])->findOrFail();
+        $orderOther->reason = $data['reason'];
+        Db::startTrans();
+        try {
+            $orderOther->save(); // 更新申请原因
+            $orderTee = OrderGuarantee::where('order_sn', $data['order_sn'])->field('guarantee_rate,guarantee_fee,money')->find();
+            // 更新附件
+            OrderOtherAttachment::where('order_other_id', $orderOther->id)
+                ->where('status', 1)
+                ->whereNotIn('attachment_id', $data['attachment'])
+                ->setField('status', -1);
+            $attachment_ids = OrderOtherAttachment::where('order_other_id', $orderOther->id)->column('attachment_id');
+            $attachment = array_diff($data['attachment'], $attachment_ids);
+            if (!empty($attachment)) {
+                OrderOtherAttachment::addAttachment($attachment, $orderOther->id);
+            }
+            // 更新折扣信息
+            $otherDiscount = $orderOther->otherDiscounts;
+            // 额度
+            if ($orderOther->category == 1) {
+                $otherDiscount = $otherDiscount[0];
+                $otherDiscount->new_rate = $data['guarantee_rate'];
+                $otherDiscount->new_money = sprintf('%.2f', $orderTee->money * $data['guarantee_rate'] / 100);
+            }
+            // 现金
+            if ($orderOther->category == 2) {
+                foreach ($otherDiscount as &$v) {
+                    $advance = OrderAdvanceMoney::get($v->id);
+                    $cur_dicount = [];
+                    array_walk($data['otherDiscount'], function ($value, $key) use ($v, &$cur_dicount) {
+                        if ($value['id'] = $v['order_advance_money_id']) {
+                            $cur_dicount = $value;
+                        }
+                    });
+                    $v->new_rate = $cur_dicount['new_rate'];
+                    $v->new_money = sprintf('%.2f', $advance->advance_money * $advance->advance_day * $cur_dicount['new_rate'] / 100);
+                    $v->save();
+                }
+            }
+            $this->resendWorkflow($orderOther->id, $orderOther->order_sn);
+            Db::commit();
+            return $this->buildSuccess();
+        } catch (\Exception $e) {
+            // 回滚事务
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败' . $e->getMessage());
+        }
+    }
+
+    /*
+ * 生成流程编号
+ *
+ */
+    private function getProcesssn()
+    {
+        $date = date('Ymd', time());
+        $process_sn = OrderOther::where(['process_sn' => ['like', $date . '%']])->order('id desc')->value('process_sn');
+        if ($process_sn) {
+            $num = substr($process_sn, -4);
+            if ($num == 9999) {
+                return $date . '10000';
+            }
+            return $process_sn + 1;
+        } else {
+            return $date . '0001';
+        }
+
+    }
+
+    /**是否为交易现金
+     * @param $type 订单类型
+     * @return bool true 为现金，false额度
+     * @author: bordon
+     */
+    private function checkOrderType($type)
+    {
+        return in_array($type, ['JYXJ', 'TMXJ', 'DQJK', 'PDXJ', 'GMDZ', 'SQDZ']);
+    }
+
+    /**初始化流程
+     * @param $data
+     * @throws \Exception
+     * @author: bordon
+     */
+    private function initWorkflow($data)
+    {
+        $workflow = new Workflow();
+        // 折扣申请
+        $flow_id = $workflow->getFlowId('DISCOUNT_APPLY');
+        $config = [
+            'flow_id' => $flow_id,
+            'user_id' => $this->userInfo['id'],
+            'order_sn' => $data['order_sn'],
+            'mid' => $data['id']
+        ];
+        $workflow->init($config);
+    }
+
+    /**编辑后提交
+     * @param $id
+     * @param $order_sn
+     * @author: bordon
+     */
+    private function resendWorkflow($id, $order_sn)
+    {
+        $workflow = new Workflow();
+        $flow_id = $workflow->getFlowId('DISCOUNT_APPLY');
+        $entry = WorkflowEntry::where(['mid' => $id, 'order_sn' => $order_sn, 'status' => -1, 'flow_id' => $flow_id])->findOrFail();
+        $workflow->resend($entry->id, $this->userInfo['id']);
+    }
+
+    /**
+     * @api {post} admin/OrderOthers/discountDetails  订单基本信息(详情页面)[admin/OrderOthers/discountDetails]
+     * @apiVersion 1.0.0
+     * @apiName discountDetails
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/discountDetails
+     *
+     * @apiParam {string} order_sn    订单编号
+     * @apiParam {string} other_id    他业务表主键id
+     *
+     * @apiSuccess {Object}  base_info       订单基本信息
+     * @apiSuccess {string} orderInfo.order_sn    业务单号
+     * @apiSuccess {string} orderInfo.finance_sn    财务编号
+     * @apiSuccess {string} orderInfo.estate_name    房产信息
+     * @apiSuccess {string} orderInfo.money    担保金额
+     * @apiSuccess {string} list.self_financing    自筹金额
+     * @apiSuccess {string} orderInfo.ac_guarantee_fee    实收担保费
+     * @apiSuccess {string} orderInfo.order_dept    所属部门
+     * @apiSuccess {string} orderInfo.financing_manager_name    理财经理
+     * @apiSuccess {string} orderInfo.financing_manager_mobile    理财经理电话
+     * @apiSuccess {string} orderInfo.dept_manger_name    部门经理
+     * @apiSuccess {string} orderInfo.dept_manger_mobile    部门经理电话
+     * @apiSuccess {string} orderInfo.guarantee_rate    担保费率
+     * @apiSuccess {string} orderInfo.guarantee_fee    预计担保费
+     * @apiSuccess {Object}  discount_info       折扣申请信息
+     * @apiSuccess {string}  discount_info.process_sn       流程编号
+     * @apiSuccess {string}  discount_info.reason       折扣原因
+     * @apiSuccess {array}  discount_info.attachments       附件
+     * @apiSuccess {Object}  discount_info.other_discounts       变更信息
+     * @apiSuccess {string}  old_rate      额度原担保费率、现金原日垫资费率
+     * @apiSuccess {string}  old_money      额度原担保费、现金原垫资费
+     * @apiSuccess {string}  new_rate      额度现担保费率、现金现日垫资费率
+     * @apiSuccess {string}  new_money      额度现担保费、现金现垫资费
+     * @apiSuccess {Object}  approval_info       审批记录
+     * @apiSuccess {string}  approval_info.process_name  节点名称
+     * @apiSuccess {string}  approval_info.status_desc   操作
+     * @apiSuccess {string}  approval_info.content   审批意见
+     * @apiSuccess {string}  approval_info.finish_time  审批时间
+     *  *@apiSuccessExample {json} Success-Response:
+     *     HTTP/1.1 200 OK
+     *{
+     *    "base_info": {
+     *        "id": 33,
+     *        "type": "JYDB",
+     *        "order_sn": "JYDB2018080007",
+     *        "finance_sn": "100000010",
+     *        "money": "834000.00",
+     *        "financing_manager_name": "徐霞",
+     *        "financing_manager_mobile": "13554767498",
+     *        "financing_dept_id": 24,
+     *        "dept_manager_id": 119,
+     *        "self_financing": "0.00",
+     *        "ac_guarantee_fee": "6672.00",
+     *        "guarantee_rate": 0.8,
+     *        "guarantee_fee": "6672.00",
+     *        "order_dept": "担保业务01部",
+     *        "dept_manger_name": "刘传英",
+     *        "dept_manger_mobile": "13570871906"
+     *    },
+     *    "discount_info": {
+     *        "id": 113,
+     *        "process_sn": "201809040020",
+     *        "reason": "八卦四路意馨居A#-B#栋B201,此物业是我司员工欧小利购买，特向领导申请此单额度赎楼按0.5收费，请领导审批谢谢！",
+     * "attachments": [
+     *   {
+     *   "id": 19,
+     *   "url": "http://119.23.24.187\\businesssys_api\\public/uploads/20180822/c3af32d7995d3faa8745bcf8025b020d.jpg",
+     *   "name": "Penguins.jpg",
+     *   "thum1": "uploads/thum/20180822/c3af32d7995d3faa8745bcf8025b020d.jpg",
+     *  "ext": "jpg"
+     * }
+     *  ],
+     *        "other_discounts": [
+     *            {
+     *                "order_other_id": 113,
+     *                "old_rate": 0.8,
+     *                "old_money": "6672.00",
+     *                "new_rate": 1.1,
+     *                "new_money": "9174.00"
+     *            }
+     *        ]
+     *    },
+     *    "approval_info": [
+     *        {
+     *            "id": 3490,
+     *            "process_name": "待业务保单",
+     *            "auditor_name": "管理员",
+     *            "status_desc": "通过",
+     *            "content": null,
+     *            "finish_time": 2018-09-04 19:08:53
+     *        }
+     *    ]
+     *}
+     */
+    public function discountDetails(Request $request)
+    {
+        $data = $request->post();
+        if (empty($data['other_id']) || empty($data['order_sn'])) {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数不能为空!');
+        }
+        $baseInfo = $this->getOrderBaseInfo($data['order_sn']);
+        $discount_info = OrderOther::field('id,process_sn,reason')->where('order_sn', $data['order_sn'])->with('otherDiscounts')->find($data['other_id']);
+        $attachments = OrderOtherAttachment::alias('ooa')
+            ->join('attachment a', 'ooa.attachment_id = a.id')
+            ->field('a.id,a.url,a.name,a.thum1,a.ext')
+            ->where(['ooa.order_other_id' => $discount_info->id, 'status' => 1])
+            ->select();
+        foreach ($attachments as &$v) {
+            $v['url'] = config('uploadFile.url') . $v['url'];
+        }
+        $discount_info['attachments'] = $attachments;
+        return $this->buildSuccess([
+            'base_info' => $baseInfo,
+            'discount_info' => $discount_info,
+            'approval_info' => ProcService::getapprovalRecord($data['order_sn'], $discount_info->id, 'DISCOUNT_APPLY'),
+        ]);
+    }
+
+    /**
+     * @api {get} admin/OrderOthers/discountApprovalList 折扣申请审批列表[admin/OrderOthers/discountApprovalList]
+     * @apiVersion 1.0.0
+     * @apiName discountApprovalList
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/discountApprovalList
+     *
+     * @apiParam {string} create_uid    理财经理id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {string} start_time    开始时间
+     * @apiParam {string} end_time    结束时间
+     * @apiParam {string} stage    审批状态
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {Object}  list       订单基本信息.
+     * @apiSuccess {string} list.process_sn    流程编号
+     * @apiSuccess {string} list.order_sn    业务单号
+     * @apiSuccess {string} list.finance_sn    财务编号
+     * @apiSuccess {string} list.estate_name    房产名称
+     * @apiSuccess {string} list.estate_owner    业主姓名
+     * @apiSuccess {string} list.stage_text    审批状态
+     * @apiSuccess {string} list.name    理财经理
+     * @apiSuccess {string} list.create_time    申请时间
+     */
+    public function discountApprovalList(Request $request)
+    {
+        $create_uid = $request->get('create_uid', '');
+        $subordinates = $request->get('subordinates', 0);
+        $page = $request->get('page', 1);
+        $pageSize = $request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $keywords = $request->get('keywords', '');
+        $start_time = $request->get('start_time');
+        $end_time = $request->get('end_time');
+        $stage = $request->get('stage');
+        if ($start_time && $end_time) {
+            $start_time_stamp = strtotime($start_time);
+            $end_time_stamp = strtotime($end_time);
+            if ($start_time_stamp > $end_time_stamp) {
+                $map['r.create_time'] = ['between', [$end_time, $start_time]];
+            } else {
+                $map['r.create_time'] = ['between', [$start_time, $end_time]];
+            }
+        } else {
+            $start_time && $map['r.create_time'] = ['egt', $start_time];
+            $end_time && $map['r.create_time'] = ['elt', $end_time];
+        }
+        if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($create_uid);
+            } else {
+                $userStr = $create_uid;
+            }
+            $map['o.financing_manager_id'] = ['in', $userStr];
+        }
+        $stage && $map['x.stage'] = $stage;
+        $keywords && $map['o.order_sn|e.estate_name|o.finance_sn'] = ['like', "%{$keywords}%"];
+        $map['o.status'] = 1;
+        $map['x.process_type'] = ['in', ['ED_DISCOUNT', 'XJ_DISCOUNT']];
+        $map['y.estate_usage'] = 'DB';
+        $map['d.is_back'] = 0;
+        $map['d.is_deleted'] = 1;
+        $map['d.user_id'] = $this->userInfo['id'];
+        $map['d.status'] = ['in', '0,9'];
+        $map['wf.type'] = 'DISCOUNT_APPLY';
+        $field = 'max(d.id) proc_id,x.id as other_id,x.process_sn,x.process_type,o.order_sn,o.finance_sn,o.type,y.estate_name,y.estate_owner,x.stage,x.create_time,z.name';
+        $list = OrderOther::otherApprovalList($map, $field, $page, $pageSize);
+        return $this->buildSuccess([
+            'count' => $list['total'],
+            'list' => $list['data']
+        ]);
+    }
+
+    /**
+     * @api {post} admin/OrderOthers/subDealWith 提交折扣申请审批[admin/OrderOthers/subDealWith]
+     * @apiVersion 1.0.0
+     * @apiName subDealWith
+     * @apiGroup OrderOthers
+     * @apiSampleRequest admin/OrderOthers/subDealWith
+     *
+     * @apiParam {int}  other_id   其他业务表主键id
+     * @apiParam {string}  order_sn   订单编号
+     * @apiParam {int}  proc_id   处理明细表主键id
+     * @apiParam {int}  is_approval   审批结果 1通过 2驳回
+     * @apiParam {string}  content   审批意见
+     * @apiParam {int}  backtoback   是否退回之后直接返回本节点 1 返回 不返回就不需要传值
+     * @apiParam {int}  back_proc_id   退回节点id
+     */
+
+    public function subDealWith()
+    {
+
+        $other_id = input('other_id');
+        $orderSn = input('order_sn');
+        $is_approval = input('is_approval');
+        $proc_id = input('proc_id');
+        $content = input('content');
+        $backtoback = input('backtoback') ?: '';
+        $back_proc_id = input('back_proc_id');
+        if (empty($proc_id) || empty($orderSn) || empty($is_approval)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数不能为空!');
+        if ($backtoback == 1 && empty($back_proc_id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '退回节点id不能为空!');
+
+        $config = [
+            'user_id' => $this->userInfo['id'], // 用户id
+            'user_name' => $this->userInfo['name'], // 用户姓名
+            'proc_id' => $proc_id,  // 当前步骤id
+            'content' => $content,  // 审批意见
+            'backtoback' => $backtoback,  //是否退回之后直接返回本节点
+            'back_proc_id' => $back_proc_id,  // 退回节点id
+            'order_sn' => $orderSn
+        ];
+        $workflow = new Workflow($config);
+        // 启动事务
+        Db::startTrans();
+        try {
+            if ($is_approval == 1) {
+                // 审批通过 走审批流
+                $workflow->pass();
+            } else {
+                // 审批拒绝
+                $workflow->unpass();
+            }
+            $orderOther = OrderOther::where(['id' => $other_id, 'status' => 1, 'stage' => 308])->find();
+            if ($orderOther) {
+                $this->updateOrderInfo($orderOther);
+            }
+            // 提交事务
+            Db::commit();
+            return $this->buildSuccess('审批成功');
+        } catch (\Exception $e) {
+            // 回滚事务
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::ADD_FAILED, $e->getMessage());
+        }
+    }
+
+    /**审批结束修改订单信息
+     * @param OrderOther $orderOther
+     * @return bool|false|int
+     * @author: bordon
+     */
+    private function updateOrderInfo(OrderOther $orderOther)
+    {
+        // 额度 修改担保费率
+        $orderTee = OrderGuarantee::where('order_sn', $orderOther->order_sn)->field('money,guarantee_rate,guarantee_fee')->find();
+        $otherDiscount = $orderOther->otherDiscounts;
+        if ($orderOther->category == 1) {
+            $otherDiscount = $otherDiscount[0];
+            $orderTee->guarantee_rate = $otherDiscount->new_rate;
+            $orderTee->guarantee_fee = $otherDiscount->new_rate * $orderTee->money;
+            $orderTee->guarantee_fee = sprintf("%.2f", $orderTee->guarantee_fee / 100);
+        }
+        //现金 修改日垫资费率、垫资费、垫资费总计
+        if ($orderOther->category == 2) {
+            $total = 0;
+            foreach ($otherDiscount as $v) {
+                $advanceMoney = OrderAdvanceMoney::findOrFail($v->order_advance_money_id);
+                $advanceMoney->advance_rate = $v->new_rate;
+                $advanceMoney->advance_fee = $advanceMoney->advance_money * $advanceMoney->advance_day * $v->advance_rate;
+                $advanceMoney->advance_fee = sprintf("%.2f", $advanceMoney->advance_fee / 100);
+                $total += $advanceMoney->advance_fee;
+                $advanceMoney->save();
+            }
+            $orderTee->guarantee_fee = $total;
+        }
+        return $orderTee->save();
+    }
+
+    /**获取订单基本信息
+     * @param $order_sn 订单编号
+     * @author: bordon
+     */
+    private function getOrderBaseInfo($order_sn)
+    {
+        $result = Order::alias('o')
+            ->where(['o.status' => 1, 'o.order_sn' => $order_sn])
+            ->join('order_guarantee g', 'g.order_sn = o.order_sn')
+            ->join('system_user u', 'u.id = o.financing_manager_id', 'left')
+            ->join('estate e', 'e.order_sn = o.order_sn', 'left')
+            ->field('o.id,o.type,o.order_sn,o.finance_sn,o.money,u.name as financing_manager_name,u.mobile as financing_manager_mobile,
+            o.financing_dept_id,o.dept_manager_id,
+            e.estate_name,
+            g.self_financing,g.ac_guarantee_fee,g.guarantee_rate,g.guarantee_fee')
+            ->findOrFail();
+        $financing = SystemUser::where('id', $result->dept_manager_id)->field('name,mobile')->find();
+        $result->order_dept = SystemDept::where('id', $result->financing_dept_id)->value('name');
+        $result->dept_manger_name = $financing->name;
+        $result->dept_manger_mobile = $financing->mobile;
+        return $result;
+    }
+
+
+}

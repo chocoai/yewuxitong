@@ -1,0 +1,17 @@
+<?php
+/**
+ *
+ * @since   2018-04-21
+ * @author  CGenJ
+ */
+
+namespace app\model;
+
+
+class SystemAuthGroup extends Base {
+
+    public function rules() {
+        return $this->hasMany('SystemAuthRule', 'groupid', 'id');
+    }
+
+}

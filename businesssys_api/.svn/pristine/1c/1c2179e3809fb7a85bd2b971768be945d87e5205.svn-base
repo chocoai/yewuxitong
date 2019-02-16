@@ -1,0 +1,195 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/9
+ * Time: 9:46
+ */
+//订单相关组件类
+namespace app\util;
+use app\model\OrderLog;
+use app\model\TrialData;
+use app\model\TrialProcess;
+use app\model\OrderCostRecord;
+use app\model\OrderBankRecord;
+use app\model\SystemUser;
+use app\model\Estate;
+use app\model\OrderGuarantee;
+use think\Db;
+
+class OrderComponents {
+    /**
+     * 添加订单日志的静态方法
+     * @param int $userInfo  用户信息
+     * @param string $order_sn 订单编号
+     * @param string $stage 订单状态
+     * @param string $operate  操作
+     * @param string $operate_node 操作节点
+     * @param string $operate_det  操作详情
+     */
+
+    public static function addOrderLog($userInfo,$order_sn, $stage, $operate = '',$operate_node = '',$operate_det = '') {
+            //添加操作日志
+            $logData['create_uid'] = $userInfo['id'];
+            $logData['order_sn'] = $order_sn;
+            $logData['stage'] = $stage;
+            $logData['operate'] = $operate;
+            $logData['operate_node'] = $operate_node;
+            $logData['operate_det'] = $operate_det;
+            $logData['dept_id'] = $userInfo['deptid'];
+            $logData['dept_name'] = $userInfo['deptname'];
+            $logData['create_time'] = time();
+            return OrderLog::create($logData);
+    }
+
+    /**
+     * 财务赎楼出账表 基本信息
+     * @param string $order_sn 订单编号
+     */
+
+    public static function orderJbInfo($order_sn) {
+        $orderInfo = Db::name('order')->alias('a')
+                     ->field('a.order_sn,a.type,a.finance_sn,a.financing_manager_id,a.dept_manager_id,b.guarantee_money,b.guarantee_per')
+                     ->join('order_guarantee b','a.order_sn = b.order_sn')
+                     ->where(['a.order_sn'=>$order_sn,'a.status'=>1,'a.delete_time' => NULL])
+                     ->find();
+
+        $orderInfo['financing_manager_name'] = Db::name('system_user')->where(['id' => $orderInfo['financing_manager_id']])->value('name');
+        $deptManagerInfo = Db::name('system_user')->where(['id' => $orderInfo['dept_manager_id']])->field('name,deptname')->find();
+        $orderInfo['dept_manager_name'] = $deptManagerInfo['name'];
+        $orderInfo['deptname'] = $deptManagerInfo['deptname'];
+        unset($orderInfo['financing_manager_id']);
+        unset($orderInfo['dept_manager_id']);
+        return $orderInfo;
+    }
+
+    /**
+     * 财务赎楼出账表 房产信息
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showEstateList($order_sn) {
+        $problemMap['order_sn'] = $order_sn;
+        $problemMap['status'] = 1;
+        $problemMap['delete_time'] = NULL;
+        $qtField = 'estate_name,estate_district,estate_area,estate_certtype,estate_certnum,house_type';
+        $estateInfo = Estate::getAll($problemMap,$qtField);
+        foreach ($estateInfo as $k => $v){
+            $estateInfo[$k]['estate_district_name'] = Db::name('region')->where(['id' => $v['estate_district']])->value('name');
+            unset($estateInfo[$k]['estate_district']);
+        }
+        return $estateInfo;
+    }
+
+    /**
+     * 财务赎楼出账表 卖方信息(转让方)
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showSellerInfo($order_sn) {
+
+    }
+
+    /**
+     * 财务赎楼出账表 卖方共同借款人
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showBorrowerInfo($order_sn) {
+
+    }
+
+    /**
+     * 财务赎楼出账表 欠款及出账金额
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showArrearsInfo($order_sn) {
+
+    }
+
+    /**
+     * 财务赎楼出账表 预录赎楼还款账户
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showReimbursementInfo($order_sn) {
+
+    }
+
+    /**
+     * 财务赎楼出账表 实际出账收款账户
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showCollectionInfo($order_sn) {
+
+    }
+
+    /**
+     * 财务赎楼出账表 风控初审问题汇总
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showPreliminary($order_sn) {
+        $problemMap['order_sn'] = $order_sn;
+        $problemMap['type'] = 'QUESTION';
+        $problemMap['delete_time'] = NULL;
+        return TrialData::getAll($problemMap,'describe,status');
+    }
+
+    /**
+ * 财务赎楼出账表 风控提醒注意事项
+ * @param string $order_sn 订单编号
+ */
+
+    public static function showNeedAtten($order_sn) {
+        $qtField = 'process_name,item';
+        return TrialProcess::getAll(['order_sn' => $order_sn],$qtField);
+    }
+
+    /**
+     * 财务赎楼出账表 费用入账列表
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showChargeList($order_sn) {
+        $field = 'guarantee_fee,fee,self_financing,short_loan_interest,return_money,default_interest,overdue_money,other_money';
+        return OrderCostRecord::getAll(['order_sn' => $order_sn],$field);
+    }
+
+    /**
+     * 财务赎楼出账表 银行放款入账列表
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showBankList($order_sn) {
+        $field = 'bank_money,lender_bank,receivable_account,bank_money_time,remark,create_uid';
+        $booksWaterInfo = OrderBankRecord::getAll(['order_sn' => $order_sn],$field,'create_time desc');
+        foreach ($booksWaterInfo as $k => $v){
+            $booksWaterInfo[$k]['operation_name'] = SystemUser::where(['id' => $v['create_uid']])->value('name');
+            unset($booksWaterInfo[$k]['create_uid']);
+        }
+        return $booksWaterInfo;
+    }
+
+    /**
+     * 财务赎楼出账表 查询出该订单赎楼信息的各种状态
+     * @param string $order_sn 订单编号
+     */
+
+    public static function showStstusInfo($order_sn) {
+        $field = 'guarantee_fee_status,bank_money_status,instruct_status,is_bank_losn';
+        return OrderGuarantee::getOne(['order_sn' => $order_sn],$field);
+    }
+
+
+
+
+
+
+
+
+
+
+}

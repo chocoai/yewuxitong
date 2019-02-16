@@ -1,0 +1,15 @@
+<?php
+/**
+ * 订单
+ */
+namespace app\admin\controller;
+
+use app\model\Order;
+use app\util\ReturnCode;
+
+
+class Orders extends Base{
+
+
+
+}

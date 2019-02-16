@@ -1,0 +1,16 @@
+<?php
+
+namespace app\model;
+
+
+class SystemUser extends Base {
+    public static function userSearch($name)
+    {
+        return self::alias('a')
+                    ->field('a.id,a.name,b.name')
+                    ->join('department b','a.departmentid=b.id')
+                    ->where('a.name', 'like', "%{$name}%")
+                    ->limit(10)
+                    ->select();
+    }
+}

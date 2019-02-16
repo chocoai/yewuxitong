@@ -1,0 +1,9 @@
+<?php
+
+namespace app\workflow\model;
+
+class WorkflowFlow extends Base
+{
+    //
+    protected $autoWriteTimestamp = true;
+}

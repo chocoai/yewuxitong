@@ -1,0 +1,82 @@
+<?php
+
+/**
+ * 资金管理通用验证器
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class AddQuota extends Validate {
+
+    protected $rule = [
+        'bank' => 'require', //银行
+        'bank_branch' => 'require', //支行
+        'bank_id' => 'require', //银行id
+        'bank_branch_id' => 'require', //支行id
+        'business_breed' => 'require|array', //业务品种
+        'credit_quota' => 'require|regex:/^[+]{0,1}(\d+)$/|gt:0', //授信额度
+        'deposit_ratio' => 'require|gt:0', //保证金比例
+        'sign_date' => 'require|date', //签约时间
+        'due_date' => 'require|date', //到期时间
+        'customeranager' => 'requireWith:customeranager|max:12', //如果参数中有银行客户经理
+        'mobile' => 'requireWith:mobile|checkmobile:mobile', //如果参数中有联系电话
+        'paving_deposit' => 'requireWith:paving_deposit|regex:/^[+]{0,1}(\d+)$/', //如果参数中有铺地保证金就要验证只能为正整数
+        'fund_source_id' => 'require', //授信银行id（增存保证金）
+        'fund_source' => 'require', //资金来源（增存保证金）
+        'type' => 'require', //增解保证金（增存保证金）
+        'enable_quota' => 'require', //启用额度（增存保证金）
+        'stay_quota' => 'require', //在保金额（增存保证金）
+        'deposit' => 'require', //保证金金额（增存保证金）
+        'money' => 'require|regex:/^[+]{0,1}(\d+)$/', //如果参数中增存保证金金额就验证只能是正整数（增存保证金）
+        'name' => 'require', //渠道名称
+        'cash_source_id' => 'require', //渠道来源
+        'cash_source_name' => 'require', //渠道来源名称
+        'order_limit' => 'require', //订单限额
+        'is_interest' => 'require|in:0,1', //利息可用
+    ];
+    protected $message = [
+        'bank' => '银行不能为空', //银行
+        'bank_branch' => '支行不能为空', //支行
+        'bank__id' => '银行id不能为空', //银行id
+        'bank_branch_id' => '支行id不能为空', //支行id
+        'business_breed' => '业务品种不能为空', //业务品种
+        'business_breed.array' => '业务品种参数格式不对', //业务品种
+        'credit_quota' => '授信额度不能为空', //授信额度
+        'credit_quota.regex' => '授信额度只能是正整数', //授信额度
+        'credit_quota.gt' => '授信额度必须大于0', //授信额度
+        'deposit_ratio' => '保证金比例不能为空', //保证金比例
+        'deposit_ratio' => '保证金必须大于0', //保证金比例
+        'sign_date' => '签约时间不能为空', //签约时间
+        'sign_date.date' => '签约时间参数格式不对', //签约时间
+        'due_date' => '到期时间不能为空', //到期时间
+        'due_date.date' => '到期时间参数格式不对', //到期时间
+        'paving_deposit.regex' => '铺地保证金只能是正整数',
+        'money' => '增存/解付金额不能为空',
+        'money.regex' => '增存/解付金额只能是正整数',
+        'customeranager' => '银行客户经理名称不能超过12个字',
+        'name' => '渠道名称不能为空', //渠道名称
+        'cash_source_id' => '渠道来源不能为空', //渠道来源
+        'cash_source_name' => '渠道来源名称参数有误', //渠道来源名称
+        'order_limit' => '订单限额不能为空', //订单限额
+        'is_interest' => '利息可用必选', //利息可用
+        'is_interest.in' => '利息可用参数有误', //利息可用
+    ];
+    protected $scene = [
+        'addquota' => ['bank', 'bank_branch', 'bank_id', 'bank_branch_id', 'business_breed', 'credit_quota', 'deposit_ratio', 'sign_date', 'due_date', 'paving_deposit', 'customeranager', 'mobile'], //新增额度
+        'addorcut' => ['fund_source_id', 'fund_source', 'type', 'money', 'credit_quota', 'enable_quota', 'deposit_ratio', 'stay_quota', 'deposit', 'paving_deposit'], //增存解付保证金
+        'addchannel' => ['name', 'cash_source_id', 'cash_source_name', 'order_limit', 'is_interest'], //新增渠道
+    ];
+
+    //自定义规则  验证联系电话只能是手机和座机
+    protected function checkmobile($value) {
+        $isMob = "/^1[3-5,8]{1}[0-9]{9}$/"; //手机
+        $isTel = "/^([0-9]{3,4}-)?[0-9]{7,8}$/"; //座机
+        if (!preg_match($isMob, $value) && !preg_match($isTel, $value)) {
+            return "联系电话格式不对格式不正确。如果是固定电话，必须形如(xxxx-xxxxxxxx)!";
+        }
+        return true;
+    }
+
+}

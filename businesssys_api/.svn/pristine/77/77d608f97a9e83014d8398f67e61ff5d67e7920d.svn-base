@@ -1,0 +1,53 @@
+<?php
+/**
+ * Copyright (c) 2018.
+ */
+
+/**
+ * Created by PhpStorm.
+ * User: bordon
+ * Date: 2018-06-29
+ * Time: 10:27
+ */
+
+namespace workflow\restrict;
+
+
+class Tmxj extends Base
+{
+    /**
+     *待审查经理=》待跟单员补齐资料
+     */
+    public function riskCheckManageMerchandiser()
+    {
+        list($order_sn, $proc_id, $user_id) = [$this->option['order_sn'], $this->option['proc_id'], $this->option['user_id']];
+        $money = Db::name('order')->where('order_sn', $order_sn)->value('money');
+        $is_material = Db::name('trial_first')->where('order_sn', $order_sn)->value('is_material');
+        if (!$money || !$is_material) {
+            throw new \Exception("流转条件设置错误，无法流转，请联系流程设置人员");
+        }
+        Log::write('小于500万,金额：' . $money);
+        if (0 < $money && $money < 5000000&&$is_material==1) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     *待审查经理=》待资料入架
+     */
+    public function riskCheckDataEntry()
+    {
+        list($order_sn, $proc_id, $user_id) = [$this->option['order_sn'], $this->option['proc_id'], $this->option['user_id']];
+        $money = Db::name('order')->where('order_sn', $order_sn)->value('money');
+        $is_material = Db::name('trial_first')->where('order_sn', $order_sn)->value('is_material');
+        if (!$money || !$is_material) {
+            throw new \Exception("流转条件设置错误，无法流转，请联系流程设置人员");
+        }
+        Log::write('小于500万,金额：' . $money);
+        if (0 < $money && $money < 5000000&&$is_material==0) {
+            return true;
+        }
+        return false;
+    }
+}

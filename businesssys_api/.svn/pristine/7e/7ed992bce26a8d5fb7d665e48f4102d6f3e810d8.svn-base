@@ -1,0 +1,56 @@
+<?php
+
+/**
+ * 系统控制器
+ */
+
+namespace app\admin\controller;
+
+use app\model\System as SystemModel;
+use app\util\ReturnCode;
+
+class System extends Base {
+
+    private $system;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->system = new SystemModel();
+    }
+
+    /**
+     * @api {get} admin/System/getAllsystem 获取所有后台系统[admin/System/getAllsystem]
+     * @apiVersion 1.0.0
+     * @apiName getAllsystem
+     * @apiGroup System
+     * @apiSampleRequest admin/System/getAllsystem
+     *
+     * @apiSuccess {array} data    系统数据集
+     */
+    public function getAllsystem() {
+        $data = $this->system->getAllsystem();
+        return $this->buildSuccess($data);
+    }
+
+    /**
+     * @api {get} admin/System/getAllsystemmenu 根据系统获取菜单[admin/System/getAllsystemmenu]
+     * @apiVersion 1.0.0
+     * @apiName getAllsystem
+     * @apiGroup System
+     * @apiSampleRequest admin/System/getAllsystem
+     *
+     * @apiParam {int} id    系统id
+     * 
+     * @apiSuccess {array} data    菜单数据集
+     */
+    public function getAllsystemmenu() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $data = $this->system->getAllsystemmenu($id);
+            return $this->buildSuccess($data);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误！');
+        }
+    }
+
+}

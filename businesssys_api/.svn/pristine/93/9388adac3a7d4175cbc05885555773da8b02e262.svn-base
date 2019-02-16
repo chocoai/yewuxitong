@@ -1,0 +1,40 @@
+<?php
+/**
+ * 城市
+ */
+namespace app\admin\controller;
+
+use app\model\Region;
+use app\util\ReturnCode;
+
+
+class Regions extends Base{
+
+    /**
+     * 获取城市
+     * @return array
+     */
+    public function getcity()
+    {
+        $result = Region::getAll(['level'=>2,'status'=>1],'id,shortname');
+        if($result !== false)
+            return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '城市读取失败!');
+    }
+
+    /**
+     * 获取城区/片区
+     * @return array
+     */
+    public function getdistrict()
+    {
+        $parentId = $this->request->post('id');
+        if(empty($parentId))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        $result = Region::getAll(['parentid'=>$parentId,'status'=>1],'id,shortname');
+        if($result !== false)
+            return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '读取失败!');
+    }
+
+}

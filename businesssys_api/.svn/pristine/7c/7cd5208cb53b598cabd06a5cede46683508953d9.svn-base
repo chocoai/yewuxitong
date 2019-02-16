@@ -1,0 +1,127 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/31
+ * Time: 16:35
+ */
+namespace app\home\model;
+
+use app\model\Base;
+use think\Db;
+use app\model\Dictionary;
+
+
+class News extends Base {
+    /* @author 赵光帅
+     * 新闻列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     * */
+
+    public static function newList($map,$page,$pageSize){
+        $res = self::alias('a')
+            ->field('a.id,a.type,a.title,a.summary,a.img1,a.img2,a.img3,a.source,a.author,a.content,a.newsdate,a.create_time,z.name,z.deptname')
+            ->join('system_user z', 'a.create_uid=z.id')
+            ->where($map)
+            ->order('create_time desc')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        return $res;
+    }
+
+    /* @author 赵光帅
+     * 新闻详情
+     * @Param {int} $id   新闻表id
+     * */
+
+    public static function newDetail($id){
+        $res = self::alias('a')
+            ->field('a.id,a.type,a.title,a.summary,a.img1,a.source,a.author,a.content,a.newsdate,a.create_time,z.name,z.deptname')
+            ->join('system_user z', 'a.create_uid=z.id')
+            ->where(['a.id' => $id])
+            ->order('create_time desc')
+            ->find();
+        return $res;
+    }
+
+    /* @author 赵光帅
+     * 待审批列表
+     * @Param {int} $user_id    用户id
+     * @Param {arr} $group    用户所属的组
+     * */
+
+    public static function processList($user_id,$group){
+        $map['o.delete_time'] = NULL;
+        $map['o.status'] = 1;
+        $map['o.stage'] = ['in','1002,1003,1004,1005,1006,1007,1008,1009,1010,1011,1012'];
+        $map['wp.status'] = 0;
+        $map['wp.is_back'] = 0;
+        $map['wp.is_deleted'] = 1;
+        $map['wp.user_id']= $user_id;
+        $resInfo = Db::name('workflow_proc')->alias('wp')
+            ->field('wp.id proc_id,o.type,o.stage,e.estate_name,wp.order_sn,wp.create_time,su.name user_name,su.deptname dept_name')
+            ->join('order o','wp.order_sn=o.order_sn')
+            ->join('system_user su','o.create_uid = su.id')
+            ->join('estate e','wp.order_sn=e.order_sn','LEFT')
+            ->where($map)
+            ->order('wp.create_time asc')
+            ->group('wp.id')
+            ->paginate(array('list_rows' => 8, 'page' => 1))
+            ->toArray();
+        if(count($resInfo['data']) <= 7){
+            $num = 8 - count($resInfo['data']);
+            $orderMap['o.stage'] = 1001;
+            $orderMap['o.status'] = 1;
+            $orderMap['o.delete_time'] = null;
+            $orderMap['o.create_uid'] = $user_id;
+            $createOrderInfo = Db::name('order')->alias('o')
+                ->field('o.type,o.stage,e.estate_name,o.order_sn,o.create_time,su.name user_name,su.deptname dept_name')
+                ->join('system_user su','o.create_uid = su.id')
+                ->join('estate e','o.order_sn=e.order_sn','LEFT')
+                ->where($orderMap)
+                ->order('o.create_time asc')
+                ->group('o.id')
+                ->paginate(array('list_rows' => $num, 'page' => 1))
+                ->toArray();
+            $resInfo['data'] = array_merge($resInfo['data'],$createOrderInfo['data']);
+        }
+        if(count($resInfo['data']) <= 7){
+            $num2 = 8 - count($resInfo['data']);
+            $dispatchMap['o.delete_time'] = NULL;
+            $dispatchMap['o.status'] = 1;
+            $dispatchMap['o.stage'] = 1013;
+            $dispatchMap['d.status'] = 0;
+            $dispatchMap['d.is_deleted'] = 1;
+            $dispatchMap['d.user_id'] = $user_id;
+            $dispatchInfo = Db::name('order_ransom_dispatch')->alias('ord')
+                ->field('o.type,o.stage,o.order_sn,e.estate_name,ord.id,ord.create_time,su.name user_name,su.deptname dept_name')
+                ->join('workflow_proc d','ord.order_sn = d.order_sn')
+                ->join('order o','ord.order_sn=o.order_sn')
+                ->join('system_user su','ord.create_uid = su.id')
+                ->join('estate e','ord.order_sn=e.order_sn','LEFT')
+                ->where($dispatchMap)
+                ->order('d.create_time asc')
+                ->group('ord.id')
+                ->paginate(array('list_rows' => $num2, 'page' => 1))
+                ->toArray();
+            $resInfo['data'] = array_merge($resInfo['data'],$dispatchInfo['data']);
+        }
+        $newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        foreach ($resInfo['data'] as $k => $v){
+            $resInfo['data'][$k]['type_text'] = $newStageArr[$v['type']] ? $newStageArr[$v['type']]:'';
+            $resInfo['data'][$k]['create_time'] = date('Y-m-d H:i:s',$v['create_time']);
+            if(in_array(92,$group)){
+                $resInfo['data'][$k]['is_wealth_managers'] = 1;
+            }else{
+                $resInfo['data'][$k]['is_wealth_managers'] = 2;
+            }
+        }
+        return $resInfo['data'];
+
+    }
+
+
+
+}

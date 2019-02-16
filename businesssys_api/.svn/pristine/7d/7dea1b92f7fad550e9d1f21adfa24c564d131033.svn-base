@@ -1,0 +1,281 @@
+<?php
+
+// +----------------------------------------------------------------------
+// | ThinkPHP [ WE CAN DO IT JUST THINK ]
+// +----------------------------------------------------------------------
+// | Copyright (c) 2006-2016 http://thinkphp.cn All rights reserved.
+// +----------------------------------------------------------------------
+// | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
+// +----------------------------------------------------------------------
+// | Author: 流年 <liu21st@gmail.com>
+// +----------------------------------------------------------------------
+// 应用公共文件
+use think\Db;
+
+/**
+ * 系统主键id(14位时间戳)
+ * @return bigint
+ */
+function get_primary_key()
+{
+    list($s1, $s2) = explode(' ', microtime());
+    return (float)sprintf('%.0f', (floatval($s1) + floatval($s2)) * 10000);
+}
+
+
+/**判断用户角色
+ * check_auth($this->auth_group['branch_manager'],$this->userInfo['group'])
+ * @param string or array $arr 角色对应id 1或[1,2]
+ * @param array $tag group 用户所在组
+ * @return bool
+ */
+function check_auth($arr, $tag = [])
+{
+    if (!is_array($arr)) {
+        $arr = [$arr];
+    }
+    if (array_intersect($arr, $tag)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * 把返回的数据集转换成Tree
+ * @param $list
+ * @param string $pk
+ * @param string $pid
+ * @param string $child
+ * @param string $root
+ * @return array
+ */
+function listToTree($list, $pk = 'id', $pid = 'fid', $child = '_child', $root = '0')
+{
+    $tree = array();
+    if (is_array($list)) {
+        $refer = array();
+        foreach ($list as $key => $data) {
+            $refer[$data[$pk]] = &$list[$key];
+        }
+        foreach ($list as $key => $data) {
+            $parentId = $data[$pid];
+            if ($root == $parentId) {
+                $tree[] = &$list[$key];
+            } else {
+                if (isset($refer[$parentId])) {
+                    $parent = &$refer[$parentId];
+                    $parent[$child][] = &$list[$key];
+                }
+            }
+        }
+    }
+    return $tree;
+}
+
+function formatTree($list, $lv = 0, $title = 'name')
+{
+    $formatTree = array();
+    foreach ($list as $key => $val) {
+        $title_prefix = '';
+        for ($i = 0; $i < $lv; $i++) {
+            $title_prefix .= "|---";
+        }
+        $val['lv'] = $lv;
+        $val['namePrefix'] = $lv == 0 ? '' : $title_prefix;
+        $val['showName'] = $lv == 0 ? $val[$title] : $title_prefix . $val[$title];
+        if (!array_key_exists('_child', $val)) {
+            array_push($formatTree, $val);
+        } else {
+            $child = $val['_child'];
+            unset($val['_child']);
+            array_push($formatTree, $val);
+            $middle = formatTree($child, $lv + 1, $title); //进行下一层递归
+            $formatTree = array_merge($formatTree, $middle);
+        }
+    }
+    return $formatTree;
+}
+
+/* * 根据分类获取数据字典
+ * @param $type string
+ * @return array
+ */
+
+function getdictionary($type)
+{
+    static $list;
+    if (empty($list)) {
+        $list = cache('dic_list');
+    }
+    $key = "{$type}";
+    if (isset($list[$key])) {
+        $dic = $list[$key];
+    } else {
+        $info = Db::name('dictionary')->where(['type' => $type, 'status' => 1])->field('code,valname')->order('sort')->select();
+        $dic = $list[$key] = $info;
+        cache('dic_list', $list, ['expire' => 86400]);
+    }
+    return $dic;
+}
+
+/**
+ * 批量获取数据字典
+ * @param type $arr array
+ * @return array
+ */
+function getdictionarylist($arr)
+{
+    if (is_array($arr)) {
+        foreach ($arr as $value) {
+            $data[strtolower($value)] = getdictionary($value);
+        }
+    } else {
+        $data[strtolower($arr)] = getdictionary($arr);
+    }
+    return $data;
+}
+
+/**
+ * 二维数组去重根据其中的一个键值对去重
+ * @param $arr array
+ * @return array
+ */
+function unique($data = array())
+{
+    $tmp = [-1, -2];
+    foreach ($data as $key => $v) {
+        if (!in_array($v['id'], $tmp)) { //不在该id就添加进去
+            array_push($tmp, $v['id']);
+        } else {  //在里面就删除该值
+            unset($data[$key]);
+        }
+    }
+    return $data;
+}
+
+
+if (!function_exists('uuid')) {
+    function uuid($prefix = '')
+    {
+        $chars = md5(uniqid(mt_rand(), true));
+        $uuid = substr($chars, 0, 8) . '-';
+        $uuid .= substr($chars, 8, 4) . '-';
+        $uuid .= substr($chars, 12, 4) . '-';
+        $uuid .= substr($chars, 16, 4) . '-';
+        $uuid .= substr($chars, 20, 12);
+        return $prefix . $uuid;
+    }
+}
+
+/** 字符串转数组
+ * @param $str 要分割的字符串
+ * @param string $glue 分隔符
+ * @return array
+ */
+function str2arr($str, $glue = ',')
+{
+    return explode($glue, $str);
+}
+
+/**
+ * 数组转换为字符串，主要用于把分隔符调整到第二个参数
+ * @param  array $arr 要连接的数组
+ * @param  string $glue 分割符
+ * @return string
+ */
+function arr2str($arr, $glue = ',')
+{
+    return implode($glue, $arr);
+}
+
+/**
+ * 一维数据数组生成数据树
+ * @param array $list 数据列表
+ * @param string $id 父ID Key
+ * @param string $pid ID Key
+ * @param string $son 定义子数据Key
+ * @return array
+ */
+function arr2tree($list, $id = 'id', $pid = 'pid', $son = 'sub')
+{
+    $tree = $map = array();
+    foreach ($list as $item) {
+        $map[$item[$id]] = $item;
+    }
+    foreach ($list as $item) {
+        if (isset($item[$pid]) && isset($map[$item[$pid]])) {
+            $map[$item[$pid]][$son][] = &$map[$item[$id]];
+        } else {
+            $tree[] = &$map[$item[$id]];
+        }
+    }
+    unset($map);
+    return $tree;
+}
+
+/**
+ * 一维数据数组生成数据树
+ * @param array $list 数据列表
+ * @param string $id ID Key
+ * @param string $pid 父ID Key
+ * @param string $path
+ * @return array
+ */
+function arr2table($list, $id = 'id', $pid = 'pid', $path = 'path', $ppath = '')
+{
+    $_array_tree = arr2tree($list, $id, $pid);
+    $tree = array();
+    foreach ($_array_tree as $_tree) {
+        $_tree[$path] = $ppath . '-' . $_tree[$id];
+        $_tree['spl'] = str_repeat("&nbsp;&nbsp;&nbsp;├&nbsp;&nbsp;", substr_count($ppath, '-'));
+        if (!isset($_tree['sub'])) {
+            $_tree['sub'] = array();
+        }
+        $sub = $_tree['sub'];
+        unset($_tree['sub']);
+        $tree[] = $_tree;
+        if (!empty($sub)) {
+            $sub_array = arr2table($sub, $id, $pid, $path, $_tree[$path]);
+            $tree = array_merge($tree, (Array)$sub_array);
+        }
+    }
+    return $tree;
+}
+
+
+/**
+ * 数据字典组装
+ * @param $arr
+ * @return array
+ */
+function dictionary_reset($arr,$type=0)
+{
+    $newArr = [];
+    if($arr){
+        if($type === 0){
+            foreach($arr as $val){;
+                $newArr[$val['code']] = $val['valname'];
+            }
+        }else{
+            foreach($arr as $val){
+                !isset($newArr[$val['type']]) && $newArr[$val['type']]=[];
+                $newArr[$val['type']][$val['code']] = $val['valname'];
+            }
+        }
+
+    }
+    unset($arr);
+    return $newArr;
+
+}
+
+/*
+ * //根据订单状态获取订单的状态描述
+ * @param $code
+ * */
+function show_status_name($code, $type)
+{
+    return Db::name('dictionary')->where(['code' => $code, 'type' => $type])->value('valname');
+
+}

@@ -1,0 +1,594 @@
+<?php
+
+/* 资金管理控制器 */
+
+namespace app\admin\controller;
+
+use app\model\FundBankQuota;
+use app\model\FundDeposit;
+use app\model\FundChannel;
+use app\model\FundChannelAccount;
+use app\model\Cheque;
+use think\Db;
+use app\util\Quota;
+use app\util\ReturnCode;
+use think\Loader;
+
+class FundManagement extends Base {
+
+    private $fundbankquota;
+    private $funddeposit;
+    private $fundchannel;
+    private $fundchannelacount;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->fundbankquota = new FundBankQuota();
+        $this->funddeposit = new FundDeposit();
+        $this->fundchannel = new FundChannel();
+        $this->fundchannelacount = new FundChannelAccount();
+    }
+
+    /**
+     * @api {get} admin/FundManagement/bankquotaList 银行额度列表[admin/FundManagement/bankquotaList]
+     * @apiVersion 1.0.0
+     * @apiName bankquotaList
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/bankquotaList
+     *
+     * @apiParam {int} status     状态（1正常 2禁用）
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {string} id    授信银行id
+     * @apiSuccess {string} bank    授信银行
+     * @apiSuccess {string} bank_branch    授信支行
+     * @apiSuccess {string} credit_quota    授信额度
+     * @apiSuccess {string} enable_quota    启用额度
+     * @apiSuccess {string} stay_quota    在保额度
+     * @apiSuccess {string} canuse_quota    可用额度
+     * @apiSuccess {string} deposit_ratio    保证金比例
+     * @apiSuccess {string} deposit    保证金金额
+     * @apiSuccess {string} single_limit    单笔上限
+     * @apiSuccess {string} paving_deposit    铺地保证金
+     * @apiSuccess {string} due_date    到期日期
+     * @apiSuccess {string} status    状态
+     * @apiSuccess {string} status_text    状态（文本）
+     * @apiSuccess {string} is_ontime    是否过期  1未过期 2过期
+     * @apiSuccess {string} asset_value    净资产金额
+     * @apiSuccess {string} is_overquota    是否超过净资产10倍  1超过 2未超过
+     * @apiSuccess {int} count    总条数
+     */
+    public function bankquotaList() {
+        $limit = $this->request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+        $status = $this->request->get('status', '');
+        $keywords = $this->request->get('keywords', '', 'trim');
+        //查询条件组装
+        $where = [];
+        $str = 'status != -1';
+        $status && $str = $str . ' and status =' . $status;
+        $keywords && $where['bank|bank_branch'] = ['like', "%{$keywords}%"];
+        $field = "id,bank,bank_branch,credit_quota,deposit_ratio,enable_quota,deposit,paving_deposit,stay_quota,single_limit,due_date,status";
+        $creditList = $this->fundbankquota->where($where)->where($str)->field($field)->order('due_date ASC')->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        $creditList['asset_value'] = DB::name('system_config')->where(['name' => 'NET_ASSET_VALUE'])->value('value'); //净资产金额
+        empty($creditList['asset_value']) && $creditList['asset_value'] = 0; //净资产金额为空时置空为0
+        $total_quota = $this->fundbankquota->where(['status' => 1])->sum('stay_quota'); //所以状态正常的在保金额总值
+        $creditList['is_overquota'] = $total_quota * 10 >= $creditList['asset_value'] ? 1 : 2; //是否超过10倍
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['status_text'] = $value['status'] == 1 ? '正常' : '禁用'; //状态（文本）
+                $value['canuse_quota'] = $value['enable_quota'] - $value['stay_quota']; //可用额度=启用额度-在保额度
+                $value['single_limit'] = $value['single_limit'] == 0 ? '不限' : $value['single_limit']; //单笔上限
+                $value['is_ontime'] = $value['due_date'] > date("Y-m-d", strtotime("+3 months", time())) ? 1 : 2; //还有三个月到期
+                strtotime($value['due_date']) > time() && $this->fundbankquota->where('id', $value['id'])->setField('status', 2); //如果到了过期时间 自动改成禁用状态
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total'], 'asset_value' => $creditList['asset_value'], 'is_overquota' => $creditList['is_overquota']]);
+    }
+
+    /**
+     * @api {post} admin/FundManagement/addQuota 新增额度[admin/FundManagement/addQuota]
+     * @apiVersion 1.0.0
+     * @apiName addQuota
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/addQuota
+     *
+     * @apiParam {int}  id  银行额度id(编辑的时候才需要传)
+     * @apiParam {string}  bank  银行
+     * @apiParam {string}  bank_branch  支行
+     * @apiParam {int}  bank_id  银行id
+     * @apiParam {int}  bank_branch_id  支行id
+     * @apiParam {array}  business_breed 业务品种[1,2,3]
+     * @apiParam {int}   credit_quota  授信额度
+     * @apiParam {int}   deposit_ratio  保证金比例
+     * @apiParam {int}   paving_deposit  铺地保证金
+     * @apiParam {int}   single_limit  单笔上限
+     * @apiParam {string}   customeranager  银行经理
+     * @apiParam {string}   mobile  银行经理手机
+     * @apiParam {date}   sign_date  签约时间
+     * @apiParam {date}   due_date  到期时间
+     *
+     */
+    public function addQuota() {
+        $data = $this->request->Post('', null, 'trim');
+        $validate = loader::validate('AddQuota');
+        if (!$validate->scene('addquota')->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        if ($this->fundbankquota->where(['status' => 1, 'bank_id' => $data['bank_id'], 'bank_branch_id' => $data['bank_branch_id']])->count() > 0) {
+            return $this->buildFailed(ReturnCode::UNKNOWN, '系统已经存在已启用的当前支行额度,请确认后重试!');
+        }
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $data['business_breed'] = trim(implode(',', $data['business_breed']));
+        $data['enable_quota'] = 0;
+        $data['stay_quota'] = 0;
+        $data['create_uid'] = $userInfo['id'];
+        $where = [];
+        !empty($data['id']) && $where['id'] = $data['id'];
+        if ($this->fundbankquota->save($data, $where)) {
+            return $this->buildSuccess();
+        }
+        return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增额度失败！');
+    }
+
+    /**
+     * @api {post} admin/FundManagement/addorcutDeposit 增存保证金[admin/FundManagement/addorcutDeposit]
+     * @apiVersion 1.0.0
+     * @apiName addorcutDeposit
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/addorcutDeposit
+     *
+     * @apiParam {int}   fund_source_id 授信银行id 
+     * @apiParam {int}   fund_source  资金来源 （1：银行  2：渠道）
+     * @apiParam {int}   type  增解保证金 （1：增存  2解付）
+     * @apiParam {int}   credit_quota  授信额度
+     * @apiParam {int}   enable_quota  启用额度
+     * @apiParam {int}   deposit_ratio  保证金比例
+     * @apiParam {int}   stay_quota  在保金额
+     * @apiParam {int}   deposit  保证金金额
+     * @apiParam {int}   paving_deposit  铺地保证金
+     * @apiParam {int}   money  增付金额
+     *
+     */
+    public function addorcutDeposit() {
+        $data = $this->request->Post('', null, 'trim');
+        $validate = loader::validate('AddQuota');
+        if (!$validate->scene('addorcut')->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        Db::startTrans();
+        try {
+            $res = $this->fundbankquota->checkisOvercreditquota($data);
+            if ($res['code'] == 1) {
+                //去掉验证完的字段
+                unset($data['stay_quota']);
+                $data['create_uid'] = $userInfo['id'];
+                if ($this->funddeposit->save($data)) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '增付保证金记录存储失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, $res['msg']);
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+        return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增额度失败！');
+    }
+
+    /**
+     * @api {get} admin/FundManagement/getquotaInfo 获取银行额度信息[admin/FundManagement/getquotaInfo]
+     * @apiVersion 1.0.0
+     * @apiName getquotaInfo
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/getquotaInfo
+     *
+     * @apiParam {int} id 授信银行id   
+     *
+     * @apiSuccess {string} bank    授信银行
+     * @apiSuccess {string} bank_branch    授信支行
+     * @apiSuccess {array} business_breed    业务品种
+     * @apiSuccess {double} credit_quota    授信额度
+     * @apiSuccess {double} enable_quota    启用额度
+     * @apiSuccess {double} deposit_ratio    保证金比例
+     * @apiSuccess {double} deposit    保证金金额
+     * @apiSuccess {double} stay_quota    在保金额
+     * @apiSuccess {double} paving_deposit   铺地保证金
+     * @apiSuccess {double} single_limit    单笔上限
+     * @apiSuccess {string} customeranager    银行客户经理
+     * @apiSuccess {string} mobile    联系电话
+     * @apiSuccess {date} sign_date    签约日期
+     * @apiSuccess {date} due_date    到期日期
+     */
+    public function getquotaInfo() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $field = 'bank,bank_branch,business_breed,credit_quota,deposit,deposit_ratio,paving_deposit,enable_quota,single_limit,customeranager,mobile,sign_date,due_date';
+            $data = $this->fundbankquota->where('id', $id)->field($field)->find()->toArray();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '授信银行信息有误！');
+            }
+            $data['business_breed'] = explode(',', $data['business_breed']);
+            return $this->buildSuccess($data);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/FundManagement/quotaDetail 银行额度详情页[admin/FundManagement/quotaDetail]
+     * @apiVersion 1.0.0
+     * @apiName quotaDetail
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/quotaDetail
+     *
+     * @apiParam {int} id 授信银行id   
+     * @apiParam {int} fund_source 资金来源（1：银行  2渠道）   
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *  "data": {
+      "quotainfo":[{
+      "bank" :"中国银行",银行
+      "bank_branch" :"深圳腾龙支行",支行
+      "business_breed": ["1","2","3"],品种类型
+      "business_breed_text": ["一笔款","二笔款","拍卖款"],品种类型文本
+      "credit_quota": "6000000",授信额度
+      "enable_quota": "0.00",启用额度
+      "deposit_ratio": 6.5,保证金比例
+      "deposit": "0.00",保证金金额
+      "paving_deposit": "600",铺地保证金
+      "single_limit": "0.00",单笔上限
+      "customeranager": "银行经理银行经理银行经理",银行客户经理
+      "mobile": "0798-6666666",联系电话
+      "sign_date": "2018-07-12",签约日期
+      "due_date": "2019-07-25",到期时间
+      "status": 1,状态
+      "status_text": "正常",状态文本
+      }],
+      "depositLog":[{
+      "id" :"1",记录id
+      "type" :"1",增付
+      "money": 600.00,增付金额
+      "deposit": "60600.00",保证金金额
+      "enable_quota": "2009230.77",启用额度
+      "create_uid": "1",用户id
+      "create_time": 2018-08-02 14:20,新增时间
+      "type_text": "增存保证金",增付（文本）
+      "username": "管理员",用户姓名
+      }],
+      },
+     */
+    public function quotaDetail() {
+        $id = $this->request->get('id', '');
+        $fund_source = $this->request->get('fund_source', '');
+        if ($id && $fund_source) {
+            //基本详情
+            $quotaInfo = Quota::quotabaseinfo($id);
+            //银行管理额度
+            //增解保证金记录
+            $depositLog = Quota::depositLog($fund_source, $id);
+            return $this->buildSuccess(['quotainfo' => $quotaInfo, 'depositLog' => $depositLog]);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/FundManagement/setassetValue 设置净资产额[admin/FundManagement/setassetValue]
+     * @apiVersion 1.0.0
+     * @apiName setassetValue
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/setassetValue
+     *
+     * @apiParam {int} assetvalue 净资产额   
+     *
+     */
+    public function setassetValue() {
+        $assetvalue = $this->request->get('assetvalue', '');
+        if ($assetvalue) {
+            if (DB::name('system_config')->where(['name' => 'NET_ASSET_VALUE'])->update(['value' => $assetvalue])) {
+                return $this->buildSuccess();
+            } else {
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '更新失败');
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/FundManagement/setStatus 启用禁用状态[admin/FundManagement/setStatus]
+     * @apiVersion 1.0.0
+     * @apiName setStatus
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/setStatus
+     *
+     * @apiParam {int} id 需要操作的ID   
+     * @apiParam {int} status 启用禁用状态   1启用 2禁用
+     *
+     */
+    public function setStatus() {
+        $id = $this->request->get('id', '');
+        $status = $this->request->get('status', '');
+        if ($status && $id) {
+            if ($this->fundbankquota->where(['id' => $id])->update(['status' => $status])) {
+                return $this->buildSuccess();
+            } else {
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '更新失败');
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /*     * *******************************************************************************渠道start********************************************************************************************** */
+
+    /**
+     * @api {get} admin/FundManagement/channelcashList 渠道现金列表[admin/FundManagement/channelcashList]
+     * @apiVersion 1.0.0
+     * @apiName channelcashList
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/channelcashList
+     *
+     * @apiParam {int} status     状态（1正常 2禁用）
+     * @apiParam {string} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {int} id    渠道id
+     * @apiSuccess {string} name    渠道名称
+     * @apiSuccess {string} credit_quota_total    授信总额度
+     * @apiSuccess {string} enable_quota_total    启用（总）额度
+     * @apiSuccess {string} occupy_quota    占用额度
+     * @apiSuccess {string} interest    利息金额
+     * @apiSuccess {string} is_interest    利息可用
+     * @apiSuccess {string} surplus_enable_quota    剩余启用额度
+     * @apiSuccess {string} forecast_repay_tomorrow    预计明天还款
+     * @apiSuccess {string} pass_non_lend    已过未放款
+     * @apiSuccess {string} day_push    当日推送
+     * @apiSuccess {string} day_lend    当日放款
+     * @apiSuccess {string} deposit_total    保证金总额
+     * @apiSuccess {date} due_date    过期时间
+     * @apiSuccess {int} status    状态
+     * @apiSuccess {string} status_text    状态（文本）
+     * @apiSuccess {int} is_interest_text    利息可用(文本)
+     * @apiSuccess {int} is_ontime    是否过期  1未过期 2过期
+     * @apiSuccess {int} count    总条数
+     */
+    public function channelcashList() {
+        $limit = $this->request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $status = $this->request->get('status', '');
+        $keywords = $this->request->get('keywords', '', 'trim');
+        //查询条件组装
+        $where = [];
+        $status && $where['status'] = $status;
+        $keywords && $where['name'] = ['like', "%{$keywords}%"];
+        $where['status'] = array('neq', -1);
+        $where['cash_source_id'] = array('neq', 0);
+        $field = "id,name,credit_quota_total,enable_quota_total,occupy_quota,interest,is_interest,surplus_enable_quota,forecast_repay_tomorrow,pass_non_lend,day_push,day_lend,deposit_total,due_date,status";
+        $creditList = $this->fundchannel->where($where)->field($field)->order('due_date ASC')->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['status_text'] = $value['status'] == 1 ? '正常' : '禁用'; //状态（文本）
+                $value['is_interest_text'] = $value['is_interest'] == 1 ? '是' : '否'; //利息可用（文本）
+                $value['is_ontime'] = 1;
+                if (!empty($value['due_date'])) {
+                    $value['is_ontime'] = $value['due_date'] > date("Y-m-d", strtotime("+1 months", time())) ? 1 : 2; //还有一个月到期
+                }
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+    /**
+     * @api {post} admin/FundManagement/addChannel 新增渠道[admin/FundManagement/addChannel]
+     * @apiVersion 1.0.0
+     * @apiName addChannel
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/addChannel
+     *
+     * @apiParam {int}  id  渠道ID(编辑的时候才需要传)
+     * @apiParam {string}  name  渠道名称
+     * @apiParam {int}  cash_source_id  资金来源id
+     * @apiParam {string}  cash_source_name  资金来源名称
+     * @apiParam {int}  order_limit  订单限额
+     * @apiParam {int}  is_interest  利息可用 1是 0否'
+     */
+    public function addChannel() {
+        $data = $this->request->Post('', null, 'trim');
+        $validate = loader::validate('AddQuota');
+        if (!$validate->scene('addchannel')->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $data['create_uid'] = $userInfo['id'];
+        $isupdate = !empty($data['id']) ? TRUE : FALSE;
+        if ($this->fundchannel->isUpdate($isupdate)->save($data)) {
+            return $this->buildSuccess();
+        }
+        return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增渠道失败！');
+    }
+
+    /**
+     * @api {get} admin/FundManagement/getchannelInfo 获取渠道现金信息[admin/FundManagement/getchannelInfo]
+     * @apiVersion 1.0.0
+     * @apiName getchannelInfo
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/getchannelInfo
+     *
+     * @apiParam {int} id 渠道id   
+     *
+     * @apiSuccess {string}  name  渠道名称
+     * @apiSuccess {int}  cash_source_id  资金来源id
+     * @apiSuccess {string}  cash_source_name  资金来源名称
+     * @apiSuccess {int}  order_limit  订单限额
+     * @apiSuccess {int}  is_interest  利息可用 1是 0否
+     */
+    public function getchannelInfo() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $field = 'name,cash_source_id,cash_source_name,order_limit,is_interest';
+            $data = $this->fundchannel->where('id', $id)->field($field)->find()->toArray();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '渠道信息有误！');
+            }
+            return $this->buildSuccess($data);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/FundManagement/channelDetail 渠道现金详情页[admin/FundManagement/channelDetail]
+     * @apiVersion 1.0.0
+     * @apiName channelDetail
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/channelDetail
+     *
+     * @apiParam {int} id 授信银行id   
+     * @apiParam {int} quotainfo 资金来源1银行 2渠道   
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *  "data": {
+      "quotainfo":[{
+      "bank" :"中国银行",银行
+      "bank_branch" :"深圳腾龙支行",支行
+      "business_breed": ["1","2","3"],品种类型
+      "business_breed_text": ["一笔款","二笔款","拍卖款"],品种类型文本
+      "credit_quota": "6000000",授信额度
+      "enable_quota": "0.00",启用额度
+      "deposit_ratio": 6.5,保证金比例
+      "deposit": "0.00",保证金金额
+      "paving_deposit": "600",铺地保证金
+      "single_limit": "0.00",单笔上限
+      "customeranager": "银行经理银行经理银行经理",银行客户经理
+      "mobile": "0798-6666666",联系电话
+      "sign_date": "2018-07-12",签约日期
+      "due_date": "2019-07-25",到期时间
+      "status": 1,状态
+      "status_text": "正常",状态文本
+      }],
+      "depositLog":[{
+      "id" :"1",记录id
+      "type" :"1",增付
+      "money": 600.00,增付金额
+      "deposit": "60600.00",保证金金额
+      "enable_quota": "2009230.77",启用额度
+      "create_uid": "1",用户id
+      "create_time": 2018-08-02 14:20,新增时间
+      "type_text": "增存保证金",增付（文本）
+      "username": "管理员",用户姓名
+      }],
+      },
+     */
+    public function channelDetail() {
+        $id = $this->request->get('id', '');
+        $fund_source = $this->request->get('fund_source', '');
+        if ($id && $fund_source) {
+            //渠道基本详情
+            $channelbaseinfo = Quota::channelbaseinfo($id);
+            //渠道账户信息
+            $channelacountinfo = Quota::channelacountinfo($id);
+            //渠道现金变更记录
+            //渠道增解保证金记录
+            $depositLog = Quota::depositLog($fund_source, $id);
+            return $this->buildSuccess(['channelbaseinfo' => $channelbaseinfo, 'depositLog' => $depositLog, 'channelacountinfo' => $channelacountinfo]);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {post} admin/FundManagement/addChannelacount 新增渠道账户[admin/FundManagement/addChannelacount]
+     * @apiVersion 1.0.0
+     * @apiName addChannelacount
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/addChannelacount
+     *
+     * @apiParam {int}  id  渠道账户ID(编辑的时候才需要传)
+     * @apiParam {int}  fund_channel_id  渠道id
+     * @apiParam {string}  account_name  账户名称
+     * @apiParam {int}  credit_quota  授信额度
+     * @apiParam {int}  deposit_ratio  保证金比例
+     * @apiParam {int}  fund_cost  资金成本
+     * @apiParam {int}  channel_fee  通道费
+     * @apiParam {int}  premium_rate  保费费率
+     * @apiParam {int}  finance_advisor_fee  财务顾问费
+     * @apiParam {int}  other_fee  其它费用
+     * @apiParam {int}  single_limit  单笔限额，0表上没限额
+     * @apiParam {int}  borrower_limit  单个借款人限额
+     * @apiParam {date}  sign_date  签约日期
+     * @apiParam {date}  due_date  到期日期
+     */
+    public function addChannelacount() {
+        $data = $this->request->Post('', null, 'trim');
+        $validate = loader::validate('AddQuota');
+        if (!$validate->scene('addchannelacount')->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $data['create_uid'] = $userInfo['id'];
+        $isupdate = !empty($data['id']) ? TRUE : FALSE;
+        if ($this->fundchannelacount->isUpdate($isupdate)->save($data)) {
+            return $this->buildSuccess();
+        }
+        return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增渠道账户失败！');
+    }
+
+    /**
+     * @api {get} admin/FundManagement/getchannelacountInfo 获取渠道账户信息[admin/FundManagement/getchannelacountInfo]
+     * @apiVersion 1.0.0
+     * @apiName getchannelacountInfo
+     * @apiGroup FundManagement
+     * @apiSampleRequest admin/FundManagement/getchannelacountInfo
+     *
+     * @apiParam {int} id 渠道账户id   
+     *
+     * @apiSuccess {int}  fund_channel_id  渠道id
+     * @apiSuccess {string}  account_name  账户名称
+     * @apiSuccess {int}  credit_quota  授信额度
+     * @apiSuccess {int}  deposit_ratio  保证金比例
+     * @apiSuccess {int}  fund_cost  资金成本
+     * @apiSuccess {int}  channel_fee  通道费
+     * @apiSuccess {int}  premium_rate  保费费率
+     * @apiSuccess {int}  finance_advisor_fee  财务顾问费
+     * @apiSuccess {int}  other_fee  其它费用
+     * @apiSuccess {int}  single_limit  单笔限额，0表上没限额
+     * @apiSuccess {int}  borrower_limit  单个借款人限额
+     * @apiSuccess {date}  sign_date  签约日期
+     * @apiSuccess {date}  due_date  到期日期
+     */
+    public function getchannelacountInfo() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $field = 'id,fund_channel_id,account_name,credit_quota,deposit_ratio,fund_cost,channel_fee,premium_rate,finance_advisor_fee,other_fee,single_limit,borrower_limit,sign_date,due_date';
+            $data = $this->fundchannelacount->where('id', $id)->field($field)->find()->toArray();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '渠道账户信息有误！');
+            }
+            return $this->buildSuccess($data);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+}

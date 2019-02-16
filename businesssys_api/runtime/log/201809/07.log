@@ -1,0 +1,246 @@
+---------------------------------------------------------------
+[ 2018-09-07T18:13:45+08:00 ] 192.168.24.46 POST /admin/CostApply/subDealWith
+[ info ] www.busys.com/admin/CostApply/subDealWith [运行时间：0.522181s][吞吐率：1.92req/s] [内存消耗：3,769.11kb] [文件加载：81]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'CostApply',
+    2 => 'subDealWith',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'connection' => 'close',
+  'content-length' => '630',
+  'content-type' => 'multipart/form-data; boundary=--------------------------959500889555669135682579',
+  'accept-encoding' => 'gzip, deflate',
+  'cookie' => 'PHPSESSID=08u0p9srlrd1t4a210gma1j9q3',
+  'host' => 'www.busys.com',
+  'accept' => '*/*',
+  'user-agent' => 'PostmanRuntime/7.1.1',
+  'postman-token' => 'da02e72b-afef-4df7-9d62-9c36f9d06053',
+  'cache-control' => 'no-cache',
+)
+[ info ] [ PARAM ] array (
+  '/admin/CostApply/subDealWith' => '',
+  'order_sn' => 'JYDB2018080001',
+  'proc_id' => '3993',
+  'is_approval' => '1',
+  'content' => 'cscscsfsdfs',
+  'back_proc_id' => '3963',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\CostApply->subDealWith[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\CostApply.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000348s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.025419s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.017522s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 1448 LIMIT 1 [ RunTime:0.017613s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_entry` [ RunTime:0.016982s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_proc` [ RunTime:0.019073s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_proc` WHERE (  `user_id` = 1448  AND `status` = 0  AND `is_deleted` = 1  AND `id` = 3993 ) AND `bs_workflow_proc`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.018044s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_entry` WHERE (  `id` = 352 ) AND `bs_workflow_entry`.`delete_time` IS NULL [ RunTime:0.017357s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_dept` [ RunTime:0.017891s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE (  `id` IN (1) ) AND `bs_system_user`.`delete_time` IS NULL [ RunTime:0.017884s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_dept` WHERE (  `id` IN (17) ) AND `bs_system_dept`.`delete_time` IS NULL [ RunTime:0.018865s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_process` [ RunTime:0.018682s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_process` WHERE (  `id` = 216 ) AND `bs_workflow_process`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016351s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_flowlink` [ RunTime:0.017718s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM `bs_workflow_flowlink` WHERE (  `process_id` = 216  AND `type` = 'Condition' ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017006s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_process_var` [ RunTime:0.016606s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_process_var` WHERE (  `process_id` = 216 ) AND `bs_workflow_process_var`.`delete_time` IS NULL GROUP BY `expression_field` [ RunTime:0.017873s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.017053s ]
+[ sql ] [ SQL ] SELECT `guarantee_letter_status` FROM `bs_order` WHERE  `id` = 195 LIMIT 1 [ RunTime:0.017477s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `process_id` = 216  AND `type` = 'Condition' ) AND `bs_workflow_flowlink`.`delete_time` IS NULL [ RunTime:0.016544s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Sys'  AND `process_id` = 220 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017888s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_process` WHERE (  `id` = 220 ) AND `bs_workflow_process`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.018162s ]
+[ sql ] [ SQL ] SELECT `wp`.`user_id` FROM `bs_workflow_proc` `wp` INNER JOIN `bs_workflow_process` `wps` ON `wps`.`id`=`wp`.`process_id` WHERE (  `wp`.`entry_id` = 352  AND `wp`.`flow_id` = 26  AND `wp`.`order_sn` = 'JYDB2018080001'  AND `wp`.`is_deleted` = 1  AND `wps`.`wf_status` = 1004 ) AND `wp`.`delete_time` IS NULL ORDER BY `wp`.`finish_time` DESC LIMIT 1 [ RunTime:0.019428s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Emp'  AND `process_id` = 220 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016788s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Dept'  AND `process_id` = 220 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016728s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Role'  AND `process_id` = 220 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.018407s ]
+[ error ] 未设置流转条件，无法流转，请联系流程设置人员--172
+[ error ] @@@@@@@@@@@@@@@@
+[ error ] app\workflow\model\WorkflowFlowlink::__set_state(array(
+   'autoWriteTimestamp' => true,
+   'connection' => 
+  array (
+  ),
+   'parent' => NULL,
+   'query' => NULL,
+   'name' => 'WorkflowFlowlink',
+   'table' => NULL,
+   'class' => 'app\\workflow\\model\\WorkflowFlowlink',
+   'error' => NULL,
+   'validate' => NULL,
+   'pk' => NULL,
+   'field' => 
+  array (
+  ),
+   'except' => 
+  array (
+  ),
+   'disuse' => 
+  array (
+  ),
+   'readonly' => 
+  array (
+  ),
+   'visible' => 
+  array (
+  ),
+   'hidden' => 
+  array (
+  ),
+   'append' => 
+  array (
+  ),
+   'data' => 
+  array (
+    'id' => 480,
+    'flow_id' => 26,
+    'type' => 'Condition',
+    'process_id' => 216,
+    'next_process_id' => 220,
+    'auditor' => '0',
+    'expression' => '$guarantee_letter_status != 1  ',
+    'condition_type' => 'shell',
+    'path' => ' ',
+    'sort' => 100,
+    'status' => 1,
+    'create_time' => 1536215316,
+    'update_time' => 1536300905,
+    'delete_time' => NULL,
+  ),
+   'origin' => 
+  array (
+    'id' => 480,
+    'flow_id' => 26,
+    'type' => 'Condition',
+    'process_id' => 216,
+    'next_process_id' => 220,
+    'auditor' => '0',
+    'expression' => '$guarantee_letter_status != 1  ',
+    'condition_type' => 'shell',
+    'path' => ' ',
+    'sort' => 100,
+    'status' => 1,
+    'create_time' => 1536215316,
+    'update_time' => 1536300905,
+    'delete_time' => NULL,
+  ),
+   'relation' => 
+  array (
+  ),
+   'auto' => 
+  array (
+  ),
+   'insert' => 
+  array (
+  ),
+   'update' => 
+  array (
+  ),
+   'createTime' => 'create_time',
+   'updateTime' => 'update_time',
+   'dateFormat' => 'Y-m-d H:i:s',
+   'type' => 
+  array (
+  ),
+   'isUpdate' => true,
+   'force' => false,
+   'updateWhere' => NULL,
+   'failException' => false,
+   'useGlobalScope' => true,
+   'batchValidate' => false,
+   'resultSetType' => 'array',
+   'relationWrite' => NULL,
+))
+[ error ] 下一步骤未找到审核人--210
+---------------------------------------------------------------
+[ 2018-09-07T18:19:07+08:00 ] 192.168.24.46 POST /admin/CostApply/subDealWith
+[ info ] www.busys.com/admin/CostApply/subDealWith [运行时间：0.819325s][吞吐率：1.22req/s] [内存消耗：3,752.10kb] [文件加载：77]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'CostApply',
+    2 => 'subDealWith',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'connection' => 'close',
+  'content-length' => '630',
+  'content-type' => 'multipart/form-data; boundary=--------------------------351940730658836361283869',
+  'accept-encoding' => 'gzip, deflate',
+  'cookie' => 'PHPSESSID=08u0p9srlrd1t4a210gma1j9q3',
+  'host' => 'www.busys.com',
+  'accept' => '*/*',
+  'user-agent' => 'PostmanRuntime/7.1.1',
+  'postman-token' => '685c319e-fac0-4430-b68f-ebfcd3d816a9',
+  'cache-control' => 'no-cache',
+)
+[ info ] [ PARAM ] array (
+  '/admin/CostApply/subDealWith' => '',
+  'order_sn' => 'JYDB2018080001',
+  'proc_id' => '3993',
+  'is_approval' => '1',
+  'content' => 'cscscsfsdfs',
+  'back_proc_id' => '3963',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\CostApply->subDealWith[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\CostApply.php ]
+[ sql ] [ DB ] CONNECT:[ UseTime:0.026753s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.017052s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 1448 LIMIT 1 [ RunTime:0.017335s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_entry` [ RunTime:0.017318s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_proc` [ RunTime:0.017508s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_proc` WHERE (  `user_id` = 1448  AND `status` = 0  AND `is_deleted` = 1  AND `id` = 3993 ) AND `bs_workflow_proc`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.020175s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_entry` WHERE (  `id` = 352 ) AND `bs_workflow_entry`.`delete_time` IS NULL [ RunTime:0.017283s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_dept` [ RunTime:0.020463s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE (  `id` IN (1) ) AND `bs_system_user`.`delete_time` IS NULL [ RunTime:0.031822s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_dept` WHERE (  `id` IN (17) ) AND `bs_system_dept`.`delete_time` IS NULL [ RunTime:0.016954s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_process` [ RunTime:0.019606s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_process` WHERE (  `id` = 216 ) AND `bs_workflow_process`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017546s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_flowlink` [ RunTime:0.017449s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM `bs_workflow_flowlink` WHERE (  `process_id` = 216  AND `type` = 'Condition' ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016186s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_process_var` [ RunTime:0.016951s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_process_var` WHERE (  `process_id` = 216 ) AND `bs_workflow_process_var`.`delete_time` IS NULL GROUP BY `expression_field` [ RunTime:0.016737s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.017849s ]
+[ sql ] [ SQL ] SELECT `guarantee_letter_status` FROM `bs_order` WHERE  `order_sn` = 'JYDB2018080001' LIMIT 1 [ RunTime:0.016809s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `process_id` = 216  AND `type` = 'Condition' ) AND `bs_workflow_flowlink`.`delete_time` IS NULL [ RunTime:0.017099s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Sys'  AND `process_id` = 217 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017058s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_process` WHERE (  `id` = 217 ) AND `bs_workflow_process`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017408s ]
+[ sql ] [ SQL ] SELECT `wp`.`user_id` FROM `bs_workflow_proc` `wp` INNER JOIN `bs_workflow_process` `wps` ON `wps`.`id`=`wp`.`process_id` WHERE (  `wp`.`entry_id` = 352  AND `wp`.`flow_id` = 26  AND `wp`.`order_sn` = 'JYDB2018080001'  AND `wp`.`is_deleted` = 1  AND `wps`.`wf_status` = 1004 ) AND `wp`.`delete_time` IS NULL ORDER BY `wp`.`finish_time` DESC LIMIT 1 [ RunTime:0.018873s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Emp'  AND `process_id` = 217 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016739s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Dept'  AND `process_id` = 217 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017141s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flowlink` WHERE (  `type` = 'Role'  AND `process_id` = 217 ) AND `bs_workflow_flowlink`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017190s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.017148s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  FIND_IN_SET(89,groupid) ) [ RunTime:0.017108s ]
+[ sql ] [ SQL ] SELECT `id`,`name`,`deptid` FROM `bs_system_user` WHERE (  `id` IN (65,326,327) ) AND `bs_system_user`.`delete_time` IS NULL [ RunTime:0.016805s ]
+[ sql ] [ SQL ] SELECT `id`,`flow_id`,`process_name`,`process_to`,`position`,`child_flow_id`,`child_after`,`child_back_process`,`is_sign`,`wf_status`,`wf_nextuser`,`approval_type`,`approval_num`,`backtype` FROM `bs_workflow_process` WHERE (  `id` = 217 ) AND `bs_workflow_process`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016739s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_dept` WHERE (  `id` = 66 ) AND `bs_system_dept`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017129s ]
+[ sql ] [ SQL ] INSERT INTO `bs_workflow_proc` (`entry_id` , `flow_id` , `order_sn` , `process_id` , `process_name` , `circle` , `status` , `is_read` , `concurrence` , `user_id` , `user_name` , `dept_name` , `step` , `create_time` , `update_time`) VALUES (352 , 26 , 'JYDB2018080001' , 217 , '待审查经理审批' , 1 , 0 , 0 , 1 , 65 , '赵莉丽' , '审查部' , 1 , 1536315546 , 1536315546) [ RunTime:0.017108s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_dept` WHERE (  `id` = 102 ) AND `bs_system_dept`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016798s ]
+[ sql ] [ SQL ] INSERT INTO `bs_workflow_proc` (`entry_id` , `flow_id` , `order_sn` , `process_id` , `process_name` , `circle` , `status` , `is_read` , `concurrence` , `user_id` , `user_name` , `dept_name` , `step` , `create_time` , `update_time`) VALUES (352 , 26 , 'JYDB2018080001' , 217 , '待审查经理审批' , 1 , 0 , 0 , 1 , 326 , '涂润' , '后台研发部' , 2 , 1536315547 , 1536315547) [ RunTime:0.016437s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_dept` WHERE (  `id` = 102 ) AND `bs_system_dept`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.015545s ]
+[ sql ] [ SQL ] INSERT INTO `bs_workflow_proc` (`entry_id` , `flow_id` , `order_sn` , `process_id` , `process_name` , `circle` , `status` , `is_read` , `concurrence` , `user_id` , `user_name` , `dept_name` , `step` , `create_time` , `update_time`) VALUES (352 , 26 , 'JYDB2018080001' , 217 , '待审查经理审批' , 1 , 0 , 0 , 1 , 327 , '李致远' , '后台研发部' , 3 , 1536315547 , 1536315547) [ RunTime:0.016451s ]
+[ sql ] [ SQL ] SELECT `id`,`flow_id`,`process_name`,`process_to`,`position`,`child_flow_id`,`child_after`,`child_back_process`,`is_sign`,`wf_status`,`wf_nextuser`,`approval_type`,`approval_num`,`backtype` FROM `bs_workflow_process` WHERE (  `id` = 217 ) AND `bs_workflow_process`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016777s ]
+[ sql ] [ SQL ] UPDATE `bs_workflow_entry`  SET `wf_status`='319',`process_id`=217,`update_time`=1536315547  WHERE  `id` = 352 [ RunTime:0.016512s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_workflow_flow` [ RunTime:0.017083s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_workflow_flow` WHERE (  `id` = 26 ) AND `bs_workflow_flow`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017046s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_other` [ RunTime:0.017080s ]
+[ sql ] [ SQL ] UPDATE `bs_order_other`  SET `stage`='319'  WHERE  `id` = 195 [ RunTime:0.016887s ]
+[ log ] 审批更新订单状态...
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE (  `id` = 1448 ) AND `bs_system_user`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.017152s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_dept` WHERE (  `id` = 66 ) AND `bs_system_dept`.`delete_time` IS NULL LIMIT 1 [ RunTime:0.016803s ]
+[ sql ] [ SQL ] UPDATE `bs_workflow_proc`  SET `is_deleted`=-1  WHERE (  `id` <> 3993  AND `entry_id` = 352  AND `process_id` = 216  AND `circle` = 1  AND `is_deleted` = 1  AND `status` = 0 ) AND `bs_workflow_proc`.`delete_time` IS NULL [ RunTime:0.016939s ]
+[ sql ] [ SQL ] UPDATE `bs_workflow_proc`  SET `status`=9,`status_desc`='通过',`auditor_id`=1448,`auditor_name`='田璐',`auditor_dept`='审查部',`content`='cscscsfsdfs',`finish_time`=1536315547  WHERE (  `entry_id` = 352  AND `process_id` = 216  AND `circle` = 1  AND `status` = 0  AND `id` = 3993 ) AND `bs_workflow_proc`.`delete_time` IS NULL [ RunTime:0.016667s ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000311s ]

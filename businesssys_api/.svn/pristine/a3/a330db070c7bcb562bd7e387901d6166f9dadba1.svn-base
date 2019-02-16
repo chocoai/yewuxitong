@@ -1,0 +1,124 @@
+{extend name='/public/base' /}
+{block name='body'}
+<!--<script src="__STATIC__/flowchart/src/raphael-min.js"></script>-->
+<!--<script src="__STATIC__/flowchart/release/flowchart.min.js"></script>-->
+<div class="container">
+    <!--<div class="row">-->
+    <!--<div id="diagram"></div>-->
+    <!--<textarea id="con" style="width: 100%;" rows="14">-->
+    <!--st=>start: 起草订单-->
+    <!--e=>end: 订单已完成-->
+    <!--cond1=>condition: 金额<100万-->
+    <!--cond3=>condition: 100<=金额<300万-->
+    <!--cond4=>condition: 300<=金额<500万-->
+
+    <!--op2_1=>operation: 将token、timestamp、nonce三个参数进行字典序排序-->
+    <!--op2_2=>operation: 将三个参数字符串拼接成一个字符串进行sha1加密-->
+    <!--cond2=>condition: 加密字符串 == signature-->
+    <!--io1=>inputoutput: 返回echostr-->
+
+    <!--op1=>operation: 待业务报单-->
+    <!--op2=>operation: 待部门经理审批-->
+    <!--op3=>operation: 待审查助理审核-->
+    <!--op4=>operation: 待审查主管审核-->
+    <!--op5=>operation: 待审查员审核-->
+    <!--op6=>operation: 待审查经理审核-->
+    <!--op7=>operation: 待风控总监审核-->
+    <!--op8=>operation: 待总经理审核-->
+    <!--io2=>inputoutput: post返回数据-->
+
+
+    <!--st->op1(right)->op2(bottom)->op3->op4->cond1-->
+    <!--cond1(yes)->io2->e-->
+    <!--cond1(no)->op6->cond3-->
+    <!--cond3(yes)->op7-->
+    <!--cond3(no)->op8->cond4-->
+    <!--cond2(no)->e-->
+    <!--cond2(yes)->io1->e-->
+    <!--</textarea>-->
+    <!--</div>-->
+    <div class="row">
+        <h3>{:session('user.username')}：{$entry->title} </h3>
+        <form>
+            <div class="form-group">
+                <label for="title">节点名称</label>
+                <input type="text" class="form-control" id="title" name="title" placeholder="节点名称"
+                       value="{$proc->process_name}">
+            </div>
+            <div class="form-group">
+                <label>审批意见</label>
+                <textarea rows="3" class="form-control" placeholder="审批意见" name="content"></textarea>
+            </div>
+            <div class="form-group">
+                <label>可退回节点</label>
+                <select>
+                    {foreach $list['preprocess'] as $item}
+                    <option value="{$item->id}">{$item->process_name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>下一步审批人</label>
+                <select>
+                    {foreach $list['nextprocess_user'] as $item}
+                    <option value="{$item->id}">{$item->name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>下一步节点</label>
+                <span>{$list['nextprocess']->process_name}</span>
+            </div>
+            <div class="form-group">
+                <input type="hidden" name="proc_id" value="{$proc->id}">
+                <button type="button" class="btn btn-primary" id="pass">通过</button>
+                <button type="button" class="btn btn-default" id="back">驳回</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script type="text/javascript">
+    // var diagram = flowchart.parse($('#con').val());
+    // diagram.drawSVG('diagram');
+
+    $(function () {
+        var proc_id = $('input[name=proc_id]').val();
+        $('#pass').on('click', function () {
+            $.ajax({
+                type: 'POST',
+                dataType: 'JSON',
+                url: '/businesssys_api/public/workflow/proc/pass/id/' + proc_id,
+                data: {
+                    content: $('textarea[name=content]').val(),
+                },
+                success: function (res) {
+                    alert(res.msg)
+                    if (res.code == 1) {
+                        location.href = res.url;
+                    }
+                }
+            })
+        });
+
+        $('#back').on('click', function () {
+            $.ajax({
+                type: 'POST',
+                dataType: 'JSON',
+                url: '/businesssys_api/public/workflow/proc/unpass/id/' + proc_id,
+                data: {
+                    content: $('textarea[name=content]').val(),
+                },
+                success: function (res) {
+                    alert(res.msg)
+                    if (res.code == 1) {
+                        location.href = res.url;
+                    }
+                }
+            })
+        });
+    });
+</script>
+
+
+{/block}

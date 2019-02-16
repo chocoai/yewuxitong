@@ -1,0 +1,20 @@
+<?php
+
+namespace app\model;
+
+
+/**展期
+ * Class OrderOtherExhibition
+ * @package app\model
+ * @author: bordon
+ */
+class OrderOtherExhibition extends Base
+{
+    /**other关联模型
+     * @author: bordon
+     */
+    public function orderOther()
+    {
+        return $this->belongsTo('OrderOther','order_other_id');
+    }
+}

@@ -1,0 +1,253 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/21
+ * Time: 10:14
+ * 资料入架财务审核
+ */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\OrderRansomDispatch;
+use app\model\Dictionary;
+
+class Foreclo extends Base {
+    private $dictionary;
+    private $orderransomdispatch;
+    private $order;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->orderransomdispatch = new OrderRansomDispatch();
+        $this->dictionary = new Dictionary();
+        $this->order = new Order();
+        $this->systemuser = new SystemUser();
+    }
+
+    /**
+     * @api {post} admin/Foreclo/dataList 资料入架列表[admin/Foreclo/dataList ]
+     * @apiVersion 1.0.0
+     * @apiName dataList
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/dataList
+     *
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type    订单类型
+     * @apiParam {int}  is_combined_loan   是否组合贷款（0否 1是）
+     * @apiParam {int} search_text    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+            "total": 19,             总条数
+            "per_page": "2",         每页显示的条数
+            "current_page": 1,       当前页
+            "last_page": 10,         总页数
+            "data": [
+                {
+                "order_sn": "JYDB2018050137123456",    业务单号
+                "type": "JYDB",                        订单类型
+                "create_time": "2018-05-09 17:04:06",  报单时间
+                "name": "夏丽平",                        理财经理
+                "estate_name": "国际新城一栋",           房产名称
+                "estate_owner": "张三,李四",             业主姓名
+                "is_combined_loan": 1,                   是否组合贷 1是 0否
+                "order_status": "待注销过户",             订单状态
+                "estate_ecity_name": "深圳市",            城市
+                "estate_district_name": "罗湖区",         城区
+                "organization": [                        赎楼银行
+                    {
+                    "organization": "银行"
+                    },
+                    {
+                    "organization": "银行"
+                    },
+                    {
+                    "organization": "银行"
+                    }
+                 ]
+                },
+                {
+                "order_sn": "JYDB2018050159",
+                "type": "JYDB",
+                "create_time": "2018-05-12 10:15:45",
+                "name": "夏丽平",
+                "estate_name": "国际新城一栋",
+                "estate_owner": "张三,李四",
+                "is_combined_loan": null,
+                "order_status": "待指派赎楼员",
+                "estate_ecity_name": "深圳市",
+                "estate_district_name": "罗湖区",
+                "organization": []
+                }
+            ]
+          }
+        }
+     */
+
+    public function dataList(){
+        $createUid = input('create_uid')?:0;
+        $subordinates = input('subordinates')?:0;
+        $type = input('type');
+        $is_combined_loan = input('is_combined_loan')?:0;
+        $searchText = trim(input('search_text'));
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $userId = $this->userInfo['id'];
+        //$userId = 2;
+        $map = [];
+        //用户判断//
+        $userStr = $createUid === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$createUid,$subordinates);
+        //return json($userStr);
+        if($userStr !== false)
+            $map['x.financing_manager_id']=['in', $userStr];
+        else
+            return $this->buildSuccess([]);
+        $type && $map['x.type'] = $type;
+        $is_combined_loan && $map['n.is_combined_loan'] = $is_combined_loan;
+        $searchText && $map['y.estate_name|x.order_sn']=['like', "%{$searchText}%"];
+        $map['x.delete_time'] = NULL;
+        $map['x.status'] = 1;
+        try{
+            return $this->buildSuccess(Order::dataList($map,$page,$pageSize));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclo/finauditList 财务审核列表[admin/Foreclo/finauditList ]
+     * @apiVersion 1.0.0
+     * @apiName finauditList
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/finauditList
+     *
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type    订单类型
+     * @apiParam {int}  is_combined_loan   是否组合贷款（0否 1是）
+     * @apiParam {int} search_text    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+            "total": 19,             总条数
+            "per_page": "2",         每页显示的条数
+            "current_page": 1,       当前页
+            "last_page": 10,         总页数
+            "data": [
+                {
+                "order_sn": "JYDB2018050137123456",    业务单号
+                "type": "JYDB",                        订单类型
+                "create_time": "2018-05-09 17:04:06",  报单时间
+                "name": "夏丽平",                        理财经理
+                "estate_name": "国际新城一栋",           房产名称
+                "estate_owner": "张三,李四",             业主姓名
+                "is_combined_loan": 1,                   是否组合贷 1是 0否
+                "order_status": "待注销过户",             订单状态
+                "estate_ecity_name": "深圳市",            城市
+                "estate_district_name": "罗湖区",         城区
+                "organization": [                        赎楼银行
+                    {
+                    "organization": "银行"
+                    },
+                    {
+                    "organization": "银行"
+                    },
+                    {
+                    "organization": "银行"
+                    }
+                ]
+                },
+                {
+                "order_sn": "JYDB2018050159",
+                "type": "JYDB",
+                "create_time": "2018-05-12 10:15:45",
+                "name": "夏丽平",
+                "estate_name": "国际新城一栋",
+                "estate_owner": "张三,李四",
+                "is_combined_loan": null,
+                "order_status": "待指派赎楼员",
+                "estate_ecity_name": "深圳市",
+                "estate_district_name": "罗湖区",
+                "organization": []
+                }
+            ]
+        }
+    }
+     */
+
+    public function finauditList(){
+        $createUid = input('create_uid')?:0;
+        $subordinates = input('subordinates')?:0;
+        $type = input('type');
+        //$is_combined_loan = input('is_combined_loan')?:0;
+        $searchText = trim(input('search_text'));
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $userId = $this->userInfo['id'];
+        //$userId = 2;
+        $map = [];
+        //用户判断//
+        $userStr = $createUid === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$createUid,$subordinates);
+        //return json($userStr);
+        if($userStr !== false)
+            $map['o.financing_manager_id']=['in', $userStr];
+        else
+            return $this->buildSuccess([]);
+        $type && $map['o.type'] = $type;
+        //$is_combined_loan && $map['n.is_combined_loan'] = $is_combined_loan;
+        $searchText && $map['e.estate_name|o.order_sn|o.finance_sn']=['like', "%{$searchText}%"];
+        $map['o.delete_time'] = NULL;
+        $map['o.status'] = 1;
+
+        $field = "x.id,x.order_sn,x.ransom_bank,x.ransom_status,x.ransom_type,x.ransomer,x.create_time,o.type,o.finance_sn,o.financing_manager_id,e.estate_name,e.estate_owner";
+        $creditList = $this->orderransomdispatch->alias('x')
+            ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+            ->join('__ESTATE__ e', 'e.order_sn=x.order_sn')
+            ->where($map)->field($field)
+            ->order('x.create_time', 'DESC')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as $key => $value) {
+                $creditList['data'][$key]['ransom_status_text'] = $this->dictionary->getValnameByCode('ORDER_JYDB_STATUS', $value['ransom_status']); //赎楼状态
+                $creditList['data'][$key]['ransom_type_text'] = $this->orderransomdispatch->getRansomtype($value['ransom_type']); //赎楼类型
+                $creditList['data'][$key]['type_text'] = $this->order->getType($value['type']); //订单类型
+                $creditList['data'][$key]['create_time'] = date('Y-m-d', strtotime($value['create_time'])); //派单时间
+                $creditList['data'][$key]['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+            }
+        }
+        return $this->buildSuccess($creditList);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

@@ -1,0 +1,46 @@
+######使用示例
+```php
+use Workflow\Workflow;
+
+//流程初始化
+$data['flow_id'] workflow_flow 表id
+            $flow = FlowModel::where(['is_publish' => 1, 'status' => 1])->findOrFail($data['flow_id']);
+            $flowlink = WorkflowFlowlink::alias('fl')->join('__WORKFLOW_PROCESS__ po', 'po.id=fl.process_id')
+                ->where(['fl.flow_id' => $flow['id'], 'fl.type' => 'Condition', 'po.position' => 0])->find();
+            $entry = WorkflowEntry::create([
+                'title' => $data['title'],
+                'flow_id' => $data['flow_id'],
+                'user_id' => $user_id,
+                'order_sn' => $orde_sn,
+                'circle' => 1,
+                'mid' => $order_id,
+                'status' => 0
+            ]);
+
+            //进程初始化
+            //第一步看是否指定审核人
+            $workflow->init($entry, $flowlink);
+// 相关参数
+$config = [
+        'user_id' => '', // 用户id
+        'user_name' => '', // 用户姓名
+        'proc_id' => '',  // 当前步骤id
+        'content' => '',  // 审批意见
+        'next_user_id' => '',  // 下一步审批人员
+        'backtoback' => '',  //是否退回之后直接返回本节点
+        'back_proc_id' => '',  // 退回节点id
+        'next_process_id' => ''  //退回之后直接返回节点id
+    ];
+ $workflow = new Workflow($config);
+ 
+// 流程初始化
+ $workflow->init();
+ // 审批通过
+ $workflow->pass();
+ // 审批拒绝
+ $workflow->unpass();
+// 获取当前流程相关信息
+当前流程信息、可退回节点、下一步审批人员、下一步流程节点、审批记录
+ $workflow->workflowInfo()
+ 
+```

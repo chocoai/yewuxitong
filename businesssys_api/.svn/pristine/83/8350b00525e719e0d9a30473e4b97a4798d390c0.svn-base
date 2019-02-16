@@ -1,0 +1,154 @@
+<?php
+
+namespace app\admin\controller;
+
+use app\model\Customer;
+use app\model\Dictionary;
+use app\model\CreditInquiry;
+
+class Credit extends Base {
+
+    private $customer;
+    private $dictionary;
+    private $creditinquiry;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->customer = new Customer();
+        $this->dictionary = new Dictionary();
+        $this->creditinquiry = new CreditInquiry();
+    }
+
+    /*
+     * 根据电话号码模糊查询用户信息
+     * @return cname|用户姓名,certcode|用户证件号,mobile|用户电话,customermanager|理财经理，selectdata|eg:（张三）15170317525,carddata|3624281***(身份证)
+     * @author zhongjiaqi
+     */
+
+    public function GetcusinfoBymobile() {
+        $mobile = $this->request->get('mobile', '');
+        $where = [
+            'status' => 1,
+        ];
+        if ($mobile) {
+            $where['mobile'] = ['like', "%{$mobile}%"];
+        }
+        $field = "cname,certcode,mobile,customermanager_id,certtype,certother";
+        $res = $this->customer->GetcusinfoBywhere($where, $field);
+        if ($res) {
+            foreach ($res as $key => $value) {
+                $res[$key]['selectdata'] = "(" . $value['cname'] . ")" . $value['mobile']; // 用户列表数据组装
+                $res[$key]['carddata'][] = $value['certcode'] . "(" . $this->dictionary->getValnameByCode('CERTTYPE', $value['certtype']) . ")"; //证件类型
+                $res[$key]['managerdata'] = $value['']; // 理财经理 ************待完成**********
+                if (!empty($value['certother'])) {
+                    foreach (json_decode($value['certother'], TRUE) as $k => $v) {
+                        $res[$key]['carddata'][] = $v['num'] . "(" . $v['type'] . ")"; //其他证件
+                    }
+                }
+            }
+        }
+        return $this->buildSuccess([
+                    'res' => $res
+        ]);
+    }
+
+    /*
+     * 新增证件
+     * @return 
+     * @author zhongjiaqi
+     */
+
+    public function Addcustomer() {
+        $type = $this->request->post('type');
+        if ($type == 1) {
+            $cname = $this->request->post('cname');
+            $gender = $this->request->post('gender');
+            $mobile = $this->request->post('mobile');
+            $certType = $this->request->post('certType');
+            $certCode = $this->request->post('certCode');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/creditList 征信列表[admin/Credit/creditList]
+     * @apiVersion 1.0.0
+     * @apiName creditList
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/creditList
+     *
+     * @apiParam {int} endtime    结束时间
+     * @apiParam {int} starttime    开始时间
+     * @apiParam {int} time_type     时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)
+     * @apiParam {int} credit_result    征信结果 ：下拉框显示(正常、异常)
+     * @apiParam {int} checkstatus    查询状态 ：(正在查询、征信报告已出、查询失败)
+     * @apiParam {int} keywords    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {array} data    列表数据集
+     * @apiSuccess {string} msg    数据获取状态
+     * @apiSuccess {string} count    总条数
+     *
+     */
+    public function creditList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $keywords = $this->request->get('keywords', '');
+        $checkstatus = $this->request->get('checkstatus', '');
+        $credit_result = $this->request->get('credit_result', '');
+        $time_type = $this->request->get('time_type', '');
+        $starttime = $this->request->get('starttime', '');
+        $endtime = $this->request->get('endtime', '');
+        $where = [];
+        switch ($time_type) {
+            case 1:
+                $searchtime = 'apply_time';
+            case 2:
+                $searchtime = 'sub_bank_time';
+            case 3:
+                $searchtime = 'credit_input_time';
+            default :
+                break;
+        }
+        if (!empty($starttime) && empty($endtime)) {
+            $where[$searchtime] = ['egt', $starttime];
+        }
+        if (empty($starttime) && !empty($endtime)) {
+            $where[$searchtime] = ['elt', $endtime];
+        }
+        if (!empty($starttime) && !empty($endtime)) {
+            $where[$searchtime] = array('between', array($starttime, $endtime));
+        }
+        if (!empty($credit_result)) {
+            $where['credit_result'] = $credit_result;
+        }
+        if (!empty($checkstatus)) {
+            $where['checkstatus'] = $checkstatus;
+        }
+        if (!empty($keywords)) {
+            $where['customer_name'] = ['like', "%{$keywords}%"];
+        }
+        $field = "id,order_sn,customer_name,cert,checkstatus,apply_time,sub_bank_time,credit_input_time,credit_result,financing_manager_id,financing_dept_id,dept_manager_id,remark";
+        $creditList = $this->creditinquiry->where($where)->field($field)->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as $key => $value) {
+                $cardinfo = json_decode($value['cert'], TRUE); // 证件json
+                $creditList['data'][$key]['cert'] = $cardinfo[0]['num']; // 默认取第一个证件用于展示
+                $creditList['data'][$key]['isshowhead'] = count($cardinfo) > 1 ? 1 : 2; // 是否展示人头（多个证件需要展示）
+                $creditList['data'][$key]['credit_result'] = $value['credit_result'] == 1 ? '正常' : '异常'; // 征信结果状态
+                if ($value['checkstatus'] == 1)
+                    $creditList['data'][$key]['checkstatus'] = '正在查询';
+                if ($value['checkstatus'] == 2)
+                    $creditList['data'][$key]['checkstatus'] = '征信报告已出';
+                if ($value['checkstatus'] == 3)
+                    $creditList['data'][$key]['checkstatus'] = '查询失败';
+            }
+        }
+        return $this->buildSuccess([
+                    'code' => 0, 'msg' => '获取成功!', 'data' => $creditList['data'], 'count' => $creditList['total'], 'rel' => 1
+        ]);
+    }
+
+}

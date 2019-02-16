@@ -1,0 +1,711 @@
+<?php
+
+namespace app\admin\controller;
+
+use think\Db;
+use app\model\Customer;
+use app\model\Order;
+use app\model\Dictionary;
+use app\model\CreditInquiry;
+use app\model\CreditInquiryAttachment;
+use app\model\CustomerCert;
+use app\model\Attachment;
+use app\model\SystemUser;
+use app\util\ReturnCode;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+
+class Credit extends Base {
+
+    private $customer;
+    private $dictionary;
+    private $creditinquiry;
+    private $creditinquirya;
+    private $customercert;
+    private $order;
+    private $attachment;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->customer = new Customer();
+        $this->customercert = new CustomerCert();
+        $this->order = new Order();
+        $this->dictionary = new Dictionary();
+        $this->creditinquiry = new CreditInquiry();
+        $this->attachment = new Attachment();
+        $this->creditinquirya = new CreditInquiryAttachment();
+        $this->systemuser = new SystemUser();
+    }
+
+    /**
+     * @api {post} admin/Credit/addCredit 新增征信[admin/Credit/addCredit]
+     * @apiVersion 1.0.0
+     * @apiName addCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/addCredit
+     *
+     * @apiParam {int} type    所属类型 ：(个人、企业)
+     * @apiParam {int} datacenter_id    数据中心客户id(下拉接口对应id)
+     * @apiParam {int} mobile    联系电话
+     * @apiParam {string} customer_name    用户/企业名称
+     * @apiParam {string} gender    性别
+     * @apiParam {array} certdata    证件信息
+     * @apiParam {int} financing_manager_id    理财经理id
+     * @apiParam {int} financing_dept_id    理财经理部门id
+     * @apiParam {array} picture  授权材料
+     * @apiParam {string} remark_base    备注
+     *
+     */
+    public function addCredit() {
+        $adddata = $this->request->Post('', null, 'trim');
+        $msg = $this->validate($adddata, 'CreditValidate');
+        if ($msg !== true)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+        if (!empty($adddata['certdata'])) {
+            foreach ($adddata['certdata'] as $value) {
+                if (empty($value['certtype']) || empty($value['certcode']))
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '证件信息不全,未选择证件类型或未填写证件号码');
+            }
+        }
+        Db::startTrans();
+        try {
+            $new_cusid = $this->customer->addcreditCustomer($adddata); //新增客户
+            if ($new_cusid) {
+                $getdata = $this->creditinquiry->dealwithCarddata($adddata['certdata']);
+                $adddata['certtype'] = $getdata['certtype'];
+                $adddata['certcode'] = $getdata['certcode'];
+                $adddata['certother'] = $getdata['certother'];
+                $adddata['customer_id'] = $new_cusid;
+                $adddata['create_uid'] = $this->userInfo['id'];
+                if (empty($adddata['create_uid']))
+                    return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                $adddata['dept_manager_id'] = !empty($adddata['financing_manager_id']) ? $this->systemuser->where('id', $adddata['financing_manager_id'])->value('superid') : NULL;
+                $pictureins = $adddata['picture'];
+                unset($adddata['certdata']);
+                unset($adddata['datacenter_id']);
+                unset($adddata['gender']);
+                unset($adddata['picture']);
+                $adddata['apply_time'] = time();
+                if ($this->creditinquiry->addCredit($adddata)) {
+                    $creditid = $this->creditinquiry->getLastInsID();
+                    foreach ($pictureins as $key => $value) {
+                        $indata = array();
+                        $indata['credit_inquiry_id'] = $creditid;
+                        $indata['type'] = 'AUTH';
+                        $indata['attachment_id'] = $value;
+                        $indata['create_time'] = time();
+                        $newarray[] = $indata;
+                    }
+                    if ($this->creditinquirya->insertAll($newarray)) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::ADD_FAILED, '添加失败!');
+                } else {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::ADD_FAILED, '添加失败!');
+                }
+            } else {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::ADD_FAILED, '此客户信息存在问题!');
+            }
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/creditList 征信列表[admin/Credit/creditList]
+     * @apiVersion 1.0.0
+     * @apiName creditList
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/creditList
+     *
+     * @apiParam {array} time_solt     时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)
+     * @apiParam {int} time_type     时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)
+     * @apiParam {int} credit_result    征信结果 ：下拉框显示(正常、异常)
+     * @apiParam {int} checkstatus    查询状态 ：(正在查询、征信报告已出、查询失败)
+     * @apiParam {string} keywords    关键字搜索
+     * @apiParam {string} financing_manager_id    理财经理
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {array} data    列表数据集
+     * @apiSuccess {string} msg    数据获取状态
+     * @apiSuccess {string} count    总条数
+     *
+     */
+    public function creditList() {
+        $limit = $this->request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $keywords = $this->request->get('keywords', '', 'trim');
+        $checkstatus = $this->request->get('checkstatus', '');
+        $credit_result = $this->request->get('credit_result', '');
+        $time_type = $this->request->get('time_type', '');
+        $time = $this->request->get('time_solt/a', '');
+        $fid = $this->request->get('financing_manager_id', '');
+        $where = [];
+        if ($fid) {
+            $where['financing_manager_id'] = $fid;
+        }
+        $uid = $this->userInfo['id'];
+        $group = $this->userInfo['group'];
+        $auth_group = $this->auth_group;
+        $where = $this->creditinquiry->getDataByuserinfo($uid, $auth_group, $group, $where);
+        if ($time_type) {
+            switch ($time_type) {
+                case 1:
+                    $searchtime = 'apply_time';
+                    break;
+                case 2:
+                    $searchtime = 'sub_bank_time';
+                    break;
+                case 3:
+                    $searchtime = 'credit_input_time';
+                    break;
+                default :
+                    break;
+            }
+            if (!empty($time)) {
+                $betweentime[] = strtotime($time[0]);
+                $betweentime[] = strtotime($time[1]) + 86400;
+                $where[$searchtime] = array('between', $betweentime);
+            }
+        }
+        $credit_result && $where['credit_result'] = $credit_result;
+        $checkstatus && $where['checkstatus'] = $checkstatus;
+        $keywords && $where['customer_name|certcode'] = ['like', "%{$keywords}%"];
+        $where['status'] = 1;
+        $field = "id,order_sn,customer_name,certcode,customer_id,certother,is_auth_accessory,is_auth_accessory_py,checkstatus,apply_time,mobile,sub_bank_time,credit_input_time,credit_result,financing_manager_id,financing_dept_id,dept_manager_id,remark_base,remark_inquiry,remark_trial";
+        $creditList = $this->creditinquiry->where($where)->field($field)->order('apply_time', 'DESC')->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as $key => $value) {
+                $datainfo = $this->creditinquiry->getmanagername($value['id']);
+                $creditList['data'][$key]['financing_manager_name'] = $datainfo['name']; // 理财经理
+                $creditList['data'][$key]['financing_dept_name'] = $datainfo['dname']; // 所属部门
+                $updatainfo = $this->creditinquiry->getupManagername($value['id']);
+                $creditList['data'][$key]['dept_manager_name'] = $updatainfo['name']; // 部门经理
+                $creditList['data'][$key]['dept_manager_mobile'] = $updatainfo['mobile']; // 部门经理电话
+                $remark = $value['remark_base'];
+                if (!empty($value['remark_inquiry']))
+                    $remark = $value['remark_inquiry'];
+                if (!empty($value['remark_trial']))
+                    $remark = $value['remark_trial'];
+                $creditList['data'][$key]['remark_base'] = $remark; // 默认取第一个证件用于展示
+                $creditList['data'][$key]['mobile'] = $value['mobile']; //电话号码
+                $creditList['data'][$key]['certcode'] = $value['certcode']; // 默认取第一个证件用于展示
+                $creditList['data'][$key]['isshowhead'] = empty($value['certother']) ? 2 : 1; // 是否展示人头（多个证件需要展示）
+                if ($value['is_auth_accessory'] == 0 && $value['is_auth_accessory_py'] == 0) {
+                    $creditList['data'][$key]['is_auth_accessory_text'] = ''; // 是否已收授权
+                } elseif ($value['is_auth_accessory'] == 1 && $value['is_auth_accessory_py'] == 1) {
+                    $creditList['data'][$key]['is_auth_accessory_text'] = '人行,鹏元';
+                } else {
+                    $creditList['data'][$key]['is_auth_accessory_text'] = $value['is_auth_accessory_py'] == 1 ? '鹏元' : '人行';
+                }
+                $creditList['data'][$key]['credit_result'] = $value['credit_result']; // 征信结果状态
+                $creditList['data'][$key]['credit_result_text'] = $this->creditinquiry->getCreditresult($value['credit_result']); // 征信结果状态
+                $creditList['data'][$key]['checkstatus'] = $value['checkstatus']; // 征信报告状态
+                $creditList['data'][$key]['checkstatus_text'] = $this->creditinquiry->getCheckstatus($value['checkstatus']); // 征信报告状态
+                $creditList['data'][$key]['apply_time'] = !empty($value['apply_time']) ? date('Y-m-d H:i', $value['apply_time']) : ''; // 申请时间
+                $creditList['data'][$key]['sub_bank_time'] = !empty($value['sub_bank_time']) ? date('Y-m-d H:i', $value['sub_bank_time']) : ''; // 提交至人行时间
+                $creditList['data'][$key]['credit_input_time'] = !empty($value['credit_input_time']) ? date('Y-m-d H:i', $value['credit_input_time']) : ''; // 征信上传时间
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+    /**
+     * @api {get} admin/Credit/delCredit 删除征信[admin/Credit/delCredit]
+     * @apiVersion 1.0.0
+     * @apiName delCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/delCredit
+     *
+     * @apiParam {int} id    征信id
+     */
+    public function delCredit() {
+        $id = $this->request->get('id', '');
+        if (!empty($id)) {
+            if ($this->creditinquiry->checkCredit($id)) {
+                if ($this->creditinquiry->updateCredit($id, ['status' => -1]))
+                    return $this->buildSuccess();
+                return $this->buildFailed(ReturnCode::DELETE_FAILED, '删除失败!');
+            }
+            return $this->buildFailed(ReturnCode::DELETE_FAILED, '当前订单已提交到人民银行进行查询，无法进行删除!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Credit/editCredit 编辑征信[admin/Credit/editCredit]
+     * @apiVersion 1.0.0
+     * @apiName editCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/editCredit
+     *
+     *
+     * @apiParam {int} id    征信id
+     * @apiParam {int} customer_id    客户id
+     * @apiParam {array} certdata    证件信息
+     * @apiParam {int} financing_manager_id    理财经理id
+     * @apiParam {int} financing_dept_id    理财经理部门id
+     * @apiParam {int} picture  授权材料
+     * @apiParam {int} remark_base    备注
+     *
+     */
+    public function editCredit() {
+        $data = $this->request->Post('', null, 'trim');
+        if (!empty($data['id']) && !empty($data['customer_id'])) {
+            if (empty($data['picture'])) {
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '授权资料至少上传一张');
+            }
+            if ($this->creditinquiry->checkCredit($data['id'])) {
+                Db::startTrans();
+                try {
+                    $res = $this->creditinquirya->filterCreditpic($data['id'], 'AUTH', $data['picture']);
+                    $ress = $this->creditinquiry->filterSamecard($data['id'], $data['customer_id'], $data['certdata'], $data['remark_base'], $data['financing_manager_id'], $data['financing_dept_id']);
+                    if ($res || $ress) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '数据无改动,请确认后重试!');
+                } catch (Exception $exc) {
+                    return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+                }
+            }
+            return $this->buildFailed(ReturnCode::DELETE_FAILED, '当前订单已提交到人民银行进行查询，无法进行编辑!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/getCreditinfo 获取征信信息[admin/Credit/getCreditinfo]
+     * @apiVersion 1.0.0
+     * @apiName getCreditinfo
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/getCreditinfo
+     *
+     * @apiParam {int} id    征信id
+     */
+    public function getCreditinfo() {
+        $id = $this->request->get('id', '');
+        if (!empty($id)) {
+            if ($this->creditinquiry->checkCredit($id)) {
+                $field = 'id,financing_manager_id,customer_id,financing_dept_id,credit_result,checkstatus,type,mobile,customer_id,customer_name,certtype,certcode,certother,remark_base,remark_trial,remark_inquiry';
+                $data = $this->creditinquiry->field($field)->where('id', $id)->find();
+                $data['certdata'] = $this->customercert->Getcertinfo($data['customer_id']); // 证件信息
+                $data['auth_picurl'] = $this->creditinquirya->getUrl($id, 'AUTH'); // 授权图片信息
+                $data['appr_picurl'] = $this->creditinquirya->getUrl($id, 'APPROVAL'); // 审核图片信息
+                $data['datacenter_id'] = $this->customer->where('id', $data['customer_id'])->value('datacenter_id'); // 数据中心客户id
+                $datainfo = $this->creditinquiry->getManagername($id);
+                $data['financing_manager_name'] = $datainfo['name'] . "-" . $datainfo['dname'];
+                // 经理名称
+                return $this->buildSuccess($data);
+            }
+            return $this->buildFailed(ReturnCode::DELETE_FAILED, '当前订单已提交到人民银行进行查询，无法进行编辑!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Credit/submitTobank 提交至人行(批量)[admin/Credit/submitTobank]
+     * @apiVersion 1.0.0
+     * @apiName submitTobank
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/submitTobank
+     *
+     * @apiParam {array} ids    征信ids
+     */
+    public function submitTobank() {
+        $ids = $this->request->post('ids/a', '');
+        if (is_array($ids)) {
+            if ($this->creditinquiry->submitTobank($ids))
+                return $this->buildSuccess();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '数据无改动,请确认后重试!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/creditDetail 征信详情(批量)[admin/Credit/creditDetail]
+     * @apiVersion 1.0.0
+     * @apiName creditDetail
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/creditDetail
+     *
+     *  @apiParam {array} id    征信id
+     *
+     * @apiSuccess {array} base_data    基础信息
+     * @apiSuccess {array} search_data    查询信息
+     * @apiSuccess {array} review_data    审核信息
+     * @apiSuccess {int} is_upload    打开征信上传按钮权限 1 有权限 2 无权限
+     * @apiSuccess {int} file_auth    打开征信文件权限 1 有权限 2 无权限
+     */
+    public function creditDetail() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $data = $this->creditinquiry->where(['id' => $id, 'status' => 1])->find();
+            if ($data) {
+                //基础信息组装
+                $base_data['type'] = $data['type'] == 1 ? '个人' : '企业'; // 类型
+                $base_data['certdata'] = implode('、', $this->creditinquiry->getCertdata($id, 2)); // 证件信息
+                $base_data['picurl'] = $this->creditinquirya->getUrl($id, 'AUTH'); // 授权图片信息
+                $base_data['remark_base'] = $data['remark_base']; // 备注
+                $base_data['customer_name'] = $data['customer_name']; // 用户名称
+                $datainfo = $this->creditinquiry->getmanagername($id);
+                $base_data['financing_manager_name'] = $datainfo['name']; // 理财经理
+                $base_data['financing_dept_name'] = $datainfo['dname']; // 所属部门
+                $updatainfo = $this->creditinquiry->getupManagername($id);
+                $base_data['dept_manager_name'] = $updatainfo['name']; // 部门经理
+                $base_data['dept_manager_mobile'] = $updatainfo['mobile']; // 部门经理电话
+                $base_data['apply_man'] = $this->systemuser->where('id', $data['create_uid'])->value('name'); // 申请人
+                $base_data['apply_time'] = !empty($data['apply_time']) ? date('Y-m-d H:i:s', $data['apply_time']) : '暂无'; // 申请时间
+                //征信查询信息组装
+                $search_data['order_sn'] = $data['order_sn']; // 业务单号
+                if ($data['is_auth_accessory'] == 0 && $data['is_auth_accessory_py'] == 0) {
+                    $search_data['is_auth_accessory_text'] = '否'; // 是否已收授权
+                } elseif ($data['is_auth_accessory'] == 1 && $data['is_auth_accessory_py'] == 1) {
+                    $search_data['is_auth_accessory_text'] = '人行,鹏元';
+                } else {
+                    $search_data['is_auth_accessory_text'] = $data['is_auth_accessory_py'] == 1 ? '鹏元' : '人行';
+                }
+                $search_data['is_auth_accessory'] = $data['is_auth_accessory']; // 类型
+                $search_data['is_auth_accessory_py'] = $data['is_auth_accessory_py']; // 类型
+                $search_data['checkstatus_text'] = $this->creditinquiry->getCheckstatus($data['checkstatus']); // 征信报告状态
+                $search_data['checkstatus'] = $data['checkstatus']; // 征信报告状态
+                $search_data['sub_bank_time'] = !empty($data['sub_bank_time']) ? date('Y-m-d H:i:s', $data['sub_bank_time']) : '暂无'; // 征信查询时间
+                $search_data['remark_inquiry'] = $data['remark_inquiry']; // 征信查询备注
+                $search_data['file'] = $this->creditinquirya->getUrl($id, 'CREDIT'); // 征信文件
+                $search_data['file_auth'] = 1; // 征信文件打开权限
+                //是否有打开文件权限************************************
+                //征信审核信息组装
+                $review_data['credit_result_text'] = $this->creditinquiry->getCreditresult($data['credit_result']); // 征信结果状态
+                $review_data['credit_result'] = $data['credit_result']; // 征信结果状态
+                $review_data['credit_input_time'] = !empty($data['credit_input_time']) ? date('Y-m-d H:i:s', $data['credit_input_time']) : '暂无'; // 征信录入时间
+                $review_data['remark_trial'] = $data['remark_trial']; // 征信录入备注
+                $review_data['picurl'] = $this->creditinquirya->getUrl($id, 'APPROVAL'); // 审核图片信息
+                //权限组装
+                $is_upload = $this->creditinquiry->checkIsupload($id) ? 1 : 2;
+                return $this->buildSuccess(['base_data' => $base_data, 'search_data' => $search_data, 'review_data' => $review_data, 'id' => $id, 'is_upload' => $is_upload]);
+            }
+            return $this->buildFailed(ReturnCode::DATA_EXISTS, '该征信报告不存在!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/ordersnList 模糊获取业务单号[admin/Credit/ordersnList]
+     * @apiVersion 1.0.0
+     * @apiName ordersnList
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/ordersnList
+     *
+     *  @apiParam {string} order_sn    业务单号
+     *
+     * @apiSuccess {array} order_sn    业务单号
+     */
+    public function ordersnList() {
+        $order_sn = $this->request->get('order_sn', '');
+        if ($order_sn) {
+            $where = [
+                'status' => 1,
+                'order_sn' => ['like', "%{$order_sn}%"]
+            ];
+            $data = $this->order->where($where)->limit(10)->order('create_time', 'DESC')->column('order_sn');
+            return $this->buildSuccess($data);
+        } /*else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }*/
+    }
+
+    /**
+     * @api {post} admin/Credit/editOrder 编辑派单[admin/Credit/editOrder]
+     * @apiVersion 1.0.0
+     * @apiName editOrder
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/editOrder
+     *
+     *  @apiParam {string} id    征信id
+     *  @apiParam {string} order_sn    业务单号
+     *  @apiParam {string} is_auth_accessory    是否授权人行(0否1是)
+     *  @apiParam {string} is_auth_accessory_py    是否授权鹏元（0否1是）
+     *
+     */
+    public function editOrder() {
+        $data = $this->request->Post('', null, 'trim');
+        if ($data['id']) {
+            $updata['order_sn'] = $data['order_sn'];
+            $updata['is_auth_accessory'] = $data['is_auth_accessory'];
+            $updata['is_auth_accessory_py'] = $data['is_auth_accessory_py'];
+            if ($this->creditinquiry->updateCredit($data['id'], $updata))
+                return $this->buildSuccess();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '数据无改动,请确认后重试!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Credit/uploadCredit 上传征信信息[admin/Credit/uploadCredit]
+     * @apiVersion 1.0.0
+     * @apiName uploadCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/uploadCredit
+     *
+     *  @apiParam {string} id    征信id
+     *  @apiParam {string} checkstatus    查询状态
+     *  @apiParam {string} remark_inquiry    征信查询备注
+     *  @apiParam {array} file    文件数据集
+     *
+     */
+    public function uploadCredit() {
+        $data = $this->request->Post('', null, 'trim');
+        if ($data['id']) {
+            if ($data['checkstatus'] == 4 && empty($data['file'])) {
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '征信报告至少上传一张!');
+            }
+            if ($data['checkstatus'] == 4 && !$this->creditinquiry->checkIsupload($data['id'])) {
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '该征信报告已经被审核，无法提交!');
+            }
+            if (empty($this->creditinquiry->where(['id' => $data['id']])->value('sub_bank_time'))) {
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '该征信报告尚未提交至人行，无法上传征信信息!');
+            }
+            $updata['checkstatus'] = $data['checkstatus'];
+            $updata['remark_inquiry'] = $data['remark_inquiry'];
+            $updata['update_time'] = time();
+            $res = $this->creditinquiry->updateCredit($data['id'], $updata);
+            if ($data['checkstatus'] == 3) {
+                $ressult = $this->creditinquirya->where(['credit_inquiry_id' => $data['id'], 'type' => 'CREDIT'])->update(['status' => -1]); //如果状态为异常时，将此征信的相关文件置为删除状态
+            } else {
+                $ressult = $this->creditinquirya->filterCreditpic($data['id'], 'CREDIT', $data['file']);
+            }
+            if ($res) {
+                return $this->buildSuccess();
+            }
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '数据无改动,请确认后重试!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Credit/editReviewinfo 编辑审核信息[admin/Credit/editReviewinfo]
+     * @apiVersion 1.0.0
+     * @apiName editReviewinfo
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/editReviewinfo
+     *
+     *  @apiParam {string} id    征信id
+     *  @apiParam {string} credit_result    查询状态
+     *  @apiParam {string} remark_trial    征信审核备注
+     *  @apiParam {array} picture    文件数据集
+     *
+     */
+    public function editReviewinfo() {
+        $data = $this->request->Post('', null, 'trim');
+        if ($data['id']) {
+            $updata['credit_result'] = $data['credit_result'];
+            $updata['remark_trial'] = $data['remark_trial'];
+            $updata['credit_input_time'] = time();
+            $res = $this->creditinquirya->filterCreditpic($data['id'], 'APPROVAL', $data['picture']);
+            $result = $this->creditinquiry->updateCredit($data['id'], $updata);
+            if ($res || $result)
+                return $this->buildSuccess();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '数据无改动,请确认后重试!');
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/downCredit 下载征信报告[admin/Credit/downCredit]
+     * @apiVersion 1.0.0
+     * @apiName downCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/downCredit
+     *
+     *  @apiParam {string} id    征信文件id
+     */
+    public function downCredit() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $this->attachment->downFilelocal($id);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/lookCredit 查看征信报告[admin/Credit/lookCredit]
+     * @apiVersion 1.0.0
+     * @apiName lookCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/lookCredit
+     *
+     *  @apiParam {string} id    图片id
+     *
+     *  @apiSuccess {array} fileurl    征信报告路径（仅用于展示）
+     */
+    public function lookCredit() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $fileinfo = $this->attachment->where('id', $id)->field('url,path')->find()->toArray(); // 文件信息
+            $absourl = $fileinfo['path'] . $fileinfo['url']; //绝对路径D:\wamp\www\businesssys_api\public\uploads\20180426\24dc7b794230dc2e5d1d7f75dbacb86d.htm
+            $fileurl = file_get_contents($absourl); // 文件信息
+            return $this->buildSuccess($fileurl);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Credit/exportCredit 导出征信列表[admin/Credit/exportCredit]
+     * @apiVersion 1.0.0
+     * @apiName exportCredit
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/exportCredit
+     *
+     * @apiParam {array} time_solt     时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)
+     * @apiParam {int} time_type     时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)
+     * @apiParam {int} credit_result    征信结果 ：下拉框显示(正常、异常)
+     * @apiParam {int} checkstatus    查询状态 ：(正在查询、征信报告已出、查询失败)
+     * @apiParam {string} keywords    关键字搜索
+     * @apiParam {string} financing_manager_id    理财经理
+     *
+     */
+    public function exportCredit() {
+        $keywords = $this->request->post('keywords', '', 'trim');
+        $checkstatus = $this->request->post('checkstatus', '');
+        $credit_result = $this->request->post('credit_result', '');
+        $time_type = $this->request->post('time_type', '');
+        $time = $this->request->post('time_solt/a', '');
+        $fid = $this->request->post('financing_manager_id', '');
+        $where = [];
+        if ($fid) {
+            $where['financing_manager_id'] = $fid;
+        }
+        $uid = $this->userInfo['id'];
+        //$group = array(1);
+        $group = $this->userInfo['group'];
+        $auth_group = $this->auth_group;
+        //print_r($auth_group);exit;
+        $where = $this->creditinquiry->getDataByuserinfo($uid, $auth_group, $group, $where);
+        if ($time_type) {
+            switch ($time_type) {
+                case 1:
+                    $searchtime = 'apply_time';
+                    break;
+                case 2:
+                    $searchtime = 'sub_bank_time';
+                    break;
+                case 3:
+                    $searchtime = 'credit_input_time';
+                    break;
+                default :
+                    break;
+            }
+            if (!empty($time)) {
+                $betweentime[] = strtotime($time[0]);
+                $betweentime[] = strtotime($time[1]) + 86400;
+                $where[$searchtime] = array('between', $betweentime);
+            }
+        }
+        $credit_result && $where['credit_result'] = $credit_result;
+        $checkstatus && $where['checkstatus'] = $checkstatus;
+        $keywords && $where['customer_name|certcode'] = ['like', "%{$keywords}%"];
+        $where['status'] = 1;
+        $field = "id,order_sn,customer_name,certcode,is_auth_accessory,checkstatus,apply_time,sub_bank_time,credit_input_time,credit_result,remark_inquiry,remark_trial,create_uid,financing_manager_id,is_auth_accessory_py";
+        $creditList = Db::name('credit_inquiry')->where($where)->field($field)->order('apply_time', 'DESC')->select();
+        $creditData = array();
+        if (!empty($creditList)) {
+            $num = 1;
+            foreach ($creditList as $key => $value) {
+                //添加序号
+                $creditData[$key]['nod'] = $num;
+                $num++;
+                $datainfo = $this->creditinquiry->getmanagername($value['id']);
+                $creditData[$key]['customer_name'] = $value['customer_name']; //客户姓名
+                $creditData[$key]['certcode'] = "\t".$value['certcode']."\t"; //证件号码   \t解决数字过长转换成科学计算              
+                $creditData[$key]['financing_dept_name'] = $datainfo['dname']; // 所属部门
+                $creditData[$key]['financing_manager_name'] = $datainfo['name']; // 理财经理
+                $updatainfo = $this->creditinquiry->getupManagername($value['id']);
+                $creditData[$key]['order_sn'] = "\t".$value['order_sn']."\t"; //业务单号
+                $creditData[$key]['checkstatus_text'] = $this->creditinquiry->getCheckstatus($value['checkstatus']); // 查询状态
+                $creditData[$key]['apply_time'] = !empty($value['apply_time']) ? date('Y-m-d H:i', $value['apply_time']) : ''; // 申请时间  
+                $applywhere = array('id' => $value['create_uid']);
+                $applyinfo = Db::name('system_user')->where($applywhere)->field('name')->find();
+                $creditData[$key]['apply_man'] = $applyinfo['name']; //申请人
+                $creditData[$key]['sub_bank_time'] = !empty($value['sub_bank_time']) ? date('Y-m-d H:i', $value['sub_bank_time']) : ''; // 提交至人行时间
+                $creditData[$key]['credit_input_time'] = !empty($value['credit_input_time']) ? date('Y-m-d H:i', $value['credit_input_time']) : ''; // 征信上传时间
+                //$creditData[$key]['is_auth_accessory_text'] = $value['is_auth_accessory'] == 1 || $value['is_auth_accessory_py'] == 1? '是' : '否'; // 是否已收授权
+                $auth_accessory=$value['is_auth_accessory'] == 1 ? '人行' : '';
+                $auth_accessory_py=$value['is_auth_accessory_py'] == 1 ? '鹏元' : '';
+                //授权类型
+                if($value['is_auth_accessory'] == 1 && $value['is_auth_accessory_py'] == 1){
+                    $creditData[$key]['accessory_type'] = $auth_accessory.';'.$auth_accessory_py;    
+                }elseif($value['is_auth_accessory'] == 1){
+                    $creditData[$key]['accessory_type'] = $auth_accessory;
+                }elseif($value['is_auth_accessory_py'] == 1){
+                    $creditData[$key]['accessory_type'] = $auth_accessory_py;
+                }else{
+                    $creditData[$key]['accessory_type']='';
+                }
+                $creditData[$key]['credit_result_text'] = $this->creditinquiry->getCreditresult($value['credit_result']); // 征信结果状态
+                $creditData[$key]['remark_inquiry'] = $value['remark_inquiry']; //（征信查询信息）备注说明
+                $creditData[$key]['remark_trial'] = $value['remark_trial']; //（征信审核信息）备注说明
+            }
+        }
+        //return print_r($creditData);
+        try {
+            $spreadsheet = new Spreadsheet();
+            $resInfo = $creditData;
+            $head = ['0' => '序号', '1' => '客户姓名', '2' => '证件号码', '3' => '所属部门', '4' => '理财经理',
+                '5' => '业务单号', '6' => '查询状态', '7' => '申请时间', '8' => '申请人',
+                '9' => '提交人行时间', '10' => '征信录入时间', '11' => '授权类型', '12' => '征信结果', '13' => '（征信查询信息）备注说明',
+                '14' => '（征信审核信息）备注说明'];
+            array_unshift($resInfo, $head);
+            //$fileName = iconv("UTF-8", "GB2312//IGNORE", '征信查询' . date('Y-m-dHis'));
+            //print_r($fileName);exit;
+            $fileName = '' . date('Y-m-dHis');//Credit_inquiry
+            //$fileName = '征信查询'.date('Y-m-d').mt_rand(1111,9999);
+            $spreadsheet->getActiveSheet()->fromArray($resInfo);
+            $spreadsheet->getActiveSheet()->getStyle('A1:O1')->getFont()->setBold(true)->setName('Arial')->setSize(12);
+            $spreadsheet->getActiveSheet()->getDefaultColumnDimension()->setWidth(15);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $styleArray = [
+                'alignment' => [
+                    'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                ],
+            ];
+            $worksheet->getStyle('A1:O1')->applyFromArray($styleArray);
+            $objWriter = IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $Path = ROOT_PATH . 'public' . DS . 'uploads' . DS . 'download' . DS . date('Ymd');
+            if (!file_exists($Path)) {
+                //检查是否有该文件夹，如果没有就创建，并给予最高权限
+                mkdir($Path, 0700);
+            }
+            // header("Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");//告诉浏览器输出07Excel文件
+            // //header("Content-Type:application/vnd.ms-excel");//告诉浏览器将要输出Excel03版本文件
+            // header("Content-Disposition: attachment;filename=".$fileName."");//告诉浏览器输出浏览器名称
+            // header("Cache-Control: max-age=0");//禁止缓存
+            $pathName = $Path . DS . $fileName . '.Xlsx';
+            $objWriter->save($pathName);
+            $retuurl = config('uploadFile.url') . DS . 'uploads' . DS . 'download' . DS . date('Ymd') . DS . $fileName . '.Xlsx';
+            //$retuurl = config('uploadFile.url') . DS . 'uploads' . DS . 'download' . DS . date('Ymd') . DS . iconv("GB2312", "UTF-8", $fileName) . '.Xlsx';
+            return $this->buildSuccess(['url' => $retuurl]);
+        } catch (\Exception $e) {
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '导出失败!' . $e->getMessage());
+        }
+    }
+
+}

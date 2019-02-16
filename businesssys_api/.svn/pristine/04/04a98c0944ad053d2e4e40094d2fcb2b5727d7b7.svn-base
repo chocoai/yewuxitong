@@ -1,0 +1,26 @@
+<?php
+/**
+ *
+ * @since   2018-04-21
+ * @author  CGenJ
+ */
+
+namespace app\model;
+
+class SystemMenu extends Base
+{
+
+    /**
+     * 查询菜单列表
+     * @param int $system_id
+     * @param int $hide
+     * @param array $leval
+     * @return array
+     * @author CGenJ
+     */
+    public static function getMenuList($where)
+    {
+        $list = self::where($where)->field('name,title,icon,component,path,id,fid,level')->order('sort')->select();
+        return $list;
+    }
+}

@@ -1,0 +1,45 @@
+<?php
+
+/**
+ *
+ * @since   2018-06-05
+ * @author  ZJQ
+ */
+
+namespace app\model;
+
+use app\util\Tools;
+
+class System extends Base {
+
+    /**
+     * 获取系统
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @author zhongjiaqi 6.15
+     */
+    public function getAllsystem() {
+        $where = ['hide' => 1];
+        $data = $this->where($where)->field('id,name')->order('sort')->select();
+        return Tools::buildArrFromObj($data);
+    }
+
+    /**
+     * 获取系统下的菜单
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @author zhongjiaqi 6.15
+     */
+    public function getAllsystemmenu($id) {
+        $where = [
+            'hide' => 1,
+            'level' => ['in', [1, 2, 3, 4]],
+            'system_id' => $id
+        ];
+        $menus = SystemMenu::getMenuList($where);
+        $menuarr = Tools::buildArrFromObj($menus);
+        $data = listToTree($menuarr, 'id', 'fid', 'children'); //导航菜单
+        return $data;
+    }
+
+}

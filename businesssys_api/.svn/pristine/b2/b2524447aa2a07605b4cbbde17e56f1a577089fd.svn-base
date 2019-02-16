@@ -1,0 +1,22 @@
+<?php
+
+namespace workflow\restrict;
+
+/**
+ * 用户自定义验证文件需要继承此类
+ * Class Base
+ * @author: bordon
+ */
+class Base
+{
+    protected $option = [];
+
+    /**
+     *   实例化并传入参数
+     * @param $option
+     */
+    public function __construct($option = [])
+    {
+        $this->option = $option;
+    }
+}

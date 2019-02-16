@@ -1,0 +1,90 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/8/15
+ * Time: 11:19
+ */
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class ValidCost extends Validate{
+    protected $rule = [
+        'order_sn|订单编号' => 'require',
+        'loan_way|放款方式' => 'require|in:1',
+        'transfer_type|到账类型' => 'require|in:1,2',
+        'info_fee_rate|信息费费率' => 'float',
+        'info_fee|信息费金额' => 'require|number|length:0,16',
+        'collector|信息费收取人' => 'require|length:0,50',
+        'mobile|联系电话' => 'number|length:0,30',
+        'reason|原因' => 'length:0,100',
+        'attachment|附件材料' => 'array',
+        'order_type|订单类型' => 'require|in:1,2',
+        'accountinfo|支付账户信息' => 'array',
+        'bank_account|银行户名' => 'require|length:0,30',
+        'bank_card|银行卡号'   => 'require|number|length:0,30',
+        'bank|开户银行' => 'require|length:0,50',
+        'bank_branch|开户支行' => 'require|length:0,50',
+        'money|账号金额' => 'require|number|length:0,16|>:0',
+        'account_type|账户类型' => 'require|in:1,2,3',
+        'account_source|账户来源' => 'require|in:1,2,3',
+        'exhibition_fee|应退展期费' => 'require|number|length:0,16',
+        'return_money|退赎楼金额' => 'require|number|length:0,16|checkreturn_money:return_money,back_floor',
+        'default_interest|退罚息金额' => 'require|number|length:0,16|checkdefault_interest:default_interest,can_back_money',
+        'short_loan|退短贷金额' => 'require|number|length:0,16|checkshort_loan:short_loan,can_back_short_loan',
+        'back_floor|可退赎楼金额' => '',
+        'can_back_money|可退罚息金额' => '',
+        'can_back_short_loan|可退短贷金额' => '',
+        'used_interest|已用罚息金额' => 'number|length:0,16',
+        'used_short_loan|已用短贷利息' => 'number|length:0,16'
+
+    ];
+
+    protected $scene = [
+        'addinfocosts' => ['order_sn','loan_way', 'transfer_type', 'info_fee_rate', 'info_foo', 'collector', 'mobile', 'reason', 'attachment'], //信息费申请信息验证
+        'addotherinfo' => ['order_sn','order_type', 'loan_way', 'transfer_type', 'reason', 'attachment'], //其他申请信息验证
+        'addlinesinfo' => ['order_sn','order_type', 'loan_way', 'transfer_type', 'reason', 'attachment', 'return_money', 'default_interest', 'short_loan', 'used_interest', 'used_short_loan'], //额度类订单放尾款申请
+        'addCashinfo' => ['order_sn','order_type', 'loan_way', 'transfer_type', 'reason', 'attachment', 'return_money', 'default_interest', 'used_interest'], //现金类订单放尾款申请
+        'infozccount' => ['bank_account', 'bank_card', 'bank', 'bank_branch', 'money'], //信息费账户验证
+        'qitaaccount' => ['bank_account', 'bank_card', 'bank', 'bank_branch', 'money', 'account_type', 'account_source'], //首期 退保证金 额度退担保费账户验证
+        'cashaccount' => ['bank_account', 'bank_card', 'bank', 'bank_branch', 'money', 'account_type', 'account_source','exhibition_fee'], //现金按天退担保费验证
+    ];
+
+    //自定义规则
+    protected function checkreturn_money($value, $rule, $data) {
+        if (!isset($value)) {
+            return "退赎楼金额不能为空";
+        }
+        if ($value > $data['back_floor']) {
+            return "退赎楼金额不能大于可退赎楼金额";
+        }
+
+        return true;
+    }
+
+    //自定义规则
+    protected function checkdefault_interest($value, $rule, $data) {
+        if (!isset($value)) {
+            return "退罚息金额不能为空";
+        }
+        if ($value > $data['can_back_money']) {
+            return "退罚息金额不能大于可退罚息金额";
+        }
+
+        return true;
+    }
+
+    //自定义规则
+    protected function checkshort_loan($value, $rule, $data) {
+        if (!isset($value)) {
+            return "退短贷金额不能为空";
+        }
+        if ($value > $data['can_back_short_loan']) {
+            return "退短贷金额不能大于可退短贷金额";
+        }
+
+        return true;
+    }
+
+}

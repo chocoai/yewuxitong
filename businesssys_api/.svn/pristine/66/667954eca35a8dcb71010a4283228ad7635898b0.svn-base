@@ -1,0 +1,266 @@
+<?php
+
+namespace app\admin\controller;
+
+
+use app\util\ReturnCode;
+use app\model\Attachment;
+use app\model\Estate;
+use think\Db;
+use think\Cookie;
+
+class Index extends Base {
+    public function index() {
+        return json(['welcome']);
+    }
+
+    //@author 赵光帅
+    /**
+     * @api {post} admin/Index/fileUpload 图片上传[admin/Index/fileUpload]
+     * @apiVersion 1.0.0
+     * @apiName fileUpload
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/fileUpload
+     *
+     *
+     * @apiParam {file}  pic    文件文件
+     *
+     * @apiSuccess {string}  url    文件链接地址
+     * @apiSuccess {string}  name    文件原始名称
+     * @apiSuccess {int}  id    附件表主键id
+     * @apiSuccess {string}  thumb_url    缩略图的地址(上传图片才返回该字段)
+     */
+    public function fileUpload(){
+        $file = request()->file('pic');
+        if(empty($file)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '文件不能为空!');
+        $path = config('uploadFile.img_path').DS.'uploads';
+        $info = $file->validate(['size'=>9437184,'ext'=> config('uploadFile.file_type')])->move($path,true,false);
+        //文件地址
+        $filePath = config('uploadFile.img_path').DS.'uploads'.DS.$info->getSaveName();
+        if($info){
+            //图片原始名称
+            $imgInfo['name'] = $info->getInFo()['name'];
+            //新的图片名称
+            $imgInfo['savename'] = $info->getFilename();
+            //文件大小
+            $imgInfo['filesize'] = $info->getInFo()['size'];
+            //文件后缀
+            $imgInfo['ext'] = $info->getExtension();
+            if(in_array($imgInfo['ext'],['png','gif','jpeg','jpg'])){
+                //缩略图的上传地址
+                $date = date('Ymd',time());
+                $thumPath = config('uploadFile.thum_path').DS.$date;
+                if(!file_exists($thumPath))
+                {
+                    //检查是否有该文件夹，如果没有就创建，并给予最高权限
+                    mkdir($thumPath, 0700);
+                }
+                //缩略图
+                $image = \think\Image::open($filePath);
+                // 按照原图的比例生成一个最大为150*150的缩略图并保存为thumb.png
+                $image->thumb(100, 100)->save($thumPath.DS.$imgInfo['savename']);
+                //缩略图片的地址
+                $imgInfo['thum1'] = config('uploadFile.thum_lujing').DS.$imgInfo['savename'];
+                //图片宽
+                $imgInfo['imagewidth'] = getimagesize($filePath)[0];
+                //图片高
+                $imgInfo['imageheight'] = getimagesize($filePath)[1];
+                //mime类型
+                $imgInfo['mimetype'] = getimagesize($filePath)['mime'];
+            }
+            //文件类型
+            $imgInfo['imagetype'] = $info->getInFo()['type'];
+            //获取上传文件的hash散列值
+            $imgInfo['md5'] = $file->hash('md5');
+            $imgInfo['sha1'] = $file->hash('sha1');
+            //路径
+            $imgInfo['path'] = config('uploadFile.img_path');
+            //连接地址
+            $imgInfo['url'] = DS .'uploads'.DS .$info->getSaveName();
+            //上传时间
+            $imgInfo['create_time'] = time();
+            try{
+                $resImg = Attachment::create($imgInfo);
+                //上传成功就返回附件表的该文件对应的主键id,以及文件地址
+                if(in_array($imgInfo['ext'],['png','gif','jpeg','jpg'])){
+                    return $this->buildSuccess(['id' => $resImg->id,'url' =>config('uploadFile.url').$imgInfo['url'],'name' => $imgInfo['name'],'thumb_url' => config('uploadFile.thum_url').DS.$imgInfo['savename']]);
+                }
+                return $this->buildSuccess(['id' => $resImg->id,'url' =>config('uploadFile.url').$imgInfo['url'],'name' => $imgInfo['name']]);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::FILE_SAVE_ERROR, '文件信息存储失败');
+            }
+        }else{
+            // 上传失败获取错误信息
+            return $this->buildFailed(ReturnCode::FILE_SAVE_ERROR, $file->getError());
+        }
+
+
+    }
+
+    // @author 赵光帅
+    /**
+     * @api {post} admin/Index/allPropertyNames 订单所有的房产名称和业主姓名[admin/Index/allPropertyNames]
+     * @apiVersion 1.0.0
+     * @apiName allPropertyNames
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/allPropertyNames
+     *
+     *
+     * @apiParam {string}  order_sn   订单编号
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *   {
+            "code": 1,
+            "msg": "操作成功",
+            "data": {
+                "arr": [
+                    {
+                    "estate_name": "国际新城",
+                    "estate_owner": "赵六"
+                    },
+                    {
+                    "estate_name": "万达广场",
+                    "estate_owner": "李四"
+                    }
+                ],
+            "estateNameStr": "国际新城，万达广场",
+            "estateOwnerStr": "赵六，李四"
+            }
+        }
+     * @apiSuccess {arr} arr    房产的名称和业主姓名
+     * @apiSuccess {string} estateNameStr    所有的房产名称拼接成的字符串
+     * @apiSuccess {string} estateOwnerStr    所有房产业主姓名拼接成的字符串
+     */
+
+    public function allPropertyNames(){
+        $orderSn = input('order_sn');
+        if(empty($orderSn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+        try{
+            $resInfo = Estate::getAll(['order_sn' => $orderSn,'status' => 1],'estate_name,estate_owner');
+            $returnInfo['arr'] = $resInfo;
+            $estateNameStr = '';
+            $estateOwnerStr = '';
+            foreach ($resInfo as $k => $v){
+                $estateNameStr .= $v['estate_name'].'，';
+                $estateOwnerStr .= $v['estate_owner'].'，';
+            }
+            $returnInfo['estateNameStr'] = rtrim($estateNameStr,'，');
+            $returnInfo['estateOwnerStr'] = rtrim($estateOwnerStr,'，');
+            return $this->buildSuccess($returnInfo);
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Index/getBanks 获取所有银行[admin/Index/getBanks]
+     * @apiVersion 1.0.0
+     * @apiName getBanks
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/getBanks
+     *
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *   {
+    "code": 1,
+    "msg": "操作成功",
+    "data": [
+        {
+        "id": "101",
+        "bank_name": "中国银行"
+        },
+        {
+        "id": "101001",
+        "bank_name": "深圳福田支行"
+        }
+    }
+     */
+
+    public function getBanks(){
+        try{
+            $resInfo = DB::name('bank')->where(['status' => 1])->field('id,bank_name')->select();
+            return $this->buildSuccess($resInfo);
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Index/companyAgency 获取合作中介[admin/Index/companyAgency]
+     * @apiVersion 1.0.0
+     * @apiName companyAgency
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/companyAgency
+     **/
+    public function companyAgency()
+    {
+        return $this->buildSuccess(Db::name('company_agency')->where(['status'=>1])->field('name')->order('sort asc')->select());
+    }
+
+    /**
+     * @api {post} admin/Index/verifyTheLogin 验证登录[admin/Index/verifyTheLogin]
+     * @apiVersion 1.0.0
+     * @apiName verifyTheLogin
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/verifyTheLogin
+     *
+     * @apiParam {string}   ApiAuth  接口秘钥
+     **/
+    public function verifyTheLogin()
+    {
+        $ApiAuth = input('apiAuth');
+        \think\Log::write('验证单点登录'.$ApiAuth);
+        //return json(['code' => '1', 'msg' => '已经登录']);
+        if ($ApiAuth) {
+            $userInfo = cache('Login:' . $ApiAuth);
+            \think\Log::write('getCache'.$userInfo);
+            $userInfo = json_decode($userInfo, true);
+            if (!$userInfo || !isset($userInfo['id'])) {
+                return json(['code' => '-2', 'msg' => 'ApiAuth不匹配']);
+            }
+            return json(['code' => '1', 'msg' => '已经登录']);
+        } else {
+            return json(['code' => '-1','msg' => '缺少ApiAuth']);
+        }
+    }
+
+    /**
+     * @api {get} admin/Index/jumpBuilding 跳转到楼盘字典[admin/Index/jumpBuilding]
+     * @apiVersion 1.0.0
+     * @apiName jumpBuilding
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/jumpBuilding
+     **/
+    public function jumpBuilding()
+    {
+        //获取apiauth和工号
+        $ApiAuth = Cookie::get('apiAuth');
+        $userinfo = json_decode(cache('Login:' . $ApiAuth),TRUE);
+        $num = $userinfo['num'];  //工号
+        if(empty($num) || empty($ApiAuth)) $this->redirect('http://119.23.24.187/businesssys_web/#/login',302);
+        //跳转到楼盘字典模拟登录的接口
+        $this->redirect("http://119.23.24.187/zcdc/public/index.php/api/Single/verifyLogin?apiAuth={$ApiAuth}&num={$num}",302);
+    }
+
+    /**
+     * @api {post} admin/Index/logOut 单点登录,从其他系统退出登录接口[admin/Index/logOut]
+     * @apiVersion 1.0.0
+     * @apiName logOut
+     * @apiGroup public
+     * @apiSampleRequest admin/Index/logOut
+     **/
+    public function logOut()
+    {
+        $ApiAuth = input('apiAuth');
+        cache('Login:' . $ApiAuth, null);
+        $userinfo = json_decode(cache('Login:' . $ApiAuth),TRUE);
+        cache('Login:' . $userinfo['id'], null);
+        return json(['code' => 1,'msg' => 'chengong','apiauth' => $ApiAuth,'id' => $userinfo['id']]);
+    }
+
+
+
+
+}

@@ -1,0 +1,20 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/23
+ * Time: 13:58
+ */
+/**
+ * 上传文件配置
+ */
+return [
+
+    //上传文件的路径
+    'img_path' => ROOT_PATH . 'public' . DS . 'uploads',
+    //虚拟主机地址
+    'url' =>'http://119.23.24.187/businesssys_api/public',
+    //上传文件类型
+    'file_type' =>'jpg,png,gif,jpeg,pdf,doc,docx,xls,xlsx,html,htm'
+
+];

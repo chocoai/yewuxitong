@@ -1,0 +1,68 @@
+<?php
+$afterBehavior = [
+    /* '\app\admin\behavior\ApiAuth',
+    '\app\admin\behavior\ApiPermission',
+    '\app\admin\behavior\AdminLog' */
+];
+
+return [
+    '[admin]' => [
+        'Login/index'                 => [
+            'admin/Login/index',
+            ['method' => 'post']
+        ],
+        'Login/logout'                => [
+            'admin/Login/logout',
+            ['method' => 'get', 'after_behavior' => ['\app\admin\behavior\ApiAuth', '\app\admin\behavior\AdminLog']]
+        	//['method' => 'get']
+        ],
+        'Log/index'                   => [
+            'admin/Log/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        'Log/del'                     => [
+            'admin/Log/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+    	//获取审批列表
+    	 'Approval/show_approval_list'                     => [
+    			'admin/Approval/show_approval_list',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	], 
+    	//获取订单的审批记录
+    	'Approval/approval_records'                     => [
+    			'admin/Approval/approval_records',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    		
+    		
+    		
+    	/* 阿琪 */
+    	/*根据电话号码获取用户信息*/
+       'Credit/GetcusinfoBymobile'                     => [
+               'admin/Credit/GetcusinfoBymobile',
+               ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+    		
+    		
+    	
+    	/* 林桂均 */
+    	/*获取城市*/
+    	'Regions/getcity'                     => [
+    			'admin/Regions/getcity',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	/*获取城区片区*/
+    	'Regions/getdistrict'                     => [
+    			'admin/Regions/getdistrict',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	/*搜索用户获取部门*/
+    	'User/usersearch'                     => [
+    			'admin/User/usersearch',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    		
+        '__miss__'                    => ['admin/Miss/index'],
+    ],
+];

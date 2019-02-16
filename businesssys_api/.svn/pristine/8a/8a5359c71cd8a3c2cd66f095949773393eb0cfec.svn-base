@@ -1,0 +1,108 @@
+<?php
+/**
+订单相关控制器
+ */
+
+namespace app\admin\controller;
+use think\Db;
+
+use app\util\ReturnCode;
+
+
+class OrderRelated extends Base
+{
+    /**
+     * @api {post} admin/OrderRelated/fundChannel 获取资金渠道[admin/OrderRelated/fundChannel]
+     * @apiVersion 1.0.0
+     * @apiName fundChannel
+     * @apiGroup OrderRelated
+     * @apiSampleRequest admin/OrderRelated/fundChannel
+     */
+    public function fundChannel()
+    {
+        $result = cache('order_fund_channel');
+        if (!$result) {
+            $result = Db::name('fund_channel')->where(['status'=>1])->order('sort asc')->field('id,name')->select();
+            if($result){
+                cache('order_fund_channel',$result);
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderRelated/orderAccountType 根据订单类型获取账户类型[admin/OrderRelated/orderAccountType]
+     * @apiVersion 1.0.0
+     * @apiName orderAccountType
+     * @apiGroup OrderRelated
+     * @apiSampleRequest admin/OrderRelated/orderAccountType
+     * @apiSuccess {array} repayment 赎楼还款账户类型
+     * @apiSuccess {array} last 尾款账户类型
+     * @apiSuccess {array} post 过账账户账户类型、回款账户类型、出账账户类型
+     * @apiSuccess {array} supervision 监管账户类型
+     */
+    public function orderAccountType()
+    {
+        $result = cache('JYDB_ACCOUNT_TYPE');
+        if (!$result) {
+            $result = Db::name('dictionary')->where(['status'=>1,'type'=>'JYDB_ACCOUNT_TYPE'])->order('sort asc')->field('code,valname')->select();
+            if(!$result){
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '查询失败!');
+            }
+            cache('JYDB_ACCOUNT_TYPE',$result);
+        }
+        $result = dictionary_reset($result);
+        //赎楼还款账户类型
+        $data['repayment'] = [
+            ['code'=>1,'valname'=>isset($result[1]) ? $result[1]:''],
+            ['code'=>2,'valname'=>isset($result[2]) ? $result[2]:''],
+        ];
+        //尾款账户账户类型
+        $data['last'] = [
+            ['code'=>1,'valname'=>isset($result[1]) ? $result[1]:''],
+            ['code'=>2,'valname'=>isset($result[2]) ? $result[2]:''],
+            ['code'=>3,'valname'=>isset($result[3]) ? $result[3]:''],
+            ['code'=>4,'valname'=>isset($result[4]) ? $result[4]:''],
+            ['code'=>5,'valname'=>isset($result[5]) ? $result[5]:''],
+        ];
+
+        //过账账户账户类型、回款账户类型、出账账户类型
+        $data['post'] = [
+            ['code'=>1,'valname'=>isset($result[1]) ? $result[1]:''],
+            ['code'=>2,'valname'=>isset($result[2]) ? $result[2]:''],
+            ['code'=>6,'valname'=>isset($result[6]) ? $result[6]:''],
+            ['code'=>7,'valname'=>isset($result[7]) ? $result[7]:''],
+            ['code'=>5,'valname'=>isset($result[5]) ? $result[5]:''],
+        ];
+        //监管账户类型
+        $data['supervision'] = [
+            ['code'=>3,'valname'=>isset($result[3]) ? $result[3]:''],
+            ['code'=>4,'valname'=>isset($result[4]) ? $result[4]:''],
+        ];
+        return $this->buildSuccess($data);
+
+
+    }
+
+    /**
+     * @api {post} admin/OrderRelated/orderStage 根据订单类型获取订单状态[admin/OrderRelated/orderStage]
+     * @apiVersion 1.0.0
+     * @apiName orderStage
+     * @apiGroup OrderRelated
+     * @apiSampleRequest admin/OrderRelated/orderStage
+     * @apiParam {string}  type   订单类型
+     */
+    public function orderStage()
+    {
+        $type = input('type','','strtoupper');
+        if(!$type) return $this->buildFailed(ReturnCode::PARAM_INVALID, '无效的参数!');
+        $result = cache('order_'.$type.'_stage');
+        if (!$result) {
+            $result = Db::name('dictionary')->where(['status'=>1,'type'=>'ORDER_JYDB_STATUS','slug'=>['like','%['.$type.']%']])->field('valname,code')->order('sort asc')->select();
+            if($result){
+                cache('order_'.$type.'_stage',$result);
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+}

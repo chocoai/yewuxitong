@@ -1,0 +1,52 @@
+<?php
+
+/**
+ * 房产验证类
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class EstateValidate extends Validate {
+    protected $rule = [
+        'estate_name' => 'require',
+        'estate_ecity' => 'require',
+        'estate_district' => 'require',
+        //'estate_zone' => 'require',
+        'estate_region'=> 'require',
+        'estate_area' => 'require|length:1,10',
+        'estate_certtype' => 'require',
+        'estate_certnum' => 'require|length:1,15',
+        'house_type' => 'require',
+        'building_name' => 'require|length:1,15',
+        'estate_alias' => 'length:1,15',
+        'estate_unit' => 'require|length:1,15',
+        'estate_unit_alias' => 'length:1,15',
+        'estate_floor' => 'require',
+        'estate_floor_plusminus' => 'require|in:up,down',
+        'estate_house' => 'require',
+    ];
+    protected $message = [
+        'estate_name' => '房产名称不能为空',
+        'estate_ecity' => '所属城市不能为空',
+        'estate_district' => '所属城区不能为空',
+        //'estate_zone' => '所属片区不能为空',
+        'estate_region' => '地址名称不能为空',
+        'estate_area' => '房产面积不能为空',
+        'estate_certtype.require' => '产证类型不能为空',
+        'estate_certtype.in' => '产证类型无效',
+        'estate_certnum.require' => '产证编码不能为空',
+        'estate_certnum.number' => '产证编码格式有误',
+        'house_type.require' => '房屋类型不能为空',
+        'house_type.in' => '房屋类型无效',
+        'building_name' => '楼盘名称有误',
+        'estate_alias' => '楼盘别名不能超过15个字符',
+        'estate_unit' => '栋阁名称不能为空',
+        'estate_unit_alias' => '栋阁别名不能超过15个字符',
+        'estate_floor' => '楼层不能为空',
+        'estate_floor_plusminus.require' => '楼层符号不能为空',
+        'estate_floor_plusminus.in' => '楼层符号无效',
+        'estate_house' => '房号不能为空',
+    ];
+}

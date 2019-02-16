@@ -1,0 +1,9 @@
+<?php
+
+namespace app\workflow\model;
+
+class WorkflowProcess extends Base
+{
+    protected $deleteTime = 'delete_time';
+
+}

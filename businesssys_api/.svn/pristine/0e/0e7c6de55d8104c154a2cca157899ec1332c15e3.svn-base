@@ -1,0 +1,710 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/21
+ * Time: 10:14
+ * 资料入架财务审核
+ */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\OrderRansomDispatch;
+use app\model\Dictionary;
+use app\util\OrderComponents;
+use think\Db;
+use Workflow\Workflow;
+use app\model\OrderLog;
+use app\model\WorkflowFlow;
+
+class Foreclo extends Base {
+    private $dictionary;
+    private $orderransomdispatch;
+    private $order;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->orderransomdispatch = new OrderRansomDispatch();
+        $this->dictionary = new Dictionary();
+        $this->order = new Order();
+        $this->systemuser = new SystemUser();
+    }
+
+    /**
+     * @api {post} admin/Foreclo/dataList 资料入架列表[admin/Foreclo/dataList ]
+     * @apiVersion 1.0.0
+     * @apiName dataList
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/dataList
+     *
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type    订单类型
+     * @apiParam {int}  is_combined_loan   是否组合贷款（0否 1是）
+     * @apiParam {int} search_text    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+            "total": 19,             总条数
+            "per_page": "2",         每页显示的条数
+            "current_page": 1,       当前页
+            "last_page": 10,         总页数
+            "data": [
+                {
+                "order_sn": "JYDB2018050137123456",    业务单号
+                "type": "JYDB",                        订单类型
+                "create_time": "2018-05-09 17:04:06",  报单时间
+                "name": "夏丽平",                        理财经理
+                "estate_name": "国际新城一栋",           房产名称
+                "estate_owner": "张三,李四",             业主姓名
+                "is_combined_loan": 1,                   是否组合贷 1是 0否
+                "order_status": "待注销过户",             订单状态
+                "estate_ecity_name": "深圳市",            城市
+                "estate_district_name": "罗湖区",         城区
+                "proc_id"                                 处理明细表主键id
+                "organization": [                        赎楼银行
+                    {
+                    "organization": "银行"
+                    },
+                    {
+                    "organization": "银行"
+                    },
+                    {
+                    "organization": "银行"
+                    }
+                 ]
+                },
+                {
+                "order_sn": "JYDB2018050159",
+                "type": "JYDB",
+                "create_time": "2018-05-12 10:15:45",
+                "name": "夏丽平",
+                "estate_name": "国际新城一栋",
+                "estate_owner": "张三,李四",
+                "is_combined_loan": null,
+                "order_status": "待指派赎楼员",
+                "estate_ecity_name": "深圳市",
+                "estate_district_name": "罗湖区",
+                "organization": []
+                }
+            ]
+          }
+        }
+     */
+
+    public function dataList(){
+        $createUid = input('create_uid')?:0;
+        $subordinates = input('subordinates')?:0;
+        $type = input('type');
+        $is_combined_loan = input('is_combined_loan')?:0;
+        $searchText = trim(input('search_text'));
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $userId = $this->userInfo['id'];
+        //$userId = 2;
+        $map = [];
+        //用户判断//
+        $userStr = $createUid === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$createUid,$subordinates);
+        //return json($userStr);
+        if($userStr !== false)
+            $map['w.user_id']=['in', $userStr];
+        else
+            return $this->buildSuccess([]);
+        $type && $map['x.type'] = $type;
+        $is_combined_loan && $map['n.is_combined_loan'] = $is_combined_loan;
+        $searchText && $map['y.estate_name|x.order_sn']=['like', "%{$searchText}%"];
+        $map['x.delete_time'] = NULL;
+        $map['x.status'] = 1;
+        $map['w.status'] = 0;
+        $map['w.is_deleted'] = 1;
+        $map['w.is_back'] = 0;
+        try{
+            return $this->buildSuccess(Order::dataList($map,$page,$pageSize));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclo/finauditList 财务审核列表[admin/Foreclo/finauditList ]
+     * @apiVersion 1.0.0
+     * @apiName finauditList
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/finauditList
+     *
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {string} type            订单类型
+     * @apiParam {int} ransom_type    赎楼类型 1公积金贷款 2商业贷款 3装修贷/消费贷
+     * @apiParam {int} search_text    关键字搜索
+     * @apiParam {int} ransom_status    当前状态
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+            "total": 19,             总条数
+            "per_page": "2",         每页显示的条数
+            "current_page": 1,       当前页
+            "last_page": 10,         总页数
+            "data": [
+                {
+                "id": 39,                        赎楼派单表主键id
+                "order_sn": "JYDB2018050285",    业务单号
+                "ransom_bank": "农业银行",        赎楼银行
+                "ransom_status": 202,
+                "ransom_type": 1,
+                "ransomer": "李四",               赎楼员
+                "create_time": "2018-05-22",      派单日期
+                "type": "FJYDB",                  订单类型
+                "finance_sn": "100000104",        财务序号
+                "financing_manager_id": 17,
+                "estate_name": "名称1阁栋名称1010",      房产名称
+                "estate_owner": "张三,测试第二次",       业主姓名
+                "ransom_status_text": "待赎楼经理审批",   当前状态
+                "ransom_type_text": "公积金贷款",         赎楼类型
+                "type_text": "非交易担保",                订单类型
+                "financing_manager": "杨亚丽"             理财经理
+                },
+                {
+                "id": 38,
+                "order_sn": "JYDB2018050285",
+                "ransom_bank": "中国银行",
+                "ransom_status": 14,
+                "ransom_type": 1,
+                "ransomer": "张三",
+                "create_time": "2018-05-22",
+                "type": "FJYDB",
+                "finance_sn": "100000104",
+                "financing_manager_id": 17,
+                "estate_name": "名称1阁栋名称1010",
+                "estate_owner": "张三,测试第二次",
+                "ransom_status_text": "待赎楼经理审批",
+                "ransom_type_text": "公积金贷款",
+                "type_text": "非交易担保",
+                "financing_manager": "杨亚丽"
+                "proc_id": 192
+                }
+            ]
+        }
+    }
+     */
+
+    public function finauditList(){
+        $createUid = input('create_uid')?:0;
+        $subordinates = input('subordinates')?:0;
+        $type = input('type');
+        $ransom_type = input('ransom_type');
+        $ransom_status = input('ransom_status');
+        $searchText = trim(input('search_text'));
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $userId = $this->userInfo['id'];
+        $map = [];
+        //用户判断//
+        $userStr = $createUid === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$createUid,$subordinates);
+        //return json($userStr);
+        if($userStr !== false)
+            $map['d.user_id']=['in', $userStr];
+        else
+            return $this->buildSuccess([]);
+        $ransom_type && $map['x.ransom_type'] = $ransom_type;
+        $type && $map['o.type'] = $type;
+        $ransom_status && $map['x.ransom_status'] = $ransom_status;
+        $searchText && $map['e.estate_name|o.order_sn|o.finance_sn']=['like', "%{$searchText}%"];
+        $map['o.delete_time'] = NULL;
+        $map['o.status'] = 1;
+        $map['d.status'] = 0;
+        $map['d.is_deleted'] = 1;
+
+        $field = "x.id,x.order_sn,x.ransom_bank,x.ransom_status,x.ransom_type,x.ransomer,x.create_time,o.type,o.finance_sn,o.financing_manager_id,e.estate_name,e.estate_owner";
+        $creditList = $this->orderransomdispatch->alias('x')
+            ->join('workflow_proc d','d.order_sn = x.order_sn')
+            ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+            ->join('__ESTATE__ e', 'e.order_sn=x.order_sn')
+            ->where($map)->field($field)
+            ->order('x.create_time', 'DESC')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as $key => $value) {
+                $creditList['data'][$key]['ransom_status_text'] = $this->dictionary->getValnameByCode('ORDER_JYDB_STATUS', $value['ransom_status']); //赎楼状态
+                $creditList['data'][$key]['ransom_type_text'] = $this->orderransomdispatch->getRansomtype($value['ransom_type']); //赎楼类型
+                $creditList['data'][$key]['type_text'] = $this->order->getType($value['type']); //订单类型
+                $creditList['data'][$key]['create_time'] = date('Y-m-d', strtotime($value['create_time'])); //派单时间
+                $creditList['data'][$key]['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+            }
+        }
+        return $this->buildSuccess($creditList);
+    }
+
+    /**
+     * @api {post} admin/Foreclo/caiwuInfo 财务审核详情页[admin/Foreclo/caiwuInfo]
+     * @apiVersion 1.0.0
+     * @apiName caiwuInfo
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/caiwuInfo
+     *
+     *
+     * @apiParam {string}  order_sn   订单编号
+     * @apiParam {int}  id   赎楼派单表主键id
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *  "data": {
+        "basic_information": {                      基本信息
+            "order_sn": "JYDB2018050137123456",    业务单号
+            "stage"      1002       订单状态
+            "type": "JYDB",        业务类型
+            "finance_sn": "100000048",      财务序号
+            "money": "2.00",      担保金额
+            "guarantee_per": 2,            担保成数
+            "financing_manager_name": "夏丽平",    理财经理
+            "dept_manager_name": "杜欣",           部门经理
+            "deptname": "总经办"                   所属部门
+        },
+        "estate_info": [   房产信息
+            {
+            "estate_name": "国际新城一栋",                  房产名称
+            "estate_region": "深圳市|罗湖区|桂园街道",      所属城区
+            "estate_area": 70,                             房产面积
+            "estate_certtype": 1,                          产证类型
+            "estate_certnum": 11111,                       产证编码
+            "house_type": 1                                房产类型 1分户 2分栋
+            },
+            {
+            "estate_name": "国际新城一栋",
+            "estate_district": "440303",
+            "estate_area": 70,
+            "estate_certtype": 1,
+            "estate_certnum": 11111,
+            "house_type": 1
+            }
+        ],
+        "seller_info": [
+            {
+             "is_seller": 2,               客户 1买方 2卖方
+            "is_comborrower": 0,           共同借款人属性 0借款人 1共同借款人
+            "cname": "张三",                 卖方姓名
+            "ctype": 1,                      卖方类型 1个人 2企业
+            "certtype": 1,                   证件类型
+            "certcode": "11111122322",       证件号码
+            "mobile": "18825454079",         电话号码
+            "is_guarantee": 0                 担保申请人 1是 0否
+            },
+            {
+            "cname": "张三",
+            "ctype": 1,
+            "certtype": 1,
+            "certcode": "11111122322",
+            "mobile": "18825454079",
+            "is_guarantee": 0
+            }
+        ],
+        "preliminary_question": [    风控初审问题汇总
+            {
+            "describe": "呵呵456",     问题描述
+            "status": 0               是否解决  0未解决 1已经解决
+            },
+            {
+            "describe": "呵呵帅那个帅789",
+            "status": 0
+            }
+        ],
+        "needing_attention": [   风控提醒注意事项
+            {
+            "process_name": "收到公司的",    来源
+            "item": "啥打法是否"             注意事项
+            },
+            {
+            "process_name": "测试",
+            "item": "测试注意事项"
+            }
+        ],
+        "arrears_info": [    欠款及出账金额
+            {
+            "organization": "银行",      欠款机构名称
+            "interest_balance": "111111.11",    欠款金额
+            "mortgage_type_name": "商业贷款",   欠款类型
+            "accumulation_fund": "2.00"         出账金额
+            },
+            {
+            "organization": "银行",
+            "interest_balance": "111111.11",
+            "mortgage_type_name": "公积金贷款",
+            "accumulation_fund": "2.00"
+            }
+        ],
+        "reimbursement_info": [
+            {
+            "type": 1,   区分账户类型 type = 1 预录赎楼还款账户;type=2尾款账号信息;type = 3 过账账号信息;type = 4 回款账号信息;type = 5 监管账户类型;type = 6 出账收款号信息
+            "bankaccount": "123",        银行户名
+            "accounttype": 1,
+            "bankcard": "123",           银行卡号
+            "openbank": "工商银行",      开户银行
+            "accounttype_str": "卖方"    账户类型(中文)
+            },
+            {
+            "type": 3,
+            "bankaccount": "123",
+            "accounttype": 1,
+            "bankcard": "123",
+            "openbank": "中国银行",
+            "accounttype_str": "卖方"
+            },
+            {
+            "type": 4,
+            "bankaccount": "1234",
+            "accounttype": 1,
+            "bankcard": "123",
+            "openbank": "中国银行",
+            "accounttype_str": "卖方"
+            }
+        ],
+        "cost_account":{     费用入账
+        "guarantee_fee": "1000.00",   担保费
+        "fee": "-15.00",              手续费
+        "self_financing": "30.00",    自筹金额
+        "short_loan_interest": "-12.30",   短贷利息
+        "return_money": "12.50",           赎楼返还款
+        "default_interest": "0.00",        罚息
+        "overdue_money": "0.00",           逾期金额
+        "other_money": "0.00"             其他
+        },
+        "lend_books": [    银行放款入账
+            {
+            "loan_money": "56786.00",             放款金额
+            "lender_objec": "中国银行",           放款银行
+            "receivable_account": "中国银行账户",    收款账户
+            "into_money_time": "2019-11-03",        到账时间
+            "remark": "法国红酒狂欢节",             备注说明
+            "operation_name": "杜欣"                入账人员
+            },
+            {
+            "loan_money": "123456.00",
+            "lender_objec": "中国银行",
+            "receivable_account": "中国银行账户",
+            "into_money_time": "2019-11-02",
+            "remark": "啊是的范德萨",
+            "operation_name": "杜欣"
+            }
+        ],
+       "sqk_info": {                             首期款信息
+            "dp_strike_price": "4500000.00",      成交价格
+            "dp_earnest_money": "10000.00",       定金金额
+            "dp_supervise_guarantee": null,       担保公司监管
+            "dp_supervise_buyer": null,           买方本人监管
+            "dp_supervise_bank": "工商银行",      监管银行
+            "dp_supervise_date": null,            监管日期
+            "dp_buy_way": 2,                     购房方式1全款购房2按揭购房
+            "dp_now_mortgage": "7.00"            现按揭成数
+        },
+        "mortgage_info": [     按揭信息
+            {
+            "type": "ORIGINAL",   ORIGINAL原按揭 NOW现按揭
+            "mortgage_type": 2,     按揭类型 1公积金贷款 2商业贷款 3装修贷/消费贷
+            "money": "1000000.00",  按揭金额
+            "organization_type": "1",    按揭机构类型 1银行 2其他
+            "organization": "工商银行-宝安支行"     现按揭机构
+            },
+            {
+            "type": "ORIGINAL",
+            "mortgage_type": 2,
+            "money": "3000000.00",
+            "organization_type": "1",
+            "organization": "工商银行-宝安支行"
+            },
+            {
+            "mortgage_type": 2,
+            "money": "4500000.00",
+            "organization_type": "1",
+            "organization": "工商银行-宝安支行"
+            }
+        ],
+        "redeem_info":            赎楼状态
+            {
+             "dispatch_id"                赎楼派单表主键id
+            "ransom_type": 3,
+            "ransom_bank": "农业银行",    赎楼银行
+            "ransom_status": 14,          子订单状态对应的code
+            "ransomer": "李四",           赎楼员
+            "stageStr": "待赎楼经理审批",   当前状态
+            "ransom_type_name": "装修贷/消费贷"   赎楼类型
+            }
+        "status_info": {        各种需要用到的状态字段
+            "guarantee_fee_status": 2,     （担保费）收费状态 1未收齐 2已收齐
+            "loan_money_status": 1,         银行放款入账状态 1待入账 2待复核 3已复核
+            "instruct_status": 3,           指令状态（1待申请 2待发送 3已发送）
+            "is_loan_finish": 1,             发送指令后银行放款 1放款完成 （默认为空）
+            "loan_money": "4200000.00",      实收金额总计
+            "is_comborrower_sell": 1       是否卖方有共同借款人 0否 1是
+            }
+    }
+     */
+
+    public function caiwuInfo(){
+        $orderSn = input('order_sn');
+        $id = input('id');
+        if(empty($orderSn) || empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数不能为空!');
+        try{
+            $returnInfo = [];
+            //基本信息信息
+            $resInfo = OrderComponents::orderJbInfo($orderSn);
+            $newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+            $resInfo['type'] = $newStageArr[$resInfo['type']] ? $newStageArr[$resInfo['type']]:'';
+            $returnInfo['basic_information'] = $resInfo;
+            //房产信息
+            $resInfo = OrderComponents::showEstateList($orderSn,'estate_name,estate_region,estate_area,estate_certtype,estate_certnum,house_type');
+            $newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('PROPERTY_TYPE'));
+            if($resInfo){
+                foreach($resInfo as &$val){
+                    $val['estate_certtype_str'] = $newStageArr[$val['estate_certtype']] ? $newStageArr[$val['estate_certtype']]:'';
+                }
+            }
+            $returnInfo['estate_info'] = $resInfo;
+            //卖方信息(转让方)
+            $resInfo = OrderComponents::showCustomerInfo($orderSn,'is_seller,is_comborrower,cname,ctype,certtype,certcode,mobile,is_guarantee');
+            $newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('CERTTYPE'));
+            if($resInfo){
+                foreach($resInfo as &$val){
+                    $val['certtype_str'] = $newStageArr[$val['certtype']] ? $newStageArr[$val['certtype']]:'';
+                }
+            }
+            $returnInfo['seller_info'] = $resInfo;
+            //实际出账收款账户
+            //$returnInfo['collection_info'] = OrderComponents::showCollectionInfo($orderSn);
+            //风控初审问题汇总
+            $returnInfo['preliminary_question'] = OrderComponents::showPreliminary($orderSn);
+            //风控提醒注意事项
+            $returnInfo['needing_attention'] = OrderComponents::showNeedAtten($orderSn);
+            //欠款及出账金额 => 原按揭信息
+            $returnInfo['arrears_info'] = OrderComponents::showArrearsInfo($orderSn,'mortgage_type,organization,interest_balance','ORIGINAL');
+            //预录赎楼还款账户,过账账户，汇款账户
+            $resInfo = OrderComponents::showGuaranteeBank($orderSn,'type,bankaccount,accounttype,bankcard,openbank','1,2,3,4,5,6');
+            $newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('JYDB_ACCOUNT_TYPE'));
+            if($resInfo){
+                foreach($resInfo as &$val){
+                    $val['accounttype_str'] = $newStageArr[$val['accounttype']] ? $newStageArr[$val['accounttype']]:'';
+                }
+            }
+            $returnInfo['reimbursement_info'] = $resInfo;
+            //费用入账
+            $returnInfo['cost_account'] = OrderComponents::showChargeList($orderSn);
+            //银行放款入账
+            $returnInfo['lend_books'] = OrderComponents::showBankList($orderSn);
+            //首期款信息
+            $returnInfo['sqk_info'] = OrderComponents::orderDp($orderSn,'dp_strike_price,dp_earnest_money,dp_supervise_guarantee,dp_supervise_buyer,dp_supervise_bank,dp_supervise_date,dp_buy_way,dp_now_mortgage');
+            //按揭信息
+            $returnInfo['mortgage_info'] = OrderComponents::showMortgage($orderSn,'type,mortgage_type,money,organization_type,organization');
+            //赎楼状态
+            $returnInfo['redeem_info'] = OrderComponents::showRedeem($id);
+            //查询出各种状态
+            $returnInfo['status_info'] = OrderComponents::showStstusInfo($orderSn);
+            return $this->buildSuccess($returnInfo);
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclo/submitFinancial 财务审核提交审批[admin/Foreclo/submitFinancial]
+     * @apiVersion 1.0.0
+     * @apiName submitFinancial
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/submitFinancial
+     *
+     * @apiParam {string}  order_sn   订单编号
+     * @apiParam {int}  is_approval   审批结果 1通过 2驳回
+     * @apiParam {string}  content   驳回原因
+     * @apiParam {int}  dispatch_id      赎楼派单表主键id
+     * @apiParam {int}  ransom_status      子订单状态对应的code
+     */
+
+    public function submitFinancial(){
+        $orderSn = input('order_sn');
+        $is_approval = input('is_approval');
+        $content = input('content');
+        $dispatch_id = input('dispatch_id');
+        $ransom_status = input('ransom_status');
+        //验证器验证参数
+        $valiDate = validate('SubmitFinc');
+        $data=['order_sn'=>$orderSn,'is_approval'=>$is_approval,'dispatch_id'=>$dispatch_id,'ransom_status'=>$ransom_status];
+        if(!$valiDate->check($data)){
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+        }
+        //根据订单号用户ID 后端获取 流程步骤表主键id
+        $resInfo = Db::name('workflow_proc')->where(['order_sn' => $orderSn,'user_id'=> $this->userInfo['id'],'status' => 0,'is_deleted'=> 1])->field('id,entry_id')->find();
+        //获取flow_id
+        if($is_approval == 2){  //驳回获取驳回节点
+            $flow_id = WorkflowFlow::where(['type' => 'JYDB_FINANCIAL','status' => 1])->value('id');
+            $sbacks_proc_id = self::getBackProcId($ransom_status,$orderSn,$flow_id,$resInfo['entry_id']);
+        }else{  //通过为空
+            $sbacks_proc_id = '';
+        }
+        $config = [
+            'user_id' => $this->userInfo['id'], // 用户id
+            'user_name' => $this->userInfo['name'], // 用户姓名
+            'proc_id' => $resInfo['id'],  // 流程步骤表主键id
+            'content' => $content,  // 审批意见
+            'back_proc_id' => $sbacks_proc_id,  // 退回节点id
+            'order_sn' => $orderSn
+        ];
+        $operate = show_status_name($ransom_status,'ORDER_JYDB_FINC_STATUS');//当前订单的审批节点名称
+        $workflow = new Workflow($config);
+        // 启动事务
+        Db::startTrans();
+        try{
+            if($is_approval == 1){
+                // 审批通过
+                $workflow->pass();
+                $logInfo = self::getOrderLogInfo($is_approval,$dispatch_id,$operate);
+                $operate_reason = '';
+            }else{
+                // 审批拒绝
+                $workflow->unpass();
+                if($ransom_status == 202){ //待赎楼经理审批驳回
+                    //更改该订单为退回派单
+                    Db::name('order_ransom_dispatch')->where(['id' => $dispatch_id])->update(['is_dispatch' => 2,'update_time' => time()]);
+                }
+                $logInfo = self::getOrderLogInfo($is_approval,$dispatch_id,$operate);
+                $operate_reason = $content;
+            }
+            /*添加订单操作记录*/
+            //return json(['ransom_status' => $ransom_status,'stageInfo' => $logInfo]);
+            $operate_node = $this->userInfo['deptname'].'=>'.$this->userInfo['name']."提交审批";
+            $operate_det = $logInfo['msg'];
+            $stage_code = $logInfo['back_proc_id']; //流向的节点code
+            $operate_table = 'order_ransom_dispatch';
+            $operate_table_id = $dispatch_id;
+            //OrderComponents::addOrderLog($this->userInfo,$orderSn, $logInfo['stage'], $operate,$operate_node,$operate_det,$operate_reason,$stage_code,$operate_table,$operate_table_id);
+            OrderComponents::addOrderLog($this->userInfo,$orderSn, '待赎楼员完成赎楼', $operate,$operate_node,$operate_det,$operate_reason,1014,$operate_table,$operate_table_id);
+            // 提交事务
+            Db::commit();
+            return $this->buildSuccess('审批成功');
+        }catch (\Exception $e){
+            // 回滚事务
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::ADD_FAILED, $e->getMessage());
+        }
+
+    }
+
+    private function getOrderLogInfo($is_approval,$dispatch_id,$operate){
+        //根据派单表id查询出更改后的订单状态
+        $stageInfo = OrderRansomDispatch::getOne(['id' => $dispatch_id],'ransom_status');
+        $back_proc_id = $stageInfo['ransom_status']; //审批通过流向的下一个节点id
+        $stage = show_status_name($back_proc_id,'ORDER_JYDB_FINC_STATUS');  //流向的审批节点名称
+        if($is_approval == 1){
+            $msg = $this->userInfo['deptname'].'=>'.$this->userInfo['name'].":审批通过:".$operate."=>".$stage;
+        }else{
+            $msg = $this->userInfo['deptname'].'=>'.$this->userInfo['name'].":审批驳回:".$operate."=>".$stage;
+        }
+        return ['back_proc_id' => $back_proc_id,'stage' => $stage,'msg' => $msg];
+    }
+
+    private function getBackProcId($order_status, $order_sn, $flow_id,$entry_id)
+    {
+        if (in_array($order_status, ['203', '204', '205', '206', '207'])) {
+//            退回赎楼经理 202
+            $where['wp.wf_status'] = '202';
+        }
+        if (in_array($order_status, ['202'])) {
+//            退回待派赎楼员 201
+            $where['wp.wf_status'] = '201';
+        }
+        $where['wc.is_deleted'] = 1;
+        $where['wc.is_back'] = 0;
+        $where['wc.order_sn'] = $order_sn;
+        $where['wc.flow_id'] = $flow_id;
+        $where['wc.entry_id'] = $entry_id;
+        $res = Db::name('workflow_process')->alias('wp')
+            ->join('__WORKFLOW_PROC__ wc', 'wc.process_id=wp.id')
+            ->where($where)->value('wc.id');
+        return $res;
+    }
+
+    /**
+     * @api {post} admin/Foreclo/foreProcList 财务赎楼流程列表[admin/Foreclo/foreProcList ]
+     * @apiVersion 1.0.0
+     * @apiName foreProcList
+     * @apiGroup Foreclo
+     * @apiSampleRequest admin/Foreclo/foreProcList
+     *
+     * @apiParam {int}  dispatch_id      赎楼派单表主键id
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * {
+        "code": 1,
+        "msg": "操作成功",
+        "data": {
+            "total": 19,             总条数
+            "per_page": "2",         每页显示的条数
+            "current_page": 1,       当前页
+            "last_page": 10,         总页数
+            "data": [
+                    {
+                    "create_time": "2018-05-25 15:55:31",    时间
+                    "operate": "待业务报单",                  操作
+                    "operate_node": "待业务报单",             操作节点
+                    "operate_det": "创建订单",               操作详情
+                    "name": "管理员"                         操作人员
+                    },
+                    {
+                    "create_time": "2018-05-25 11:56:07",
+                    "operate": "风控审批流",
+                    "operate_node": "风控部门提交审批",
+                    "operate_det": "刘林4:审批通过,流向=>待审查助理审批",
+                    "name": "刘林4"
+                    }
+                  ]
+            }
+        }
+     */
+    public function foreProcList(){
+        $dispatch_id = input('dispatch_id');
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        if(empty($dispatch_id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '赎楼派单表主键id不能为空!');
+        $map['operate_table_id'] = $dispatch_id;
+        try{
+            return $this->buildSuccess(OrderLog::fincList($map,$page,$pageSize));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}

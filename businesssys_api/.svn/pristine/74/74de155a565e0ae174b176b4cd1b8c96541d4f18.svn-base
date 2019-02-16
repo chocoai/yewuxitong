@@ -1,0 +1,58 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/23
+ * Time: 16:23
+ */
+
+namespace app\model;
+use think\Db;
+
+
+class OrderGuarantee extends Base
+{
+    /**
+    /* @author 林桂均
+     * 担保赎楼信息
+     * @param $orderSn
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderGuarantee($orderSn)
+    {
+        $guaranteeInfo = self::alias('x')
+            ->join('order y','x.order_sn=y.order_sn')
+            ->where(['y.order_sn'=>$orderSn,'x.status'=>1])
+            ->field('x.notarization,x.guarantee_money,x.self_financing,x.guarantee_per,x.guarantee_rate,x.bussiness_loan,x.accumulation_fund,x.account_per,x.guarantee_fee,fee,x.info_fee,total_fee,y.order_source,y.source_info,y.financing_manager_id,y.financing_dept_id,y.mortgage_name,y.mortgage_mobile,y.remark')
+            ->find();
+        //赎楼银行信息
+        $guaranteeInfo['guaranteeBank'] = Db::name('order_guarantee_bank')
+            ->field('type,bankaccount,accounttype,bankcard,openbank')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        //获取理财经理姓名
+
+        $financeInfo = Db::name('system_user')->alias('a')
+            ->field('a.name,b.name as dept_name')
+            ->join('system_dept b', 'a.deptid=b.id')
+            ->where(['a.id'=>$guaranteeInfo['financing_manager_id']])
+            ->limit(10)
+            ->find();
+        if($financeInfo){
+            $guaranteeInfo['financing_manager_id'] = $financeInfo['name'];
+            $guaranteeInfo['financing_dept_id'] = $financeInfo['dept_name'];
+        }
+        if($guaranteeInfo['order_source']){
+            $guaranteeInfo['order_source'] = Db::name('dictionary')->where(['type'=>'ORDER_YWLY','code'=>$guaranteeInfo['order_source']])->value('valname');
+        }
+        //附件信息
+        $guaranteeInfo['attachInfo'] = Db::name('order_attachment')
+            ->alias('a')
+            ->join('attachment b','a.attachment_id=b.id')
+            ->where(['a.order_sn'=>$orderSn])
+            ->field('b.name')
+            ->select();
+
+        return $guaranteeInfo;
+    }
+}

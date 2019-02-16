@@ -1,0 +1,42 @@
+<?php
+
+use workflow\restrict\Base;
+use think\Log;
+/**
+ * Class Tmxj 凭抵押回执放款
+ * @package workflow\restrict
+ * @author: bordon
+ */
+class Pdxj extends Base
+{
+    const CheckManage = 5000000;  // 审查经理 金额
+    /**
+     *待审查经理=》待跟单员补齐资料
+     */
+    public function riskCheckManageMerchandiser()
+    {
+        if (!$this->money || is_null($this->is_material)) {
+            throw new \Exception("流转条件设置错误，无法流转，请联系流程设置人员");
+        }
+        Log::write('缺资料通过小于500万,金额：' . $this->money);
+        if (0 < $this->money && $this->money < self::CheckManage&&$this->is_material==1) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     *待审查经理=》待资料入架
+     */
+    public function riskCheckCheckManageDataEntry()
+    {
+        if (!$this->money || is_null($this->is_material)) {
+            throw new \Exception("流转条件设置错误，无法流转，请联系流程设置人员");
+        }
+        Log::write('小于500万,金额：' . $this->money);
+        if (0 < $this->money && $this->money < self::CheckManage&&$this->is_material==0) {
+            return true;
+        }
+        return false;
+    }
+}

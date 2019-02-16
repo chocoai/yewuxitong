@@ -1,0 +1,140 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/25
+ * Time: 11:50
+ */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\Cheque;
+
+class Check extends Base {
+        // @author 赵光帅
+        /**
+         * @api {post} admin/Check/showCheckList 支票列表[admin/Check/showCheckList]
+         * @apiVersion 1.0.0
+         * @apiName showCheckList
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/showCheckList
+         *
+         *
+         * @apiParam {int}  owner   支票所有人id
+         * @apiParam {int}  subor   1 含下属 0 不含下属
+         * @apiParam {int}  time_type   1入库时间 2领取时间 3使用时间
+         * @apiParam {int}  start_time   开始时间
+         * @apiParam {int}  end_time   结束时间
+         * @apiParam {int}  status   支票状态-1删除 1库存中 2领取待使用 3转让待确认 4使用待核销 5作废待核销 6使用已核销 7作废已核销
+         * @apiParam {string}  bankname  中国银行 中国农业银行 中国工商银行 中国建设银行
+         * @apiParam {string}  search_text   支票号 订单号
+         * @apiParam {int} page    页码
+         * @apiParam {int} limit    条数
+         *
+         * @apiSuccess {int} total    总条数
+         * @apiSuccess {int} per_page    每页显示的条数
+         * @apiSuccess {int} current_page    当前页
+         * @apiSuccess {int} last_page    总页数
+         * @apiSuccess {int} id    支票表主键id
+         * @apiSuccess {string} order_sn    业务单号
+         * @apiSuccess {string} create_time    入库时间
+         * @apiSuccess {string} cheque_num    支票号
+         * @apiSuccess {string} bankname    银行名称
+         * @apiSuccess {string} status    支票状态
+         * @apiSuccess {string} use_time    使用时间
+         * @apiSuccess {string} user    使用人
+         * @apiSuccess {string} owner    领取人
+         * @apiSuccess {string} owner_time    领取时间
+         *
+         */
+
+        public function showCheckList(){
+            $ownerId = input('owner');
+            //$suborXs = input('subor');
+            $timeType = input('time_type');
+            $startTime = input('start_time');
+            $endTime = input('end_time');
+            $staTus = input('status');
+            $bankName = input('bankname');
+            $searchText = input('search_text');
+            $page = input('page') ? input('page') : 1;
+            $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+
+            $map = [];
+            if(!empty($ownerId) && isset($ownerId)){
+                $map['owner'] = $ownerId;
+            }else{
+                $map['owner'] = $this->userInfo['id'];
+            }
+            if ($timeType == 1) {  //入库时间
+                if($startTime && $endTime){
+                    //$map['create_time'] = ['between'=>[$startTime,$endTime]];
+                    $map['create_time'] = array(array('egt', $startTime), array('elt', $endTime));
+                }elseif($startTime){
+                    $map['create_time'] = ['egt',$startTime];
+                }elseif($endTime){
+                    $map['create_time'] = ['elt',$endTime];
+                }
+            }elseif ($timeType == 2){ //领取时间
+                if($startTime && $endTime){
+                    //$map['receive_time'] = ['between'=>[$startTime,$endTime]];
+                    $map['receive_time'] = array(array('egt', $startTime), array('elt', $endTime));
+                }elseif($startTime){
+                    $map['receive_time'] = ['egt',$startTime];
+                }elseif($endTime){
+                    $map['receive_time'] = ['elt',$endTime];
+                }
+            }elseif ($timeType == 3){ //使用时间
+                if($startTime && $endTime){
+                    //$map['use_time'] = ['between'=>[$startTime,$endTime]];
+                    $map['use_time'] = array(array('egt', $startTime), array('elt', $endTime));
+                }elseif($startTime){
+                    $map['use_time'] = ['egt',$startTime];
+                }elseif($endTime){
+                    $map['use_time'] = ['elt',$endTime];
+                }
+            }
+            $staTus && $map['status'] = $staTus;
+            $bankName && $map['bankname'] = $bankName;
+            $searchText && $map['order_sn|cheque_num']=['like', "%{$searchText}%"];
+            try{
+                $resInfo = Cheque::checkList($map,$page,$pageSize);
+                return $this->buildSuccess($resInfo);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+            }
+
+        }
+
+        /**
+         * @api {post} admin/Check/showUser 人员模糊搜索[admin/Check/showUser]
+         * @apiVersion 1.0.0
+         * @apiName showUser
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/showUser
+         *
+         * @apiParam {int} people    0未选择 1领取人 2使用人
+         * @apiParam {string} search_text    人员名称
+         * @apiParam {int} page    页码
+         * @apiParam {int} limit    条数
+         */
+
+        public function showUser()
+        {
+            $peopleGroup = input('people');
+            $searchText = input('search_text');
+            $page = input('page') ? input('page') : 1;
+            $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+
+            try{
+                $resInfo = Cheque::showUserinfo($peopleGroup,$searchText,$page,$pageSize);
+                return $this->buildSuccess($resInfo);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+            }
+        }
+
+
+
+
+}

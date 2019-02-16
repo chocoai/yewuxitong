@@ -1,0 +1,48 @@
+<?php
+
+namespace app\common\model;
+
+use think\Model;
+
+/**
+ * 楼盘模型
+ */
+class Dictionary extends Model {
+
+    protected $autoWriteTimestamp = true;
+    // 定义时间戳字段名
+    protected $createTime = 'create_time';
+    protected $updateTime = 'update_time';
+
+    /**
+     * 根据类型查询数据字典
+     * @param string $type
+     * @return array
+     * @author zhongjiaqi
+     */
+    public function getDictionaryByType($type) {
+        $where = array(
+            'status' => 1,
+            'type' => $type,
+        );
+        $data = $this->where($where)->field('code,valname')->order('sort asc')->select();
+        return $data;
+    }
+
+    /**
+     * 根据类型和值查询名称
+     * @param string $type
+     * @return array
+     * @author zhongjiaqi
+     */
+    public function getValnameByCode($type, $code) {
+        $where = array(
+            'status' => 1,
+            'type' => $type,
+            'code' => $code
+        );
+        $valname = $this->where($where)->value('valname');
+        return $valname;
+    }
+
+}

@@ -1,0 +1,18 @@
+<?php
+
+namespace Workflow;
+
+/**
+ * Interface WorkflowInterface
+ * @package Workflow
+ */
+interface WorkflowInterface
+{
+    public function pass();
+
+    public function unpass();
+
+    public function callBackProcess($proc_id);
+
+    public function resend($proc_id);
+}

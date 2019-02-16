@@ -1,0 +1,111 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/24
+ * Time: 11:09
+ */
+
+namespace app\model;
+
+use app\util\Tools;
+
+class SystemDept extends Base {
+    /* 获取所有部门 */
+
+    public static function getAllDept(&$trees) {
+        if($trees){
+            $trees = Tools::buildArrFromObj($trees);
+            foreach($trees as &$tree){
+
+                $tree['children'] = self::where(['parentid'=>$tree['id'],'status'=>1])->field('name as title,parentid,id')->select();
+
+                if($tree['children']){
+                    self::getAllDept($tree['children']);
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取顶级部门
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @author zhongjiaqi 5.15
+     */
+    public function getTopdept() {
+        $where = ['status' => 1, 'type' => 1, 'parentid' => 0];
+        $data = $this->where($where)->field('id,name')->order('sort', 'DESC')->select();
+        return Tools::buildArrFromObj($data);
+    }
+
+    /**
+     * 获取下级部门
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 部门id
+     * @author zhongjiaqi 5.15
+     */
+    public function getDowndept($id) {
+        if ($id) {
+            $where = ['status' => 1, 'type' => 1, 'parentid' => $id];
+            $data = $this->where($where)->field('id,name')->order('sort', 'DESC')->select();
+            return Tools::buildArrFromObj($data);
+        }
+        return false;
+    }
+
+    /**
+     * 获取上级部门
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 部门id
+     * @author zhongjiaqi 5.15
+     */
+    public function getUpdept($id) {
+        if ($id) {
+            $where = ['status' => 1, 'type' => 1, 'id' => $id];
+            $parentid = $this->where($where)->value('parentid');
+            $data = $this->where('id', $parentid)->field('id,name')->find();
+            return $data;
+        }
+        return false;
+    }
+
+    /**
+     * 获取当前部门
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 部门id
+     * @author zhongjiaqi 5.15
+     */
+    public function getNowdept($id) {
+        if ($id) {
+            $where = ['status' => 1, 'type' => 1, 'id' => $id];
+            $data = $this->where($where)->field('id,name,parentid')->find();
+            return $data;
+        }
+        return false;
+    }
+
+    /**
+     * 获取部门全路径
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 部门id
+     * @author zhongjiaqi 5.15
+     */
+    public function getFullpath($id, &$newarrays = []) {
+        if ($id) {
+            $newarray = $this->getNowdept($id);
+            $newarrays[] = $newarray;
+            if ($newarray['parentid'] != 0) {
+                $this->getFullpath($newarray['parentid'], $newarrays);
+            }
+        }
+        krsort($newarrays);
+        return $newarrays;
+    }
+
+}

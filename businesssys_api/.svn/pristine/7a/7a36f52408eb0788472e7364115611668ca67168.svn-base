@@ -1,0 +1,150 @@
+<?php
+/**
+ * 订单
+ */
+namespace app\admin\controller;
+use think\Db;
+use app\model\Order;
+use app\model\Estate;
+use app\util\ReturnCode;
+use think\Exception;
+
+
+
+class Orders extends Base{
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/Orders/orderList 订单列表[admin/Orders/orderList]
+     * @apiVersion 1.0.0
+     * @apiName orderList
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Orders/orderList
+     * @apiParam {string}  startTime   订单开始时间
+     * @apiParam {string}  endTime   订单结束时间
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  estateCity   所属城市
+     * @apiParam {string}  estateDistrict   所属城区
+     * @apiParam {string}  stage   订单状态
+     * @apiParam {string}  status   快速标签状态
+     */
+    public function orderList()
+    {
+        $startTime = $this->request->post('startTime','','strtotime');
+        $endTime = $this->request->post('endTime','','strtotime');
+        $search = $this->request->post('search','','trim');
+        $managerId = $this->request->post('managerId','');
+        $estateCity = $this->request->post('estateCity','');
+        $estateDistrict = $this->request->post('estateDistrict','');
+        $stage = $this->request->post('stage','');
+        $status = $this->request->post('status','');
+        $where['y.status']=1;
+        if($startTime && $endTime){
+            $where['x.create_time'] = ['between'=>[$startTime,$endTime]];
+        }elseif($startTime){
+            $where['x.create_time'] = ['egt',$startTime];
+        }elseif($endTime){
+            $where['x.create_time'] = ['elt',$endTime];
+        }
+        $search && $where['x.order_sn|y.estate_name']=['like', "%{$search}%"];
+        $managerId && $where['x.financing_manager_id'] = $managerId;
+        $estateCity && $where['y.estate_city'] = $estateCity;
+        $estateDistrict && $where['y.estate_district'] = $estateDistrict;
+        $stage && $where['x.stage'] = $stage;
+        $status && $where['x.status'] = $status;
+
+        $result = Order::orderList($where,1);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '订单读取失败!');
+
+        return $this->buildSuccess($result);
+
+    }
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/Orders/orderDetails 订单详情[admin/Orders/orderDetails]
+     * @apiVersion 1.0.0
+     * @apiName orderDetails
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Orders/orderDetails
+     * @apiParam {string}  orderSn   订单编号
+     */
+    public function orderDetails()
+    {
+        $orderSn  = $this->request->post('orderSn','');
+        if(empty($orderSn)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+        $result = Order::orderDetail($orderSn);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '订单读取失败!');
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @author 林桂均
+     * 添加订单入口
+     * @param type 业务类型
+     */
+    public function addOrder()
+    {
+        switch($this->request->post('type')){
+            case 'JYDB':
+                return $this->addJYDBOrder();
+                break;
+            default :
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '无效的参数!');
+
+        }
+    }
+
+
+    /**
+     * @author 林桂均
+     * 添加交易担保订单 ---待开发
+     */
+    private function addJYDBOrder()
+    {
+        $data = $this->request->post();
+        $msg = $this->validate($data,'OrderValidate');
+        if($msg !== true) return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+        Db::startTrans();
+        try{
+
+            $orderSn = 'JYDB'.$this->_building_id();//订单编号
+            $time = time();
+            $orderData = [
+                'notarydate' => $data['notarydate'],'financing_manager_id' => $data['managerId'],'financing_dept_id' => $data['deptId'],
+                'mortgage_name' => $data['mortgageName'],'mortgage_mobile' => $data['mortgagePhone'],'mortgage_primary_info' => $data['orgMortageInfo'],
+                'mortgage_info' => $data['mortageInfo'],'head_pay_info' => $data['headPayInfo'],'inputuid'=>$data['inputId'],
+                'create_uid' => $data['createId'],'stage' => $data['stage'],'create_time' => $time,'order_sn'=>$orderSn
+            ];
+            isset($data['remark']) && $orderData['remark'] = trim($data['remark']);
+            isset($data['orderSource']) && $orderData['order_source'] = $data['orderSource'];
+            $orderModel = new Order;
+            //添加订单
+            if($orderModel->save($orderData) === false){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单新增失败');
+            }
+            $estateData  = [
+                'estate_name' => $data['estateName'],'estate_city' => $data['estateCity'],'estate_district' => $data['estateDistrict'],
+                'estate_zone' => $data['estateZone'],'estate_area' => $data['estateArea'],'estate_certtype' => $data['estateCerttype'],
+                'estate_certnum' => $data['estateCertnum'],'house_type' => $data['houseType'],'create_time' => $time,'order_sn'=>$orderSn
+            ];
+            //添加房产
+            $estateModel = new Estate;
+            if($estateModel->save($estateData) === false){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '房产信息添加失败');
+            }
+            Db::commit();
+            return $this->buildSuccess();
+        }catch(Exception $e){
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!'.$e->getMessage());
+        }
+
+    }
+
+
+
+
+}

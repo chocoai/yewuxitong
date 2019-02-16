@@ -1,0 +1,328 @@
+<?php
+
+namespace app\admin\service;
+
+/**
+ * 数据中心 接口调用类
+ */
+class Zcdc {
+
+    //调用信息
+    const API_KEY = 'UvlaSSVXzaeGdkbfLy';
+    const API_SECRET = '13736cd69bc69fd6874af6b9839a26';
+    //接口URL
+    const API_URL_PREFIX = 'http://119.23.24.187/zcdc/public/api/';
+    //const API_URL_PREFIX = 'http://127.0.0.1/zcdc/public/api/';
+    //const API_URL_PREFIX = 'http://www.zcweb.com/api/';
+    //接口
+    const BUILDING_BUILDINGINFO = 'building/buildingInfo'; //查询楼盘
+    const BUILDING_ADDBUILDING = 'building/addBuilding'; //添加楼盘
+    const BUILDING_BUILDINGUNIT = 'building/buildingUnit'; //查询栋阁
+    const BUILDING_ADDUNIT = 'building/addUnit'; //添加栋阁
+    const BUILDING_BUILDINGFLOOR = 'building/buildingFloor'; //查询楼层
+    const BUILDING_ADDFLOOR = 'building/addFloor'; //添加楼层
+    const BUILDING_BUILDINGHOUSE = 'building/buildingHouse'; //查询房号
+    const BUILDING_ADDHOUSE = 'building/addHouse'; //添加房号
+    const CUSTOMER_CUSTOMERLIST = 'customer/customerList'; //查询客户列表
+    const CUSTOMER_ADDCUSTOMER = 'customer/addCustomer'; //添加客户
+    const CUSTOMER_UPDATECUSTOMER = 'customer/updateCustomer'; //更新客户
+    private $appkey;
+    private $secret;
+    private $sign;
+    private $timestamp;
+
+    public function __construct() {
+        $this->appkey = self::API_KEY;
+        $this->secret = self::API_SECRET;
+        $this->timestamp = time();
+        $this->sign = md5($this->appkey . $this->secret . $this->timestamp);
+    }
+
+
+    /**
+     * 查询楼盘
+     * @param $params
+     * @return bool|mixed
+     */
+    public function buildingInfo($params)
+    {
+        if(empty($params['districtId'])) return false;
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_BUILDINGINFO,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 添加楼盘
+     * @param $params
+     * @return bool|mixed|string
+     */
+    public function addBuilding($params)
+    {
+        $params['building_name'] = $params['building_name'];
+        $params['building_alias'] = $params['building_alias'];
+        if(empty($params['building_name']) )  return '楼盘名称不能为空';
+        if(empty($params['city_id']) || empty($params['district_id']))  return '城市或者城区不能为空';
+        if( mb_strlen($params['building_name']) >15 || (!empty($params['building_alias']) && mb_strlen($params['building_alias']) > 15 ) )
+            return '楼盘名称或者楼盘别名长度不能超过15个字符';
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_ADDBUILDING,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 查询栋阁
+     * @param $params
+     * @return bool|mixed
+     */
+    public function getUnit($params)
+    {
+        if(empty($params['buildingId'])) return false;
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_BUILDINGUNIT,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 添加栋阁
+     * @param $params
+     * @return bool|mixed|string
+     */
+    public function addUnit($params)
+    {
+        if($params['unit_name'] == ''  || empty($params['building_id']))
+            return  '缺少参数!';
+        if(mb_strlen($params['unit_name']) >15 || ( !empty($params['unit_alias']) && mb_strlen($params['unit_alias']) > 15 ) ) return  '栋阁名称或栋阁别名超过15个字符!';
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_ADDUNIT,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 获取楼层
+     * @param $params
+     * @return bool|mixed
+     */
+    public function getFloor($params)
+    {
+        if(empty($params['unit_id'])) return false;
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_BUILDINGFLOOR,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 添加楼层
+     * @param $params
+     * @return bool|mixed|string
+     */
+    public function addFloor($params)
+    {
+        if( empty($params['building_id']) || empty($params['unit_id']) || $params['floornum'] === 0 || ($params['floortype'] !== 'up' && $params['floortype'] !== 'down'))
+            return  '缺少参数或无效的参数';
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_ADDFLOOR,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 获取房号
+     * @param $params
+     * @return bool|mixed
+     */
+    public function getHouse($params)
+    {
+        if(empty($params['floor_id'])) return false;
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_BUILDINGHOUSE,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 添加房号
+     * @param $params
+     * @return bool|mixed
+     */
+    public function addHouse($params)
+    {
+        if($params['roomno_name']=='' || empty($params['unit_id']) || empty($params['floor_id']) || empty($params['building_id']))
+            return '缺少参数';
+        if(mb_strlen($params['roomno_name']) > 8) return '房号名称不得超过8个字符';
+        $result = $this->http_post(self::API_URL_PREFIX . self::BUILDING_ADDHOUSE,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+
+    /**
+     * 客户列表
+     * @param $params
+     * @return bool|mixed
+     */
+    public function customerList($params) {
+        if ($params['type'] && $params['certType'] && !empty($params['certcode'])) {
+            $result = $this->http_post(self::API_URL_PREFIX . self::CUSTOMER_CUSTOMERLIST,$this->getData($params));
+            if ($result) {
+                $json = json_decode($result, true);
+                return $json;
+            }
+        }else{
+            return '缺少参数';
+        }
+        return false;
+    }
+
+    /**
+     * 添加客户
+     * @param $params
+     * @return bool|mixed
+     */
+    public function addCustomer($params)
+    {
+        if(empty($params['cname']) || mb_strlen($params['cname']) > 50 || empty($params['mobile']) || empty($params['certcode']) || empty($params['certtype']) || empty($params['certother']) || empty($params['ctype'])) {
+            return false;
+        }
+        $result = $this->http_post(self::API_URL_PREFIX . self::CUSTOMER_ADDCUSTOMER,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 更新用户
+     * @return bool|mixed
+     */
+    public function updateCustomer($params)
+    {
+        if(empty($params['id'])) {
+            return '缺乏参数';
+        }
+        $result = $this->http_post(self::API_URL_PREFIX . self::CUSTOMER_UPDATECUSTOMER,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+    }
+
+    /**
+     * 获取post数据
+     * @param $url
+     * @param $params
+     * @return bool|mixed
+     */
+    public function getPostData($url,$params)
+    {
+        $result = $this->http_post(self::API_URL_PREFIX . $url,$this->getData($params));
+        if ($result) {
+            $json = json_decode($result, true);
+            return $json;
+        }
+        return false;
+
+    }
+
+
+    /*组装数据*/
+    private function getData($params)
+    {
+        $data['appkey'] = $this->appkey;
+        $data['sign'] = $this->sign;
+        $data['timestamp'] = $this->timestamp;
+        $data['params'] = json_encode($params);
+        return $data;
+    }
+
+
+    /**
+     * GET 请求
+     * @param string $url
+     * @return string content
+     */
+    private function http_get($url) {
+        $oCurl = curl_init();
+        if (stripos($url, "https://") !== FALSE) {
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); //CURL_SSLVERSION_TLSv1
+        }
+        curl_setopt($oCurl, CURLOPT_URL, $url);
+        curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
+        //curl_setopt($oCurl, CURLOPT_HTTPHEADER, Array("Accept:application/json;charset=UTF-8"));
+        $sContent = curl_exec($oCurl);
+        $aStatus = curl_getinfo($oCurl);
+        curl_close($oCurl);
+        if (intval($aStatus["http_code"]) == 200) {
+            return $sContent;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * POST 请求
+     * @param string $url
+     * @param array $param
+     * @param boolean $post_file 是否文件上传
+     * @return string content
+     */
+    private function http_post($url, $param, $post_file = false) {
+        $oCurl = curl_init();
+        if (stripos($url, "https://") !== FALSE) {
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); //CURL_SSLVERSION_TLSv1
+        }
+        if (is_string($param) || $post_file) {
+            $strPOST = $param;
+        } else {
+            $aPOST = array();
+            foreach ($param as $key => $val) {
+                $aPOST[] = $key . "=" . urlencode($val);
+            }
+            $strPOST = join("&", $aPOST);
+        }
+        curl_setopt($oCurl, CURLOPT_URL, $url);
+        curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($oCurl, CURLOPT_POST, true);
+        curl_setopt($oCurl, CURLOPT_POSTFIELDS, $strPOST);
+        //curl_setopt($oCurl, CURLOPT_HTTPHEADER, Array("Content-Type: application/json; charset=utf-8"));
+        $sContent = curl_exec($oCurl);
+        $aStatus = curl_getinfo($oCurl);
+        curl_close($oCurl);
+        if (intval($aStatus["http_code"]) == 200) {
+            return $sContent;
+        } else {
+            return false;
+        }
+    }
+
+}
+
+?>

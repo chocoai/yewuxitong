@@ -1,0 +1,91 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+use think\Db;
+use app\model\TrialFirst;
+
+class Order extends Base{
+
+    /* @author 赵光帅
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {int} $startnum    分页起始条数
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$search_text,$page,$pageSize){
+
+           $res = self::alias('a')
+                ->field('a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,b.estate_name,b.estate_ecity,b.estate_district,c.name')
+                ->join('estate b','a.order_sn=b.order_sn','LEFT')
+                ->join('system_user c','a.financing_manager_id = c.id','LEFT')
+                ->where($map)
+                //->where('building_name|unit_name|floorname|roomno_name|order_sn', 'like', "%{$search_text}%")
+                ->where('b.estate_name|a.order_sn', 'like', "%{$search_text}%")
+                ->order('a.create_time desc')
+                ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+                ->toArray();
+           //var_dump($res);exit;
+           //到初审信息表去查询该订单是否是正常单
+           foreach ($res['data'] as $k => $v){
+               $isNormal = TrialFirst::getOne(['order_sn' => $v['order_sn'],'delete_time' => NULL],'is_normal');
+               if(empty($isNormal)){
+                   $res['data'][$k]['is_normal'] = 0;
+               }else{
+                   $res['data'][$k]['is_normal'] = $isNormal['is_normal'];
+               }
+               //$res['data'][$k]['city_name'] = Db::name('Region')->where('id',$v['city_id'])->value('name');
+               //$res['data'][$k]['district_name'] = Db::name('Region')->where('id',$v['district_id'])->value('name');
+               //unset($res['data'][$k]['city_id']);
+               //unset($res['data'][$k]['district_id']);
+           }
+           return $res;
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单列表查询
+     * @param array $where
+     * @param $page
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderList($where=[],$page)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,y.estate_name,y.estate_city,y.estate_district')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->paginate(['list_rows'=>config('apiBusiness.ADMIN_LIST_DEFAULT'),'page'=>$page])
+            ->toArray();
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单详情
+     * @param $orderSn
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderDetail($orderSn)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,y.estate_name,y.estate_city,y.estate_district')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->paginate(['list_rows'=>config('apiBusiness.ADMIN_LIST_DEFAULT'),'page'=>$page])
+            ->toArray();
+    }
+
+}

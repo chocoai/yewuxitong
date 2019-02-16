@@ -1,0 +1,146 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+use app\util\Tools;
+use think\Db;
+use app\util\OrderComponents;
+
+class Order extends Base{
+
+    /**
+    /* @author 林桂均
+     * 订单列表查询
+     * @param array $where
+     * @param $page
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderList($where=[],$page,$pageSize)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.financing_manager_id,x.type,x.create_time,x.stage,x.status,z.is_bank_losn,z.guarantee_fee_status,y.estate_region,estate_name,y.estate_owner')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->join('order_guarantee z','x.order_sn=z.order_sn')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate($pageSize ? $pageSize : ['list_rows'=>config('apiBusiness.ADMIN_LIST_DEFAULT'),'page'=>$page])
+            ->toArray();
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单详情
+     * @param $orderSn
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderDetail($orderSn)
+    {
+        $orderInfo = self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,x.create_uid,
+            y.notarization,y.guarantee_money,y.self_financing,y.guarantee_per,y.guarantee_rate,y.bussiness_loan,y.accumulation_fund,y.account_per,y.guarantee_fee,y.fee,y.info_fee,y.total_fee')
+            ->join('order_guarantee y', 'x.order_sn=y.order_sn','left')
+            ->where(['x.order_sn' => $orderSn,'x.status'=>1])->find();
+        if(!$orderInfo) return false;
+        return $orderInfo;
+    }
+
+
+
+
+    /* @author 赵光帅
+     * 费用入账列表查询
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+    public static function costList($map,$page,$pageSize)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.finance_sn,x.type,z.name,estate_name,y.estate_owner,n.ac_guarantee_fee_time,n.guarantee_fee,n.ac_guarantee_fee,n.guarantee_fee_status')
+            ->join('order_guarantee n','x.order_sn=n.order_sn')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->join('system_user z','x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+    }
+
+    /* @author 赵光帅
+     * 订单信息与财务入账流水明细
+     * @apiParam {string}  order_sn   订单编号
+     */
+    public static function booksDetail($order_sn)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,z.name,z.deptname,x.finance_sn,n.self_financing,n.guarantee_fee,n.fee,n.guarantee_fee_status')
+            ->join('order_guarantee n','x.order_sn=n.order_sn')
+            ->join('system_user z','x.financing_manager_id=z.id')
+            ->where(['x.order_sn' => $order_sn])
+            ->find();
+    }
+
+    /* @author 赵光帅
+     * 订单信息与银行放款流水明细
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+    public static function bankList($map,$page,$pageSize)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.finance_sn,x.type,z.name,estate_name,y.estate_owner,n.lender_bank,n.bank_money_time,n.guarantee_money,n.bank_money,n.bank_money_status')
+            ->join('order_guarantee n','x.order_sn=n.order_sn')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->join('system_user z','x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('n.bank_money_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+    }
+
+    /* @author 赵光帅
+     * 银行放款入账流水订单信息
+     * @apiParam {string}  order_sn   订单编号
+     */
+    public static function banksDetail($order_sn)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,z.name,z.deptname,x.finance_sn,n.guarantee_money,n.bank_money,n.bank_money_status,n.bussiness_loan+n.accumulation_fund as chuzhang_money,y.dp_redeem_bank')
+            ->join('order_guarantee n','x.order_sn = n.order_sn','LEFT')
+            ->join('system_user z','x.financing_manager_id = z.id','LEFT')
+            ->join('order_dp y','x.order_sn = y.order_sn','LEFT')
+            ->where(['x.order_sn' => $order_sn])
+            ->find();
+    }
+
+    /* @author 赵光帅
+     * 发送指令列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+    public static function instructionList($map,$page,$pageSize)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.finance_sn,x.type,z.name,y.estate_name,y.estate_owner,n.lender_bank,n.instruct_status,n.is_bank_losn')
+            ->join('order_guarantee n','x.order_sn=n.order_sn')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->join('system_user z','x.financing_manager_id=z.id')
+            ->where($map)
+            ->order('n.bank_money_time desc')
+            ->group('x.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+    }
+
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>{:config('apiBusiness.APP_NAME')} - 在线接口文档</title>
+    <link href="https://cdn.bootcss.com/semantic-ui/2.2.11/semantic.css" rel="stylesheet">
+</head>
+
+<body>
+    <br />
+    <div class="ui text container" style="max-width: none !important;">
+        <div class="ui floating message">
+            <h1 class="ui header">{:config('apiBusiness.APP_NAME')} - 接口文档</h1>
+
+            <a href="{:url('/wiki/log')}">
+                <button class="ui orange button" style="margin-top: 15px">Log</button>
+            </a>
+            <div class="ui floating message">
+                <div class="content">
+                    <div class="header" style="margin-bottom: 15px">日志详情【{$filename}】</div>
+                    <pre><code style="font-size: 0.1em;">{$content}</code></pre>
+                </div>
+            </div>
+            <p>&copy; Powered By {:config('apiBusiness.APP_NAME')} {:config('apiBusiness.APP_VERSION')}</a>
+                <p>
+        </div>
+    </div>
+</body>
+
+</html>

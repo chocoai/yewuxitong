@@ -1,0 +1,64 @@
+<?php
+
+namespace app\model;
+
+use app\util\Tools;
+
+class SystemUser extends Base {
+
+    public static function userSearch($name) {
+        return self::alias('a')
+                        ->field('a.id,a.name,b.name as dept_name')
+                        ->join('system_dept b', 'a.deptid=b.id')
+                        ->where('a.name', 'like', "%{$name}%")
+                        ->limit(10)
+                        ->select();
+    }
+
+    /**
+     * 获取订单查询用户范围
+     * @param $id
+     * @return bool|string
+     * @throws \think\Exception
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function getOrderPowerStr($id) {
+        $reg = '(\\\\['.$id.'\\\\])';
+        $res = self::where('superpath regexp \'' . $reg . '\'')->field('GROUP_CONCAT(id) AS idstr')->find()->toArray();
+        return $res['idstr'] ? $res = $id . ',' . $res['idstr'] : $id;
+    }
+
+    /**
+     * 判断用户是否有权限查询
+     * @param $userId 当前登录会员id
+     * @param $managerId  查询人id
+     * @param $subordinates
+     */
+    public static function orderCheckPower($id, $managerId, $subordinates) {
+        $reg = '(\\\\['.$id.'\\\\])';
+        $count = self::where('superpath regexp \'' . $reg . '\' and id=' . $managerId)->count();
+        if ($count <= 0)
+            return false;
+        return $subordinates === '1' ? self::getOrderPowerStr($managerId) : $managerId;
+    }
+
+    /**
+     * 模糊获取所有理财经理和对应部门
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $where 查询条件
+     * @author zhongjiaqi 4.25
+     */
+    public function getmanagernameList($where) {
+        $res = $this->alias('su')
+                ->field('su.id,su.name,su.deptname')
+                ->join('__SYSTEM_POSITION__ sp', 'sp.id=su.position_id', 'LEFT')
+                ->where($where)
+                ->limit(10)
+                ->select();
+        return Tools::buildArrFromObj($res);
+    }
+
+}

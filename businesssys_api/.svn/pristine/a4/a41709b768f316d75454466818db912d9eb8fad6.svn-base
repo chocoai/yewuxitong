@@ -1,0 +1,47 @@
+﻿说明:
+如果没有nodejs或npm,则需要运行下面命令进行安装
+apt-get install nodejs
+apt-get install npm
+
+
+如没安装apidoc,执行此命令安装:npm install apidoc -g --registry=https://registry.npm.taobao.org/
+
+进入: 项目
+
+项目新建apidoc.json 文件内容为：
+
+{
+    "name": "俏猫818涅槃版接口",
+    "version": "2.0.0",
+    "description": "俏猫818涅槃版接口详情",
+    "title": "俏猫818涅槃版接口",
+    "url": "http://192.168.1.58/",  
+    "sampleUrl": "http://192.168.1.58/"
+   
+  
+}
+
+然后执行此命令即可构建API文档:apidoc -i application/ -o public/apidoc/
+
+
+/*----------------------------------------------------------------*/
+
+
+
+
+文档样例子：
+     /**
+     * @api {post} dresser/Order/getOrderList 获取造型师订单列表[dresser/Order/getOrderList]
+     * @apiVersion 2.0.0
+     * @apiName getOrderList
+     * @apiGroup dresser_Order
+     * @apiSampleRequest dresser/Order/getOrderList
+     *
+     * @apiParam {date} start_time 开始时间
+     * @apiParam {date} end_time 结束时间    
+     *
+     * @apiSuccess {String} status 返回状态ok/error.
+     * @apiSuccess {String} msg  返回状态信息提示.
+     * @apiSuccess {Array} data  返回数据内容.
+     *   
+     */

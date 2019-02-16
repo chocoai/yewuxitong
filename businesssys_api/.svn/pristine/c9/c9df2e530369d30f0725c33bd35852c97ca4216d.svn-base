@@ -1,0 +1,24 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/21
+ * Time: 14:38
+ */
+namespace app\model;
+
+
+class WorkflowProc extends Base {
+    /*
+     * @author 赵光帅
+     * 获取器 对status(审批结果)字段的转化
+     *
+     * */
+    public function getStatusAttr($value)
+    {
+        $status = [-1=>'驳回',0=>'待处理',9=>'通过',-2=>'撤回'];
+        return $status[$value];
+    }
+
+
+}

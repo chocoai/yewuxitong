@@ -1,0 +1,6 @@
+<?php
+
+return [
+    // 应用模式状态
+    'url_route_on' => false,
+];

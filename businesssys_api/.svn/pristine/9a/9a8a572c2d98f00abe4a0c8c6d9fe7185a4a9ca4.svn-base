@@ -1,0 +1,178 @@
+<?php
+
+/**
+ * 菜单管理
+ * @since   2018-01-16
+ * @author
+ */
+
+namespace app\admin\controller;
+
+use app\model\SystemMenu;
+use app\util\ReturnCode;
+use app\util\Tools;
+
+class Menu extends Base
+{
+
+    /**
+     * @api {get} admin/Menu/index 获取菜单列表[admin/Menu/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup Menu
+     * @apiSampleRequest admin/Menu/index
+     *
+     * @apiSuccess {string} showName    展示菜单名
+     * @apiSuccess {int} lv    菜单等级（0：顶级菜单1：二级菜单依次类推）
+     * @apiSuccess {int} fid    上级菜单（0：顶级菜单 其他：上级菜单id）
+     * @apiSuccess {string} url    菜单url
+     */
+    public function index()
+    {
+//        $user =  db('SystemUser')->field('id,position')->select();
+//        foreach ($user as $item) {
+//            if($item['position']){
+//                $groupid = db('SystemAuthGroup')->where('name',$item['position'])->value('id');
+//                if($groupid){
+//                db('SystemAuthGroupAccess')->insert(['system_id'=>1,'uid'=>$item['id'],'groupid'=>$groupid]);
+//                }
+//            }
+//        }
+//        exit();
+        $system_id = input('system_id');
+        $list = SystemMenu::order('sort', 'asc')->where('system_id', $system_id)->select();
+        foreach ($list as &$item) {
+            $item['position'] = str2arr($item['position']);
+            if (in_array($item['level'], [0, 1])) {
+                $item['expand'] = true;
+            }
+        }
+        $list = listToTree(Tools::buildArrFromObj($list), 'id', 'fid', 'children');
+        return $this->buildSuccess(['list' => $list]);
+    }
+
+    /**
+     * @api {post} admin/Menu/add 新增菜单[admin/Menu/add]
+     * @apiVersion 1.0.0
+     * @apiName add
+     * @apiGroup Menu
+     * @apiSampleRequest admin/Menu/add
+     * @apiParam {string} url    菜单url
+     * @apiParam {string} name    菜单名
+     * @apiParam {int} sort    菜单排序
+     * @apiParam {int} fid    上级菜单
+     *
+     */
+    public function add()
+    {
+        $postData = $this->request->post();
+        if (!empty($postData['position'])) {
+            $len = count($postData['position']);
+            if ($len > 1) {
+                $postData['fid'] = $postData['position'][$len - 1];
+                if ($postData['fid'] == 0) {
+                    $postData['fid'] = $postData['position'][$len - 2];
+                }
+            } else {
+                $postData['fid'] = $postData['position'][0];
+            }
+            $postData['level'] = $postData['fid'] == 0 ? 1 : $len+1;
+            $postData['position'] = arr2str($postData['position']);
+        }
+        $res = SystemMenu::create($postData);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * @api {get} admin/Menu/changeStatus 菜单状态编辑[admin/Menu/changeStatus]
+     * @apiVersion 1.0.0
+     * @apiName changeStatus
+     * @apiGroup Menu
+     * @apiSampleRequest admin/Menu/changeStatus
+     * @apiParam {int} id        菜单id
+     * @apiParam {int} status    菜单状态
+     *
+     */
+    public function changeStatus()
+    {
+        $id = $this->request->get('id');
+        $status = $this->request->get('status');
+        $res = SystemMenu::update([
+            'id' => $id,
+            'hide' => $status,
+        ]);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * @api {post} admin/Menu/edit 编辑菜单[admin/Menu/edit]
+     * @apiVersion 1.0.0
+     * @apiName edit
+     * @apiGroup Menu
+     * @apiSampleRequest admin/Menu/edit
+     * @apiParam {string} url    菜单url
+     * @apiParam {string} name    菜单名
+     * @apiParam {int} sort    菜单排序
+     * @apiParam {int} fid    上级菜单
+     *
+     */
+    public function edit()
+    {
+        $postData = $this->request->post();
+        if (!empty($postData['position'])) {
+            $len = count($postData['position']);
+            if ($len > 1) {
+                $postData['fid'] = $postData['position'][$len - 1];
+                if ($postData['fid'] == 0) {
+                    $postData['fid'] = $postData['position'][$len - 2];
+                }
+            } else {
+                $postData['fid'] = $postData['position'][0];
+            }
+            $postData['level'] = $postData['fid'] == 0 ? 1 : $len+1;
+            $postData['position'] = arr2str($postData['position']);
+        }
+        $SystemMenu = new SystemMenu();
+        $res = $SystemMenu->allowField(true)->save($postData, ['id' => $postData['id']]);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess();
+        }
+    }
+
+
+    /**
+     * @api {get} admin/Menu/del 删除菜单[admin/Menu/del]
+     * @apiVersion 1.0.0
+     * @apiName del
+     * @apiGroup Menu
+     * @apiSampleRequest admin/Menu/del
+     * @apiParam {int} id    菜单id
+     *
+     */
+    public function del()
+    {
+        $id = $this->request->get('id');
+        if (!$id) {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '缺少必要参数');
+        }
+        $childNum = SystemMenu::where(['fid' => $id])->count();
+        if ($childNum) {
+            return $this->buildFailed(ReturnCode::INVALID, '当前菜单存在子菜单,不可以被删除!');
+        } else {
+            SystemMenu::destroy($id);
+
+            return $this->buildSuccess([]);
+        }
+    }
+
+}

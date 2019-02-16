@@ -1,0 +1,86 @@
+<?php
+
+/**
+  赎楼出账表
+ * Date: 2018/5/21
+ */
+
+namespace app\model;
+use think\Db;
+
+class OrderRansomOut extends Base {
+
+    /**
+     * 获取出账状态
+     * @return 出账状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  
+     * @author zhongjiaqi 5.18
+     */
+    public function getAccountstatus($status = '') {
+        $statusList = ['1' => '待财务出账', '2' => '待财务复核', '3' => '财务已出账', '4' => '出账已退回', '5' => '银行已扣款'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 获取账目
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  
+     * @author zhongjiaqi 5.22
+     */
+    public function getItem($status = '') {
+        $statusList = ['1' => '公积金贷款', '2' => '商业贷款', '3' => '装修贷/消费贷', '4' => '银行罚息'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 判断是否可以点击完成赎楼（有未出账流水并且出账没有被退回不能点击完成赎楼）
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 派单id  
+     * @author zhongjiaqi 5.29
+     */
+    public function checkiscomplete($id) {
+        $flag = true;
+        $stage = $this->where('ransom_dispatch_id', $id)->field('cut_status,account_status')->select();
+        foreach ($stage as $value) {
+            if ($value['cut_status'] == 0 && $value['account_status'] != 4) {
+                $flag = false;
+                break;
+            }
+        }
+        return $flag;
+    }
+
+    /**
+     * 获取当前订单的所有金额
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单order_sn  
+     * @author zhongjiaqi 7.6
+     */
+    public function getOrdermoney($order_sn) {
+        $where = ['order_sn' => $order_sn];
+        $moneyinfo = Db::name('order_guarantee')->where($where)->field('loan_money,money,ac_self_financing,ac_short_loan_interest,ac_default_interest,com_loan_money')->find();
+        $order_type = Db::name('order')->where($where)->value('type');
+        $info['money'] = $moneyinfo['money']; //担保金额
+        $info['default_interest'] = $moneyinfo['ac_default_interest']; //罚息
+        $info['self_financing'] = $moneyinfo['ac_self_financing']; //自筹金额
+        if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type == 'GMDZ' || $order_type == 'SQDZ' || $order_type == 'PDXJ' || $order_type == 'DQJK') {
+            $info['channel_money'] = $moneyinfo['loan_money']; //渠道放款
+            $info['company_money'] = $moneyinfo['com_loan_money']; //公司放款
+            $info['can_money'] = $info['channel_money'] + $info['self_financing'] + $info['company_money'] + $info['default_interest']; //可出账金额
+        } elseif ($order_type == 'JYDB') {
+            $info['loan_money'] = $moneyinfo['loan_money']; //银行放款
+            $info['short_loan_interest'] = $moneyinfo['ac_short_loan_interest']; //短贷利息
+            $info['can_money'] = $info['loan_money'] + $info['self_financing'] + $info['short_loan_interest'] + $info['default_interest']; //可出账金额
+        }
+        $whereone['account_status'] = ['neq', 4];
+        $whereone['order_sn'] = $order_sn;
+        $info['out_money'] = Db::name('order_ransom_out')->where($whereone)->sum('money'); //已出账金额
+        $info['use_money'] = $info['can_money'] - $info['out_money']; //可用余额
+        return $info;
+    }
+
+}

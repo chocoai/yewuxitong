@@ -1,0 +1,50 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+use app\util\Tools;
+
+class Customer extends Model {
+
+    protected $autoWriteTimestamp = true;
+    protected $createTime = 'create_time';
+
+    /**
+     * 根据条件获取用户信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $where 查询条件  $field查询字段
+     * @author zhongjiaqi 4.18
+     */
+    public function GetcusinfoBywhere($where = [], $field = '') {
+        $data = $this->where($where)->field($field)->select();
+        return $data = Tools::buildArrFromObj($data);
+    }
+
+    /**
+     * 根据条件判断是否已经存在用户或企业
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $cname 用户/企业名称  $mobile 联系电话
+     * @author zhongjiaqi 4.19
+     */
+    public function ChecksameCustomer($cname, $mobile) {
+        $where = [
+            'status' => 1,
+            'cname' => $cname,
+            'mobile' => $mobile
+        ];
+        if ($this->where($where)->count() > 1) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+
+    public function AddCustomer($data) {
+        $res = $this->save($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+}
+

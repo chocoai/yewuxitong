@@ -1,0 +1,391 @@
+<?php
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\TrialFirst;
+use app\model\Order;
+use app\model\TrialEstate;
+use app\model\TrialData;
+
+/*
+ * @author 赵光帅
+ * 审批列表审批流程类
+ * */
+class Approval extends Base {
+            // @author 赵光帅
+			/**
+			 * @api {post} admin/Approval/show_Approval_List 审批列表[admin/Approval/show_Approval_List]
+			 * @apiVersion 1.0.0
+			 * @apiName show_Approval_List
+			 * @apiGroup Approval
+			 * @apiSampleRequest admin/Approval/show_Approval_List
+			 *
+			 *
+			 * @apiParam {int} inputuid    录入人员id
+			 * @apiParam {int} order_type    订单类型
+			 * @apiParam {int} order_status    订单状态
+			 * @apiParam {int} city    城市
+			 * @apiParam {int} area    城区
+			 * @apiParam {int} search_text    关键字搜索
+			 * @apiParam {int} page    页码
+			 * @apiParam {int} limit    条数
+			 *
+			 * @apiSuccess {int} total    总条数
+			 * @apiSuccess {int} per_page    每页显示的条数
+			 *
+			 */
+	
+	        public function show_Approval_List(){
+	        	$inputuid = input('inputuid');
+	        	$order_type = input('order_type');
+	        	$order_status = input('order_status');
+	        	$city = input('city');
+	        	$area = input('area');
+	        	$search_text = input('search_text');
+	        	$page = input('page') ? input('page') : 1;
+	        	$pageSize = input('limit') ? input('limit') : 20;
+	        	$map = [];
+	        	if (!empty($inputuid)) {
+	        		$map['inputuid'] = $inputuid;
+	        	}
+	        	if (!empty($order_type)) {
+	        		$map['order_type'] = $order_type;
+	        	}
+	        	if (!empty($order_status)) {
+	        		$map['order_status'] = $order_status;
+	        	}
+	        	if (!empty($city)) {
+                    $map['c.city_id'] = $city;
+	        	}
+	        	if (!empty($area)) {
+                    $map['c.district_id'] = $area;
+	        	}
+	        	$map['a.delete_time'] = NULL;
+
+	        	return $this->buildSuccess(Order::approval_list($map,$search_text,$page,$pageSize));
+	        	
+	        	
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/approval_Records 订单审批记录列表[admin/Approval/approval_Records]
+	         * @apiVersion 1.0.0
+	         * @apiName approval_Records
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/approval_Records
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         * @apiSuccess {string} id    时间
+	         * @apiSuccess {string} type    审批节点
+	         * @apiSuccess {string} type    操作人员
+	         * @apiSuccess {string} type    操作
+	         * @apiSuccess {string} type    处理意见
+	         */
+	        
+	        public function approval_Records(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	
+	        
+	        
+	        }
+
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/sub_Approval 提交审批[admin/Approval/sub_Approval]
+	         * @apiVersion 1.0.0
+	         * @apiName sub_Approval
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/sub_Approval
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	        
+	        public function sub_Approval(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	            
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/show_Result 查询初审结果[admin/Approval/show_Result]
+	         * @apiVersion 1.0.0
+	         * @apiName show_Result
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/show_Result
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         * @apiSuccess {string}  order_sn   订单编号
+             * @apiSuccess {float}  balance_per   负债成数
+             * @apiSuccess {int}  is_normal   是否正常单
+             * @apiSuccess {int}  review_rating   审查评级
+             * @apiSuccess {int}  risk_rating   风险评级
+             * @apiSuccess {int}  is_ material   是否缺资料通过
+             * @apiSuccess {int}  is_guarantee   是否提供反担保
+             * @apiSuccess {int}  is_ asset_prove   是否提供资产证明
+             * @apiSuccess {int}  is_guarantee_estate   是否房产反担保
+             * @apiSuccess {int}  is_guarantee_money   是否保证金反担保
+             * @apiSuccess {int}  is_guarantee_other   是否其它方式反担保
+             * @apiSuccess {float}  guarantee_money   反担保 （保证金）
+             * @apiSuccess {string}  other_way   其它方式
+             * @apiSuccess {int}  id     problem => 问题汇总信息id
+             * @apiSuccess {string}  describe    problem => 问题描述
+             * @apiSuccess {int}  status    problem => 问题状态 0未解决 1已解决
+             *
+             * @apiSuccess {int}  hid     houseinfo => 房产反担保数据表主键id
+             * @apiSuccess {string}  estate_name    houseinfo => 房产名称
+             * @apiSuccess {int}  estate_certtype    houseinfo => 产证类型
+             * @apiSuccess {int}  estate_certnum     houseinfo => 产证编码
+             * @apiSuccess {int}  house_type    houseinfo => 房屋类型
+             * @apiSuccess {string}  estate_district    houseinfo => 所属城区
+             *
+             *
+             *
+	         */
+	        
+	        public function show_Result(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+                $resTrial = TrialFirst::show_first_trial($order_sn);
+                //查询出问题汇总
+                $problemMap['order_sn'] = $order_sn;
+                $problemMap['type'] = 'QUESTION';
+                $problemMap['delete_time'] = NULL;
+                $resProblem = TrialData::getAll($problemMap,'id,describe,status');
+                if(!empty($resProblem)) $resTrial['problem'] = $resProblem;
+                //判断是否缺资料通过
+                if($resTrial['is_ material'] === 1){
+                    $dataMap['order_sn'] = $order_sn;
+                    $dataMap['type'] = 'NODATA';
+                    $dataMap['delete_time'] = NULL;
+                    $resData = TrialData::getAll($dataMap,'id,describe,status');
+                    if(!empty($resData)) $resTrial['data'] = $resData;
+                }
+                //判断是否提供房产反担保
+                if($resTrial['is_guarantee'] === 1 && $resTrial['is_guarantee_estate'] === 1){
+                        $houseInfo = TrialEstate::show_House_Info($order_sn,1);
+                        if(!empty($houseInfo)) $resTrial['houseinfo'] = $houseInfo;
+                }
+                //判断是否提供资产证明
+                if($resTrial['is_ asset_prove'] === 1){
+                    $assetProof = TrialEstate::show_House_Info($order_sn,2);
+                    if(!empty($assetProof)) $resTrial['assetproof'] = $assetProof;
+                }
+
+                return $this->buildSuccess($resTrial);
+
+       }
+
+        // @author 赵光帅
+       /**
+        * @api {post} admin/Approval/add_Result 初审结果提交[admin/Approval/add_Result]
+        * @apiVersion 1.0.0
+        * @apiName add_Result
+        * @apiGroup Approval
+        * @apiSampleRequest admin/Approval/add_Result
+        *
+        *
+        * @apiParam {string}  order_sn   订单编号
+        * @apiParam {float}  balance_per   负债成数
+        * @apiParam {int}  is_normal   是否正常单
+        * @apiParam {int}  review_rating   审查评级
+        * @apiParam {int}  risk_rating   风险评级
+        * @apiParam {int}  is_material   是否缺资料通过
+        * @apiParam {int}  is_guarantee   是否提供反担保
+        * @apiParam {int}  is_asset_prove   是否提供资产证明
+        * @apiParam {int}  is_guarantee_estate   是否房产反担保
+        * @apiParam {int}  is_guarantee_money   是否保证金反担保
+        * @apiParam {int}  is_guarantee_other   是否其它方式反担保
+        * @apiParam {float}  guarantee_money   反担保 （保证金）
+        * @apiParam {string}  other_way   其它方式
+        * @apiParam {int}  problem_id     problem(array) => 问题汇总信息id
+        * @apiParam {string}  problem_describe    problem(array) => 问题描述
+        * @apiParam {int}  problem_status    problem(array) => 问题状态 0未解决 1已解决
+        * @apiParam {int}  data_id     data(array) => 缺少的资料id
+        * @apiParam {string}  data_describe    data(array) => 资料描述
+        * @apiParam {int}  data_status    data(array) => 资料状态 0未收 1已收
+        * @apiParam {array}  houseinfo_estate_id    houseinfo(array) => 房产表id
+        * @apiParam {array}  assetproof_estate_id    assetproof(array) => 房产表id
+        *
+        */
+	         
+	        public function add_Result(){
+	        	$orderSn = input('order_sn');
+                $balancePer = input('balance_per');
+                $isNormal = input('is_normal');
+                $reviewRating = input('review_rating');
+                $riskRating = input('risk_rating');
+                $isMaterial = input('is_material');
+                $isGuarantee = input('is_guarantee');
+                $isassetProve = input('is_asset_prove');
+                $isguaranteeEstate = input('is_guarantee_estate');
+                $isGuaranteemoney = input('is_guarantee_money');
+                $isGuaranteeother = input('is_guarantee_other');
+                $guaranteeMoney = input('guarantee_money');
+                $otherWay = input('other_way');
+                $reviewRating = input('review_rating');
+                $riskRating = input('risk_rating');
+
+                $valiDate = validate('TrialPrel');
+                $data=['order_sn'=>$orderSn,'balance_per'=>$balancePer,'is_normal'=>$isNormal,'risk_rating'=>$reviewRating,'balance_per'=>$riskRating];
+                if(!$valiDate->check($data)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+                }
+
+	        	
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/del_Problem 删除问题汇总与缺少资料[admin/Approval/del_Problem]
+	         * @apiVersion 1.0.0
+	         * @apiName del_Problem
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/del_Problem
+	         *
+	         *
+	         * @apiParam {int}  id   数据的id
+	         *
+	         */
+	        
+	        public function del_Problem(){
+	        	$id = input('id');
+                if(empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, 'id不能为空!');
+                $user = TrialData::get($id);
+                $user->status = -1;
+                $user->delete_time =time();
+                $res = $user->save();
+                if($res){
+                    return $this->buildSuccess("删除成功");
+                }else{
+                    return $this->buildFailed(ReturnCode::DELETE_FAILED, '删除失败');
+                }
+
+	        
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/del_Guarantee 删除房产担保与资产证明[admin/Approval/del_Guarantee]
+	         * @apiVersion 1.0.0
+	         * @apiName del_Guarantee
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/del_Guarantee
+	         *
+	         *
+	         * @apiParam {int}  id   数据的id
+	         *
+	         *
+	         */
+	         
+	        public function del_Guarantee(){
+                $id = input('id');
+                if(empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, 'id不能为空!');
+                $user = TrialEstate::get($id);
+                $user->status = -1;
+                $user->delete_time =time();
+                $res = $user->save();
+                if($res){
+                    return $this->buildSuccess("删除成功");
+                }else{
+                    return $this->buildFailed(ReturnCode::DELETE_FAILED, '删除失败');
+                }
+	        	 
+	        	 
+	        }
+
+	        // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/data_List 资料列表[admin/Approval/data_List]
+	         * @apiVersion 1.0.0
+	         * @apiName data_List
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/data_List
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	         
+	        public function data_List(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+	        // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/add_Data 提交资料[admin/Approval/add_Data]
+	         * @apiVersion 1.0.0
+	         * @apiName add_Data
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/add_Data
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	        
+	        public function add_Data(){
+	        	$order_sn = input('order_sn');
+	        	
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+             //@author 赵光帅
+            /**
+             * @api {post} admin/Approval/image_Upload 图片上传[admin/Approval/image_Upload]
+             * @apiVersion 1.0.0
+             * @apiName image_Upload
+             * @apiGroup Approval
+             * @apiSampleRequest admin/Approval/image_Upload
+             *
+             *
+             * @apiParam {file}  image   图片文件
+             *
+             *
+             */
+	        public function image_Upload(){
+	            $file = request()->file('image');
+                if(empty($file)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '文件不能为空!');
+	            $path = ROOT_PATH . 'public' . DS . 'uploads';
+                $info = $file->validate(['size'=>9437184,'ext'=>'jpg,png,gif,jpeg,pdf,doc,xls'])->move($path);
+                if($info){
+                    return $this->buildSuccess('/uploads/'.$info->getSaveName());
+                }else{
+                    // 上传失败获取错误信息
+                    return $this->buildFailed(ReturnCode::FILE_SAVE_ERROR, $file->getError());
+                }
+
+
+            }
+	        
+	        
+}
+
+
+
+

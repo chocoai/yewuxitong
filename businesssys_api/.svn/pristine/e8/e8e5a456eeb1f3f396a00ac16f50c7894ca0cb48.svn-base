@@ -1,0 +1,220 @@
+<?php
+
+/* 客户信息接口控制器 */
+
+namespace app\admin\controller;
+
+use app\model\Customer as modelCustomer;
+use app\model\Dictionary;
+use app\model\CreditInquiry;
+use app\util\ReturnCode;
+use app\admin\service\Zcdc;
+use think\Exception;
+
+class Customer extends Base {
+
+    private $modelCustomer;
+    private $dictionary;
+    private $creditinquiry;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->modelCustomer = new modelCustomer();
+        $this->dictionary = new Dictionary();
+        $this->creditinquiry = new CreditInquiry();
+    }
+
+    /**
+     * @api {post} admin/Customer/addcreditCustomer 新增用户[admin/Customer/addcreditCustomer]
+     * @apiVersion 1.0.0
+     * @apiName addcreditCustomer
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Customer/addcreditCustomer
+     *
+     * @apiParam {int} gender    性别
+     * @apiParam {array} certdata    证件信息
+     * @apiParam {string} cname    用户/企业名称
+     * @apiParam {int} ctype    所属类型 ：(个人、企业)
+     * @apiParam {int} mobile    联系电话
+     * @apiParam {int} financing_manager_id    理财经理
+     *
+     */
+    public function addcreditCustomer() {
+        $adddata = $this->request->Post();
+        $adddata['gender'] = $adddata['ctype'] == 1 ? $this->request->post('gender') : '';
+        $getdata = $this->creditinquiry->dealwithCarddata($adddata['certdata']);
+        $adddata['certtype'] = $getdata['certtype'];
+        $adddata['certcode'] = $getdata['certcode'];
+        $adddata['certother'] = $getdata['certother'];
+        unset($adddata['certdata']);
+        if (!empty($adddata['cname']) && !empty($adddata['mobile']) && !empty($adddata['financing_manager_id'])) {
+            if ($this->modelCustomer->checksameCustomer($adddata['cname'], $adddata['mobile'])) {
+                if ($this->modelCustomer->addCustomer($adddata))
+                    return $this->buildSuccess();
+                return $this->buildFailed(ReturnCode::ADD_FAILED, '客户添加失败');
+            } else {
+                return $this->buildFailed(ReturnCode::DATA_EXISTS, '系统已存在客户!');
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '有必填项未填写!');
+        }
+    }
+
+    /**
+     * @api {get} admin/Customer/getCusinfo 根据手机号自动匹配用户信息[admin/Customer/getCusinfo]
+     * @apiVersion 1.0.0
+     * @apiName getCusinfo
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/getCusinfo
+     *
+     * @apiParam {int} mobile    手机号
+     * @apiParam {int} type    类型： 1 个人 2企业
+     *
+     * @apiSuccess {array} selectdata    用户名称下拉框数据
+     * @apiSuccess {array} carddata    证件信息
+     * @apiSuccess {string} financing_manager_name    理财经理
+     *
+     */
+    public function getCusinfo() {
+        $mobile = $this->request->get('mobile', '');
+        $type = $this->request->get('type', '');
+        if ($type) {
+            $where = [
+                'status' => 1,
+                'ctype' => $type
+            ];
+            if ($mobile) {
+                $where['mobile'] = ['like', "%{$mobile}%"];
+            }
+            $field = "id,cname,certcode,mobile,financing_manager_id,certtype,certother";
+            $res = $this->modelCustomer->getcusinfoBywhere($where, $field);
+            $typecode = $type == 1 ? 'CERTTYPE' : 'ENTERPRICE_CERTTYPE';
+            if ($res) {
+                foreach ($res as $key => $value) {
+                    $res[$key]['selectdata'] = "(" . $value['cname'] . ")" . $value['mobile']; // 用户列表数据组装
+                    $data = $this->modelCustomer->getManagername($value['id']); // 经理名称
+                    $res[$key]['financing_manager_name'] = $data['uname'] . "-" . $data['deptname']; // 理财经理
+                    $res[$key]['financing_dept_id'] = $data['did']; // 客户经理部门id、
+                    $res[$key]['certdata'][] = ['certcode' => $value['certcode'], 'certtype' => $value['certtype'], 'certname' => $this->dictionary->getValnameByCode($typecode, $value['certtype'])];
+                    if (!empty($value['certother'])) {
+                        foreach (json_decode($value['certother'], TRUE) as $k => $v) {
+                            $res[$key]['certdata'][] = ['certcode' => $v['certcode'], 'certtype' => $v['certtype'], 'certname' => $this->dictionary->getValnameByCode($typecode, $v['certtype'])];
+                        }
+                    }
+                }
+            }
+            return $this->buildSuccess($res);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Customer/addCard 新增证件[admin/Customer/addCard]
+     * @apiVersion 1.0.0
+     * @apiName addCard
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/addCard
+     *
+     * @apiParam {int} id    用户id
+     * @apiParam {array} certdata    证件信息
+     *
+     */
+    public function addCard() {
+        $adddata = $this->request->Post();
+        if (!empty($adddata['certdata']) && $adddata['id']) {
+            $typecode = $this->modelCustomer->where('id', $adddata['id'])->value('ctype') == 1 ? 'CERTTYPE' : 'ENTERPRICE_CERTTYPE';
+            $newdata = $this->modelCustomer->filterSamecard($adddata['id'], $adddata['certdata']);
+            if (!isset($newdata['code'])) {
+                foreach ($newdata as $key => $value) {
+                    $newdata[$key]['certname'] = $this->dictionary->getValnameByCode($typecode, $value['certtype']);
+                }
+                return $this->buildSuccess($newdata);
+            }
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, $newdata['msg']);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+
+    /**
+     * @api {post} admin/Customer/zcCustomer 获取客户管理系统客户列表[admin/Customer/zcCustomer]
+     * @apiVersion 1.0.0
+     * @apiName zcCustomer
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/zcCustomer
+     *
+     * @apiParam {int} type    客户类型
+     * @apiParam {str} certType    证件类型
+     * @apiParam {str} certcode    证件号码
+     */
+    public function zcCustomer()
+    {
+        $type = input('post.type',0,'int');
+        $certType = input('post.certType','');
+        $certcode = input('post.certcode','','trim');
+        if($type && $certType && !empty($certcode)){
+            $zcdc = new Zcdc;
+            $result = $zcdc->getPostData('customer/customerList',['type'=>$type,'certType'=>$certType,'certcode'=>$certcode]);
+            if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '客户信息读取失败!');
+            if($result['code'] === 1) return $this->buildSuccess($result['data']);
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result['msg']);
+        }
+        return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+    }
+
+    /**
+     * @api {post} admin/Customer/addZCCustomer 添加客户管理系统客户[admin/Customer/addZCCustomer]
+     * @apiVersion 1.0.0
+     * @apiName addZCCustomer
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/addZCCustomer
+     * @apiParam {int} type    客户类型
+     * @apiParam {str} certType    证件类型
+     * @apiParam {str} certcode    证件号码
+     * @apiParam {str} mobile    电话
+     * @apiParam {array} certdata    证件数据
+     */
+    public function addZCCustomer()
+    {
+        try{
+            $certData = input('post.certdata');
+            $certData= [['certtype'=>3,'certcode'=>1234545],['certtype'=>2,'certcode'=>312312321]];
+            $data['ctype'] = input('post.type');
+            $data['cname'] = input('post.name');
+            $data['mobile'] = input('post.mobile');
+            if(!is_array($certData) || empty($certData) || empty($data['cname']) || empty($data['mobile']) || ($data['ctype']!='1' && $data['ctype']!='2'))
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+            $arr = $this->dealwithCarddata($certData);
+            if($arr === false) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+            $data['certcode'] = $arr['certcode'];
+            $data['certtype'] = $arr['certtype'];
+            $data['certother'] = $certData;
+            $zcdc = new Zcdc;
+            $result = $zcdc->getPostData('customer/addCustomer',$data);
+            if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '添加客户失败!');
+            if($result['code'] === 1) return $this->buildSuccess($result['data']);
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result['msg']);
+        }catch(Exception $e){
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!'.$e->getMessage());
+        }
+
+    }
+
+    /**
+     * 处理证件信息
+     * @param $data
+     * @return array|bool
+     */
+    private function dealwithCarddata($data){
+        $newarray = array();
+        foreach($data as $val){
+            if(empty($val['certtype']) || empty($val['certcode'])) return false;//验证证件
+            $val['certtype'] == 1 && $newarray=$val;
+        }
+        empty($newarray) && $newarray=$data[0];
+        return $newarray;
+    }
+
+}

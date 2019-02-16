@@ -1,0 +1,128 @@
+<?php
+
+/* 客户信息接口控制器 */
+
+namespace app\admin\controller;
+
+use app\model\Customer as modelCustomer;
+use app\model\Dictionary;
+use app\util\ReturnCode;
+
+class Customer extends Base {
+
+    private $modelCustomer;
+    private $dictionary;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->modelCustomer = new modelCustomer();
+        $this->dictionary = new Dictionary();
+    }
+
+// @author 林桂均
+    /**
+     * @api {post} admin/Customer/addCustomer 添加个人客户[admin/Customer/addCustomer]
+     * @apiVersion 1.0.0
+     * @apiName addCustomer
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/addCustomer
+     * @apiParam {tinyint}  ctype   个人/企业
+     * @apiParam {string}  name   客户姓名
+     * @apiParam {string}  mobile   电话
+     * @apiParam {isSeller}  ctype   1买方/2卖方
+     * @apiParam {tinyint}  isComborrower   是否共同借款人0没有1有
+     * @apiParam {array}  certdata   其他证件
+     * @apiParam {string}  order_sn   订单编号
+     */
+    public function addCustomer() {
+
+        $data['ctype'] = $this->request->post('ctype'); //个人/企业
+        $data['cname'] = $this->request->post('name', '', 'trim'); //客户姓名
+        $data['mobile'] = $this->request->post('mobile', '', 'trim'); //电话
+        $data['certtype'] = $this->request->post('certType', -1, 'int'); //证件类型
+        $data['certcode'] = $this->request->post('certCode', '', 'trim'); //证件号码
+        $data['is_seller'] = $this->request->post('isSeller'); //买方/卖方
+        $data['is_comborrower'] = $this->request->post('isComborrower'); //是否共同借款人
+        $data['order_sn'] = $this->request->post('order_sn');
+        $certData = $this->request->post('certdata');
+        $msg = $this->validate($data, 'CustomerValidate');
+        if (!is_array($certData))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '身份信息无效!');
+        $getdata = $this->creditinquiry->dealwithCarddata($certData);
+        $data['certtype'] = $getdata['certtype'];
+        $data['certcode'] = $getdata['certcode'];
+        $data['certother'] = $getdata['certother'];
+        unset($certData);
+        if ($msg !== true)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+
+        $data['create_time'] = time();
+        $id = modelCustomer::insertGetId($data);
+        if ($id !== false)
+            return $this->buildSuccess(['customerId' => $id]);
+
+        return $this->buildFailed(ReturnCode::ADD_FAILED, '客户添加失败');
+    }
+
+    /**
+     * @api {get} admin/Customer/getCusinfo 根据手机号自动匹配用户信息[admin/Customer/getCusinfo]
+     * @apiVersion 1.0.0
+     * @apiName getCusinfo
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/getCusinfo
+     *
+     * @apiParam {int} mobile    手机号
+     *
+     * @apiSuccess {array} selectdata    用户名称下拉框数据
+     * @apiSuccess {array} carddata    证件信息
+     * @apiSuccess {string} financing_manager_name    理财经理
+     *
+     */
+    public function getCusinfo() {
+        $mobile = $this->request->get('mobile', '');
+        $where = [
+            'status' => 1,
+        ];
+        if ($mobile) {
+            $where['mobile'] = ['like', "%{$mobile}%"];
+        }
+        $field = "cname,certcode,mobile,financing_manager_id,certtype,certother";
+        $res = $this->modelCustomer->getcusinfoBywhere($where, $field);
+        if ($res) {
+            foreach ($res as $key => $value) {
+                $res[$key]['selectdata'] = "(" . $value['cname'] . ")" . $value['mobile']; // 用户列表数据组装
+                $res[$key]['certdata'][] = ['certcode' => $value['certcode'], 'certtype' => $this->dictionary->getValnameByCode('CERTTYPE', $value['certtype']), 'id' => $value['certtype']];
+                $res[$key]['financing_manager_name'] = '王大拿'; // 理财经理 ************待完成**********
+                if (!empty($value['certother'])) {
+                    foreach (json_decode($value['certother'], TRUE) as $k => $v) {
+                        $res[$key]['certdata'][] = ['certcode' => $v['num'], 'certtype' => $this->dictionary->getValnameByCode('CERTTYPE', $v['type']), 'id' => $v['type']];
+                    }
+                }
+            }
+        }
+        return $this->buildSuccess($res);
+    }
+
+    /**
+     * @api {post} admin/Customer/addCard 新增证件[admin/Customer/addCard]
+     * @apiVersion 1.0.0
+     * @apiName addCard
+     * @apiGroup Customer
+     * @apiSampleRequest admin/Customer/addCard
+     *
+     * @apiParam {int} id    用户id
+     * @apiParam {array} certdata    证件信息
+     *
+     */
+    public function addCard() {
+        $adddata = $this->request->Post();
+        if (!empty($adddata['certdata']) && $adddata['id']) {
+            if ($this->modelCustomer->filterSamecard($adddata['id'], $adddata['certdata'])) {
+                return $this->buildSuccess();
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+}

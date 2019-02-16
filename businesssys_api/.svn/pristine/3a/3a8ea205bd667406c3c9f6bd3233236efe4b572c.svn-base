@@ -1,0 +1,81 @@
+<?php
+/**
+订单相关控制器
+ */
+
+namespace app\admin\controller;
+use think\Db;
+
+use app\util\ReturnCode;
+
+
+class OrderRelated extends Base
+{
+    /**
+     * @api {post} admin/OrderRelated/fundChannel 获取资金渠道[admin/OrderRelated/fundChannel]
+     * @apiVersion 1.0.0
+     * @apiName fundChannel
+     * @apiGroup OrderRelated
+     * @apiSampleRequest admin/OrderRelated/fundChannel
+     */
+    public function fundChannel()
+    {
+        $result = cache('order_fund_channel');
+        if (!$result) {
+            $result = Db::name('fund_channel')->where(['status'=>1])->order('sort asc')->field('id,name')->select();
+            if($result){
+                cache('order_fund_channel',$result);
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderRelated/orderAccountType 根据订单类型获取账户类型[admin/OrderRelated/orderAccountType]
+     * @apiVersion 1.0.0
+     * @apiName orderAccountType
+     * @apiGroup OrderRelated
+     * @apiSampleRequest admin/OrderRelated/orderAccountType
+     * @apiParam {string}  type   订单类型
+     */
+    public function orderAccountType()
+    {
+        $type = input('type','');
+        if(!$type) return $this->buildFailed(ReturnCode::PARAM_INVALID, '无效的参数!');
+        $result = Db::name('dictionary')->where(['status'=>1,'type'=>'JYDB_ACCOUNT_TYPE'])->order('sort asc')->field('code,valname')->select();
+        if($result === false || empty($result)) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '资金渠道读取失败!');
+        switch ($type){
+            case 'JYDB':
+                array_splice($result,4,2);
+                break;
+            default:
+                return $this->buildSuccess($result);
+        }
+        return $this->buildSuccess($result);
+
+
+
+    }
+
+    /**
+     * @api {post} admin/OrderRelated/orderStage 根据订单类型获取订单状态[admin/OrderRelated/orderStage]
+     * @apiVersion 1.0.0
+     * @apiName orderStage
+     * @apiGroup OrderRelated
+     * @apiSampleRequest admin/OrderRelated/orderStage
+     * @apiParam {string}  type   订单类型
+     */
+    public function orderStage()
+    {
+        $type = input('type','');
+        if(!$type) return $this->buildFailed(ReturnCode::PARAM_INVALID, '无效的参数!');
+        $result = cache('order_'.$type.'_stage');
+        if (!$result) {
+            $result = Db::name('dictionary')->where(['status'=>1,'type'=>'ORDER_JYDB_STATUS','slug'=>['like','%['.$type.']%']])->field('valname,code')->order('sort asc')->select();
+            if($result){
+                cache('order_'.$type.'_stage',$result);
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+}

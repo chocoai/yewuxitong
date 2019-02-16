@@ -1,0 +1,31 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: bordon
+ * Date: 2018-09-04
+ * Time: 16:38
+ */
+
+namespace app\model;
+
+
+class OrderOtherDiscount extends Base
+{
+    public static $stageStatus = [
+        301 => '待业务保单',
+        302 => '待部门经理审批',
+        312 => '待区域经理审批',
+        313 => '待事业部经理审批',
+        303 => '待风控经理审批',
+        314 => '待风控总监审批',
+        315 => '待总经理审批',
+        316 => '待财务经理审批',
+        317 => '待财务主管审批',
+        308 => '已完成',
+    ];
+
+    public function Other()
+    {
+        return $this->belongsTo("OrderOther", "order_other_id");
+    }
+}

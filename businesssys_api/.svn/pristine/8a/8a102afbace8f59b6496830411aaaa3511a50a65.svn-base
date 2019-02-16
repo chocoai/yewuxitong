@@ -1,0 +1,32 @@
+<?php
+/**
+赎楼控制器
+ */
+
+namespace app\admin\controller;
+
+
+class Ransomer extends Base
+{
+    /**
+     * @api {post} admin/Ransomer/index 赎楼派单列表[admin/Ransomer/index]
+     * @apiVersion 1.0.0
+     * @apiName orderList
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Ransomer/orderList
+     * @apiParam {string}  startTime   订单开始时间
+     * @apiParam {string}  endTime   订单结束时间
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  estateCity   所属城市
+     * @apiParam {string}  estateDistrict   所属城区
+     * @apiParam {string}  stage   订单状态
+     * @apiParam {int}  guaranteeFeeStatus   （担保费）收费状态 1未收齐 2已收齐
+     * @apiParam {int}  is_bank_loan   银行放款1放款0未放款
+     * @apiParam {int}  label   待风控审批12待赎楼完成21  待过户抵押25
+     */
+    public function index()
+    {
+        
+    }
+}

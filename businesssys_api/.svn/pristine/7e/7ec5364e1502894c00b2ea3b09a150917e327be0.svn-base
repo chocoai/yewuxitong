@@ -1,0 +1,94 @@
+<?php
+
+/**
+  赎楼出账表
+ * Date: 2018/5/21
+ */
+
+namespace app\model;
+
+use think\Db;
+
+class OrderRansomReturn extends Base {
+
+    protected $autoWriteTimestamp = true;
+    protected $updateTime = 'update_time';
+    protected $createTime = 'create_time';
+
+    /**
+     * 新增编辑回款附件处理
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单号  
+     * @param $newids 附件数组  
+     * @author zhongjiaqi 8.22
+     */
+    public function filterCreditpic($order_sn, $newids) {
+        $where = [
+            'type' => 2,
+            'order_sn' => $order_sn,
+            'status' => 1
+        ];
+        $addids = []; // 新增的图片
+        $saveids = []; //与原来的对比 需要保留的图片
+        $data = Db::name('order_attachment')->where($where)->column('attachment_id');
+        foreach ($newids as $k => $v) {
+            if (in_array($v, $data)) {
+                $saveids[] = $v;
+            } else {
+                $addids[] = $v;
+            }
+        }
+        $delids = array_diff($data, $saveids); // 需要删除的图片
+        if (!empty($delids))
+            foreach ($delids as $key => $value) {
+                if (!$this->updateCreditpic($order_sn, $value, ['status' => -1])) {
+                    return FALSE;
+                }
+            }
+        $attach_pic = [];
+        if (!empty($addids)) {
+            foreach ($addids as $key => $value) {
+                $attach_pic[] = [
+                    'credit_inquiry_id' => $id,
+                    'type' => 2,
+                    'attachment_id' => $value
+                ];
+            }
+        }
+        return $this->saveAll($attach_pic);
+    }
+
+    /**
+     * 更新附件
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单号
+     * @param $aid 附件id
+     * @param $data 修改数据集
+     * @author zhongjiaqi 8.22
+     */
+    public function updateCreditpic($order_sn, $aid, $data) {
+        $where = [
+            'type' => 2,
+            'order_sn' => $order_sn,
+            'attachment_id' => $aid,
+            'status' => 1
+        ];
+        $res = Db::name('order_attachment')->where($where)->update($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 获取核卡状态
+     * @return 核卡状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  核卡状态
+     * @author zhongjiaqi 6.27
+     */
+    public function getReturnMoneyIntoStatus($status = '') {
+        $statusList = ['1' => '回款入账待复核', '2' => '回款入账待核算', '3' => '回款入账已完成', '4' => '驳回待处理', '-1' => '已作废'];
+        return $statusList[$status];
+    }
+
+}

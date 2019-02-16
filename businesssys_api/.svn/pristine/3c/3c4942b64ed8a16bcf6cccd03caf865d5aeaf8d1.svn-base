@@ -1,0 +1,43 @@
+<?php
+
+/**
+ * 首期信息验证类
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class DpValidate extends Validate{
+    protected $rule = [
+        'dp_strike_price' => 'require|float|length:0,15|>:0',
+        'dp_earnest_money' => 'require|float|length:0,15',
+        'dp_money' => 'require|float|length:0,15',
+        'dp_supervise_bank' => 'require',
+        'dp_supervise_bank_branch' => 'require',
+        'dp_buy_way' => 'require|number',
+        'dp_redeem_bank' => 'chs',
+        'dp_redeem_bank_branch' => 'chs',
+        'dp_supervise_date'   => 'dateFormat:Y-m-d',//
+        'dp_supervise_guarantee' => 'float|length:0,15',
+        'dp_supervise_buyer' => 'float|length:0,15'
+
+    ];
+    protected $message = [
+        'dp_strike_price' => '首期款成交价格式有误',
+        'dp_earnest_money.require' => '首期款定金不能为空',
+        'dp_earnest_money.float|length' => '首期款定金格式有误',
+        'dp_money.require' => '首期款金额不能为空',
+        'dp_money' => '首期款金额格式有误',
+        'dp_supervise_bank' => '首期款监管银行不能为空',
+        'dp_supervise_bank_branch' => '首期款监管银行支行不能为空',
+        'dp_buy_way.require' => '首期款购房方式不能为空',
+        'dp_buy_way.number' => '首期款购房方式有误',
+        'dp_redeem_bank' => '首期款赎楼短贷银行不能为空',
+        'dp_redeem_bank_branch' => '首期款赎楼短贷银行支行不能为空',
+        'dp_supervise_date'=>'监管日期格式有误',
+        'dp_supervise_guarantee' => '担保公司监管金额有误',
+        'dp_supervise_buyer' => '买方本人监管金额有误',
+
+    ];
+}

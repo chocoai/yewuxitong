@@ -1,0 +1,37 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/24
+ * Time: 11:12
+ */
+
+namespace app\admin\controller;
+
+use app\model\SystemDept;
+use app\util\ReturnCode;
+
+class SystemDepartment extends Base
+{
+    // @author 林桂均
+    /**
+     * @api {post} admin/SystemDepartment/index 获取系统所有部门[admin/SystemDepartment/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup SystemDepartment
+     * @apiSampleRequest admin/SystemDepartment/index
+     *
+     */
+    public function index()
+    {
+        $result = SystemDept::getAll(['parentid' => 0, 'status' => 1], 'name as title,parentid,id');
+
+        if ($result) {
+            SystemDept::getAllDept($result);
+
+            return $this->buildSuccess($result);
+        }
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '部门信息获取失败!');
+    }
+    
+}

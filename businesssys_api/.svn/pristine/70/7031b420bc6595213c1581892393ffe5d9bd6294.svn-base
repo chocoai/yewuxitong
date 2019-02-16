@@ -1,0 +1,691 @@
+<?php
+
+/* 赎楼控制器 */
+
+namespace app\admin\controller;
+
+use think\Db;
+use app\model\OrderRansomOut;
+use app\model\OrderRansomDispatch;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\Dictionary;
+use app\model\Cheque;
+use app\model\Ransomer;
+use app\model\OrderGuaranteeBank;
+use app\model\Attachment;
+use app\model\BankCard;
+use app\util\OrderComponents;
+use app\util\ReturnCode;
+use Workflow\Workflow;
+use app\model\WorkflowFlow;
+
+class Foreclosure extends Base {
+
+    private $orderransomout;
+    private $attachment;
+    private $bankcard;
+    private $cheque;
+    private $dictionary;
+    private $ransomer;
+    private $orderransomdispatch;
+    private $order;
+    private $systemuser;
+    private $orderguaranteebank;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->orderransomout = new OrderRansomOut();
+        $this->attachment = new Attachment();
+        $this->orderransomdispatch = new OrderRansomDispatch();
+        $this->dictionary = new Dictionary();
+        $this->cheque = new Cheque();
+        $this->ransomer = new Ransomer();
+        $this->order = new Order();
+        $this->bankcard = new BankCard();
+        $this->systemuser = new SystemUser();
+        $this->orderguaranteebank = new OrderGuaranteeBank();
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/ransomList 赎楼列表[admin/Foreclosure/ransomList]
+     * @apiVersion 1.0.0
+     * @apiName ransomList
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/ransomList
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type     订单类型
+     * @apiParam {int} ransom_status     赎楼状态
+     * @apiParam {int} ransom_type     赎楼类型（1商业贷款 2公积金贷款 3家装/消费贷）
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} ransom_status_text    赎楼状态
+     * @apiSuccess {string} ransom_type_text    赎楼类型
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} create_time    派单时间
+     * @apiSuccess {string} financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function ransomList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $create_uid = $this->request->get('create_uid', '');
+        $subordinates = $this->request->get('subordinates', 0);
+        $type = $this->request->get('type', '');
+        $ransom_status = $this->request->get('ransom_status', '');
+        $ransom_type = $this->request->get('ransom_type', '');
+        $keywords = $this->request->get('keywords', '');
+        //查询条件组装
+        $where = [];
+         if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($create_uid);
+            } else {
+                $userStr = $create_uid;
+            }
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        }
+        $type && $where['o.type'] = $type;
+        $ransom_status && $where['x.ransom_status'] = $ransom_status;
+        $ransom_type && $where['x.ransom_type'] = $ransom_type;
+        $keywords && $where['x.order_sn|o.finance_sn|e.estate_name'] = ['like', "%{$keywords}%"];
+        $where['x.is_dispatch'] = array('neq', 2);
+        $field = "x.id,x.order_sn,x.is_dispatch,x.ransom_bank,x.ransom_status,x.ransom_type,x.ransomer,x.create_time,o.type,o.finance_sn,o.financing_manager_id,e.estate_name,e.estate_owner";
+        $creditList = $this->orderransomdispatch->alias('x')
+                        ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+                        ->join('__ESTATE__ e', 'e.order_sn=x.order_sn', 'left')
+                        ->where($where)->field($field)
+                        ->order('x.create_time', 'DESC')
+                        ->group('x.id')
+                        ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['ransom_status_text'] = $this->dictionary->getValnameByCode('ORDER_JYDB_FINC_STATUS', $value['ransom_status']); //赎楼状态
+                $value['ransom_type_text'] = $this->orderransomdispatch->getRansomtype($value['ransom_type']); //赎楼类型
+                $value['type_text'] = $this->order->getType($value['type']); //订单类型
+                $value['create_time'] = date('Y-m-d', strtotime($value['create_time'])); //派单时间
+                $value['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/ransomDetail 赎楼详情页[admin/Foreclosure/ransomDetail]
+     * @apiVersion 1.0.0
+     * @apiName ransomDetail
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/ransomDetail
+     *
+     * @apiParam {int} id    赎楼派单id
+     *
+     * @apiSuccess {array} orderinfo    订单信息
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} ransom_status_text    当前状态
+     * @apiSuccess {string} ransom_status   当前状态（当值等于207时才显示上传回执按钮）
+     * @apiSuccess {string} bank_money    银行放款
+     * @apiSuccess {string} guarantee_money    担保金额
+     * @apiSuccess {string} self_financing    自筹金额
+     * @apiSuccess {string} short_loan_interest    短贷利息
+     * @apiSuccess {string} default_interest    罚息
+     * @apiSuccess {string} can_money    可出账金额
+     * @apiSuccess {string} out_money    已出账金额
+     * @apiSuccess {string} use_money    可用余额
+     *
+     * @apiSuccess {array} dispatch    赎楼派单信息
+     * @apiSuccess {string} ransom_type    赎楼类型
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} ransomer_id    赎楼员id(申请出账时要用到)
+     * @apiSuccess {string} arrears    欠款金额
+     *
+     * @apiSuccess {array} debitinfolog    出账申请记录
+     * @apiSuccess {string} money    出账金额
+     * @apiSuccess {string} item_text    出账项目
+     * @apiSuccess {string} way_text    出账方式
+     * @apiSuccess {string} is_prestore_text    是否预存
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} create_time    申请时间
+     * @apiSuccess {string} account_status_text    出账状态
+     * @apiSuccess {string} outok_time    出账时间
+     * @apiSuccess {string} cut_status    是否已经确认扣款（0:未扣款（不显示按钮），1已扣款）
+     *
+     * @apiSuccess {array} checkinfo    当前用户支票信息（申请出账时用到）
+     * @apiSuccess {string} bank    支票银行
+     * @apiSuccess {string} cheque_num    支票号码
+
+     * @apiSuccess {array} receipt_img    回执照片信息
+     * @apiSuccess {string} url    图片路径
+     * @apiSuccess {string} name    保存名字
+     * @apiSuccess {string} id    图片id
+     *
+     */
+    public function ransomDetail() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $userInfo['id'] = $this->userInfo['id'];
+//            $userInfo['id']=1;
+            if (empty($userInfo['id']))
+                return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+            $data = $this->orderransomdispatch->where('id', $id)->field('ransom_status,order_sn')->find();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '派单信息有误！');
+            }
+            //订单详情
+            $orderinfo = OrderComponents::showDebitorderInfo($data['order_sn'], $data['ransom_status'], 1);
+            //赎楼派单信息
+            $dispatch = OrderComponents::redemptionDispatch($id);
+            //出账申请记录
+            $debitinfolog = OrderComponents::showDebitInfolog($data['order_sn'], $id);
+            //回执信息
+            $receipt_img = OrderComponents::showReceiptimg($id);
+            //支票信息
+            $checkinfo = $this->cheque->getCheckinfo($userInfo['id']);
+            return $this->buildSuccess(['orderinfo' => $orderinfo, 'debitinfolog' => $debitinfolog, 'dispatch' => $dispatch, 'checkinfo' => $checkinfo, 'receipt_img' => $receipt_img]);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/getOrderreceipt 获取收款账户信息[admin/Foreclosure/getOrderreceipt]
+     * @apiVersion 1.0.0
+     * @apiName getOrderreceipt
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/getOrderreceipt
+     *
+     * @apiParam {int} order_sn    订单号
+     * @apiParam {int} accounttype    账户类型（1.赎楼员账户，2卖方账户，3卖方共同借款人账户）
+     * @apiParam {int} ransomer_id    赎楼员id（当选择赎楼员账户时才需要）
+     *
+     * @apiSuccess {string} bank    银行
+     * @apiSuccess {string} bank_account   开户人
+     * @apiSuccess {string} bank_card    银行卡号
+     * @apiSuccess {string} accounttype_text    账户类型（买卖方预留账户的时候才有：1卖方 2卖方共同借款人）
+     */
+    public function getOrderreceipt() {
+        $accounttype = $this->request->get('accounttype', '');
+        if ($accounttype) {
+            $bankinfo = [];
+            if ($accounttype == 1) {
+                $ransomer_id = $this->request->get('ransomer_id', '');
+                $bankinfo = $this->bankcard->where(['type' => 2, 'table_id' => $ransomer_id])->field('bank,bank_account,bank_card')->select();
+            } else {
+                $order_sn = $this->request->get('order_sn', '');
+                if ($accounttype == 2) {
+                    $where = ['type' => 1, 'accounttype' => 1, 'order_sn' => $order_sn];
+                } else {
+                    $where = ['type' => 1, 'accounttype' => 2, 'order_sn' => $order_sn];
+                }
+                $bankinfos = $this->orderguaranteebank->where($where)->field('accounttype,bankcard,bankaccount,openbank')->select();
+                if (!empty($bankinfos)) {
+                    foreach ($bankinfos as $key => $value) {
+                        $bankinfo[$key]['accounttype_text'] = $this->dictionary->getValnameByCode('JYDB_ACCOUNT_TYPE', $value['accounttype']); //账户类型
+                        $bankinfo[$key]['bank_account'] = $value['bankaccount']; //开户人
+                        $bankinfo[$key]['bank'] = $value['openbank']; //银行
+                        $bankinfo[$key]['bank_card'] = $value['bankcard']; //银行卡号
+                    }
+                }
+            }
+            return $this->buildSuccess($bankinfo);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '未选择账户类型');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclosure/backOrder 退回派单[admin/Foreclosure/backOrder]
+     * @apiVersion 1.0.0
+     * @apiName backOrder
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/backOrder
+     *
+     * @apiParam {int} id    赎楼派单表id
+     * @apiParam {string} operate_reason    退单原因
+     *
+     */
+    public function backOrder() {
+        $data = $this->request->Post('', null, 'trim');
+        //$data = ['id' => 148,'operate_reason' => '测试'];
+        if ($data) {
+            $orderinfo = $this->orderransomdispatch->where('id', $data['id'])->field('order_sn,ransomer,ransom_type')->find();
+            $orderinfo['ransom_type'] = $this->orderransomdispatch->getRansomtype($orderinfo['ransom_type']);
+            Db::startTrans();
+            try {
+                /* 驳回审批流开始 */
+                //根据订单号用户ID 后端获取 流程步骤表主键id
+                $resInfo = Db::name('workflow_proc')->where(['order_sn' => $orderinfo['order_sn'], 'user_id' => $this->userInfo['id'], 'status' => 0, 'is_deleted' => 1])->field('id,entry_id')->find();
+                $flow_id = WorkflowFlow::where(['type' => 'JYDB_FINANCIAL', 'status' => 1])->value('id');
+                $sbacks_proc_id = self::getBackProcId($orderinfo['order_sn'], $flow_id, $resInfo['entry_id']);
+                $config = [
+                    'user_id' => $this->userInfo['id'], // 用户id
+                    'user_name' => $this->userInfo['name'], // 用户姓名
+                    'proc_id' => $resInfo['id'], // 流程步骤表主键id
+                    'content' => $data['operate_reason'], // 审批意见
+                    'back_proc_id' => $sbacks_proc_id, // 退回节点id
+                    'order_sn' => $orderinfo['order_sn']
+                ];
+                $workflow = new Workflow($config);
+                $workflow->unpass();
+                //更改该订单为退回派单
+                Db::name('order_ransom_dispatch')->where(['id' => $data['id']])->update(['is_dispatch' => 2, 'update_time' => time()]);
+                /* 驳回审批流结束 */
+
+                //加订单操作记录
+                $userInfo['id'] = $this->userInfo['id'];
+                if (empty($userInfo['id']))
+                    return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname')->find();
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $operate_reason = $data['operate_reason'];
+                $operate_det = '退回赎楼派单：' . $orderinfo['ransomer'] . "(" . $orderinfo['ransom_type'] . ")";
+                $operate_table = 'order_ransom_dispatch';
+                $operate_table_id = $data['id'];
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], $stage = show_status_name(1014, 'ORDER_JYDB_STATUS'), '退回赎楼派单', '待赎楼员申请出账', $operate_det, $operate_reason, 1014, $operate_table, $operate_table_id)) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单信息更新失败！');
+            } catch (Exception $exc) {
+                return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '请输入退回原因');
+        }
+    }
+
+    //获取退回节点id
+    private function getBackProcId($order_sn, $flow_id, $entry_id) {
+        $where['wp.wf_status'] = '201';
+        $where['wc.is_deleted'] = 1;
+        $where['wc.is_back'] = 0;
+        $where['wc.order_sn'] = $order_sn;
+        $where['wc.flow_id'] = $flow_id;
+        $where['wc.entry_id'] = $entry_id;
+        $res = Db::name('workflow_process')->alias('wp')
+                        ->join('__WORKFLOW_PROC__ wc', 'wc.process_id=wp.id')
+                        ->where($where)->value('wc.id');
+        return $res;
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/getRomsomer 模糊获取赎楼员[admin/Foreclosure/getRomsomer]
+     * @apiVersion 1.0.0
+     * @apiName getRomsomer
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/getRomsomer
+     *
+     * @apiParam {string}    name 赎楼员姓名
+     * @apiParam {string} orderSn
+     */
+    public function getRomsomer() {
+        $name = $this->request->get('name', '');
+        $orderSn = $this->request->get('orderSn', '');
+        if (empty($orderSn))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+        /* 查询是否需要赎楼 */
+        $is_foreclosure = Db::name('order_guarantee')->where(['order_sn' => $orderSn])->value('is_foreclosure');
+        $data = $is_foreclosure == 1 ? SystemUser::getRansomer(1, $this->auth_group['redemption_staff'], $name, 10) : SystemUser::getRansomer(0, 19, $name, 10);
+        return $this->buildSuccess($data);
+    }
+
+    /**
+     * @api {post} admin/Foreclosure/changeRomsomer 改派赎楼员[admin/Foreclosure/changeRomsomer]
+     * @apiVersion 1.0.0
+     * @apiName changeRomsomer
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/changeRomsomer
+     *
+     * @apiParam {int} id    赎楼派单表id
+     * @apiParam {int}    ransome_id 赎楼员id
+     * @apiParam {string}    ransomer 赎楼员姓名
+     *
+     */
+    public function changeRomsomer() {
+        $data = $this->request->Post('', null, 'trim');
+        if ($data) {
+            $updata = ['ransome_id' => $data['ransome_id'], 'ransomer' => $data['ransomer'], 'update_time' => time()];
+            $orderinfo = $this->orderransomdispatch->where('id', $data['id'])->field('order_sn,ransomer,ransom_type')->find();
+            $orderinfo['ransom_type'] = $this->orderransomdispatch->getRansomtype($orderinfo['ransom_type']);
+            Db::startTrans();
+            try {
+                if ($this->orderransomdispatch->where('id', $data['id'])->update($updata) > 0) {
+                    //加订单操作记录
+                    $userInfo['id'] = $this->userInfo['id'];
+                    if (empty($userInfo['id']))
+                        return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                    $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname')->find();
+                    $userInfo['deptid'] = $user['deptid'];
+                    $userInfo['deptname'] = $user['deptname'];
+                    $operate_det = '改派赎楼员：' . $orderinfo['ransomer'] . "(" . $orderinfo['ransom_type'] . ")" . "改派给" . $data['ransomer'];
+                    $operate_table = 'order_ransom_dispatch';
+                    $operate_table_id = $data['id'];
+                    if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], $stage = show_status_name(1014, 'ORDER_JYDB_STATUS'), '改派赎楼员', '待改派赎楼员', $operate_det, $operate_reason = '', 1014, $operate_table, $operate_table_id)) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单信息更新失败！');
+            } catch (Exception $exc) {
+                return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/completeRomsom 完成赎楼[admin/Foreclosure/completeRomsom]
+     * @apiVersion 1.0.0
+     * @apiName completeRomsom
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/completeRomsom
+     *
+     * @apiParam {int} id    赎楼派单表id
+     *
+     */
+    public function completeRomsom() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $orderinfo = $this->orderransomdispatch->where('id', $id)->field('order_sn,ransomer,ransom_type')->find();
+            $order_type = Db::name('order')->where(['order_sn' => $orderinfo['order_sn']])->value('type');
+            $msg = '';
+            if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type = 'GMDZ' || $order_type = 'JYDB') {
+                $orderinfo['ransom_type'] = $this->orderransomdispatch->getRansomtype($orderinfo['ransom_type']);
+                $msg = '部分出账未确认扣款，暂不支持完成赎楼操作';
+            } elseif ($order_type == 'PDXJ' || $order_type == 'DQJK' || $order_type == 'SQDZ') {
+                $orderinfo['ransom_type'] = (new Order())->getType($order_type); //订单类型
+                $msg = '当前出账状态不支持确认扣款操作';
+            }
+            if (!$this->orderransomout->checkiscomplete($id)) {
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, $msg);
+            }
+            $updata = ['ransom_status' => 207, 'ransom_end_time' => time()];
+            Db::startTrans();
+            try {
+                if ($this->orderransomdispatch->where('id', $id)->update($updata) > 0) {
+                    //判断是否主订单已经完成赎楼
+                    $isComplete = $this->orderransomdispatch->checkIsransom($orderinfo['order_sn']);
+                    //加订单操作记录
+                    $userInfo['id'] = $this->userInfo['id'];
+                    if (empty($userInfo['id']))
+                        return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                    $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname')->find();
+                    $userInfo['deptid'] = $user['deptid'];
+                    $userInfo['deptname'] = $user['deptname'];
+                    $operate_det = $isComplete ? '完成赎楼：' . $orderinfo['ransomer'] . "(" . $orderinfo['ransom_type'] . ")完成了整个订单的全部赎楼" : '完成赎楼：' . $orderinfo['ransomer'] . "(" . $orderinfo['ransom_type'] . ")完成了当前派单的赎楼";
+                    $stage_id = $isComplete ? 1015 : 1014;
+                    $operate_table = 'order_ransom_dispatch';
+                    $operate_table_id = $id;
+                    if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], show_status_name($stage_id, 'ORDER_JYDB_STATUS'), '当前派单完成赎楼', '待赎楼员完成赎楼', $operate_det, $operate_reason = '', $stage_id, $operate_table, $operate_table_id)) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼完成信息更新失败！');
+            } catch (Exception $exc) {
+                return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclosure/determineMoney 确定扣款[admin/Foreclosure/determineMoney]
+     * @apiVersion 1.0.0
+     * @apiName determineMoney
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/determineMoney
+     *
+     * @apiParam {int} id    赎楼出账表id
+     * @apiParam {int} money    确认扣款金额
+     *
+     */
+    public function determineMoney() {
+        $data = $this->request->Post('', null, 'trim');
+        if ($data) {
+            $orderinfo = $this->orderransomout->where('id', $data['id'])->field('order_sn,account_status,ransom_dispatch_id,money,item')->find();
+            if ($data['money'] > $orderinfo['money']) {
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '确认扣款金额不能大于出账金额！');
+            } elseif ($orderinfo['account_status'] != 3) {
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '当前出账状态不支持确认扣款操作！');
+            }
+            $updata = ['cut_status' => 1, 'cut_money' => $data['money'], 'update_time' => time(), 'account_status' => 5];
+            $orderinfo['ransom_type'] = $this->orderransomout->getItem($orderinfo['item']);
+            Db::startTrans();
+            try {
+                if ($this->orderransomout->where('id', $data['id'])->update($updata) > 0) {
+                    $disInfo = $this->orderransomdispatch->where('id', $orderinfo['ransom_dispatch_id'])->field('ransomer,cut_money_total')->find()->toArray();
+                    $this->orderransomdispatch->where('id', $orderinfo['ransom_dispatch_id'])->update(['cut_money_total' => $disInfo['cut_money_total'] + $data['money']]);
+                    //加订单操作记录
+                    $userInfo['id'] = $this->userInfo['id'];
+                    if (empty($userInfo['id']))
+                        return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                    $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname')->find();
+                    $userInfo['deptid'] = $user['deptid'];
+                    $userInfo['deptname'] = $user['deptname'];
+                    $operate_det = '确认扣款：' . $disInfo['ransomer'] . "(" . $orderinfo['ransom_type'] . ")确认了一笔" . $data['money'] . "元的扣款";
+                    $operate_table = 'order_ransom_out';
+                    $operate_table_id = $data['id'];
+                    if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], $stage = show_status_name(1014, 'ORDER_JYDB_STATUS'), '确认扣款', '待财务出账', $operate_det, $operate_reason = '', 1014, $operate_table, $operate_table_id)) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '确认扣款信息更新失败！');
+            } catch (Exception $exc) {
+                return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclosure/determineMoney 上传回执[admin/Foreclosure/uploadReceipt]
+     * @apiVersion 1.0.0
+     * @apiName uploadReceipt
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/uploadReceipt
+     *
+     * @apiParam {int} id    赎楼出账表id
+     * @apiParam {array} receipt_img    回执图片id
+     *
+     */
+    public function uploadReceipt() {
+        $data['receipt_img'] = $this->request->post('receipt_img/a', '');
+        $data['id'] = $this->request->post('id', '');
+        if ($data) {
+            $orderinfo = $this->orderransomdispatch->where('id', $data['id'])->field('receipt_img,order_sn,ransomer,ransom_type,is_verify')->find();
+            if ($orderinfo['is_verify'] == 1) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '该派单已被财务核销，无法再上传回执');
+            }
+            $receipt_img = implode(',', $data['receipt_img']);
+            if (!empty($orderinfo['receipt_img'])) {
+                $receipt_img = $orderinfo['receipt_img'] . "," . $receipt_img;
+            }
+            $updata = ['update_time' => time(), 'receipt_img' => $receipt_img];
+            $orderinfo['ransom_type'] = $this->orderransomdispatch->getRansomtype($orderinfo['ransom_type']);
+            Db::startTrans();
+            try {
+                if ($this->orderransomdispatch->where('id', $data['id'])->update($updata)) {
+                    //加订单操作记录
+                    $userInfo['id'] = $this->userInfo['id'];
+                    if (empty($userInfo['id']))
+                        return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+                    $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname')->find();
+                    $userInfo['deptid'] = $user['deptid'];
+                    $userInfo['deptname'] = $user['deptname'];
+                    $operate_det = '上传回执：' . $orderinfo['ransomer'] . "(" . $orderinfo['ransom_type'] . ")上传了" . count($data['receipt_img']) . "张回执单";
+                    $operate_table = 'order_ransom_dispatch';
+                    $operate_table_id = $data['id'];
+                    if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], $stage = show_status_name(1015, 'ORDER_JYDB_STATUS'), '上传回执', '已完成赎楼', $operate_det, $operate_reason = '', 1015, $operate_table, $operate_table_id)) {
+                        Db::commit();
+                        return $this->buildSuccess();
+                    }
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '上传回执信息更新失败！');
+            } catch (Exception $exc) {
+                return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+            }
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/lookdetail 查看详情[admin/Foreclosure/lookdetail]
+     * @apiVersion 1.0.0
+     * @apiName lookdetail
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/lookdetail
+     *
+     * @apiParam {int} id    赎楼出账
+     *
+     * @apiSuccess {string} money_text    出账金额
+     * @apiSuccess {string} way_text    出账方式
+     * @apiSuccess {string} is_prestore_text    是否预存(现金)
+     * @apiSuccess {string} account_type    账户类型（现金）
+     * @apiSuccess {string} receipt_text    收款账户（现金）
+     * @apiSuccess {string} cheque_num   支票号码（支票）
+     * @apiSuccess {string} bank    支票银行（支票）
+     * @apiSuccess {string} create_time    申请时间
+     * @apiSuccess {string} account_status_text    出账状态
+     * @apiSuccess {string} outok_time    出账时间
+     * @apiSuccess {string} debit_text    出账账户
+     */
+    public function lookdetail() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            //订单信息
+            $field = 'receipt_bank_card,receipt_bank,receipt_bank_account,cheque_num,bank,money,item,way,is_prestore,account_type,out_bank_card,out_bank,out_bank_account,account_status,create_time,outok_time,ransom_dispatch_id';
+            $data = $this->orderransomout->where('id', $id)->field($field)->find()->toArray();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '出账信息有误！');
+            }
+            $item = $this->orderransomout->getItem($data['item']);
+            $info['money_text'] = $data['money'] . "元(" . $item . ")";
+            $info['way_text'] = $data['way'] == 1 ? '现金出账' : '支票出账';
+            $info['way'] = $data['way'];
+            if ($data['way'] == 1) {
+                $info['is_prestore_text'] = $data['is_prestore'] == 1 ? '是' : '否';
+                $info['account_type'] = $data['account_type'] == 1 ? '赎楼员账户' : "买卖方预留账户";
+                $info['receipt_text'] = $data['way'] == 1 ? $data['receipt_bank_account'] . $data['receipt_bank_card'] . "(" . $data['receipt_bank'] . ")" : $data['bank']; //入账账户
+            } else {
+                $info['cheque_num'] = $data['cheque_num'];
+                $info['bank'] = $data['bank'];
+            }
+            $info['create_time'] = date('Y-m-d H:i', strtotime($data['create_time'])); //申请时间
+            $info['outok_time'] = !empty($data['outok_time']) ? date('Y-m-d H:i', $data['outok_time']) : null; //出账时间
+            $info['account_status_text'] = $this->orderransomout->getAccountstatus($data['account_status']); //出账状态
+            $info['debit_text'] = $data['account_status'] > 1 ? $data['out_bank_account'] . $data['out_bank_card'] . "(" . $data['out_bank'] . ")" : null; //出账账户
+            return $this->buildSuccess($info);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+    /**
+     * @api {post} admin/Foreclosure/applyAccount 申请赎楼出账[admin/Foreclosure/applyAccount]
+     * @apiVersion 1.0.0
+     * @apiName applyAccount
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/applyAccount
+     *
+     * @apiParam {int} id    赎楼派单表id
+     * @apiParam {int}  item  出账类型（1.当前账目类型 2.银行罚息）
+     * @apiParam {int}  money  出账金额
+     * @apiParam {int}   way  出账方式(1现金 2支票)
+     * @apiParam {int}   is_prestore  是否预存（现金）
+     * @apiParam {int}   account_type  账户类型（1.赎楼员账户2.买卖方预留账户;现金）
+     * @apiParam {int}   out_bank_card  收款卡号（现金）
+     * @apiParam {int}   out_bank  收款银行（现金）
+     * @apiParam {int}   out_bank_account  收款账户（现金）
+     * @apiParam {int}   bank  支票银行（支票）
+     * @apiParam {int}   cheque_num  支票号码（支票）
+     *
+     */
+    public function applyAccount() {
+        $data = $this->request->Post('', null, 'trim');
+        $msg = $this->validate($data, 'ApplyAccount');
+        if ($msg !== true)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $msg);
+        $userInfo['id'] = $this->userInfo['id'];
+        if (empty($userInfo['id']))
+            return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+        $orderinfo = $this->orderransomdispatch->where('id', $data['id'])->field('ransom_type,order_sn,ransomer')->find();
+        if (empty($orderinfo)) {
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '赎楼派单信息有误！');
+        }
+        $outinfo = $this->orderransomout->getOrdermoney($orderinfo['order_sn']);
+        if ($data['money'] > $outinfo['use_money']) {
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '出账金额不能大于可用余额！');
+        }
+        $ransom_type = $data['item'] == 2 ? 4 : $orderinfo['ransom_type']; //确定是银行罚息还是其他账目类型
+        $adddata = ['money' => $data['money'], 'way' => $data['way'], 'create_time' => time(), 'update_time' => time(), 'create_uid' => $userInfo['id'], 'account_status' => 1, 'order_sn' => $orderinfo['order_sn'], 'ransom_dispatch_id' => $data['id'], 'item' => $ransom_type];
+        if ($data['way'] == 1) {
+            $adddatas = ['is_prestore' => $data['is_prestore'], 'account_type' => $data['account_type'], 'receipt_bank_card' => $data['out_bank_card'], 'receipt_bank' => $data['out_bank'], 'receipt_bank_account' => $data['out_bank_account']];
+        } else {
+            $adddatas = ['bank' => $data['bank'], 'cheque_num' => $data['cheque_num']];
+        }
+        $adddata = array_merge($adddata, $adddatas);
+        Db::startTrans();
+        try {
+            if ($this->orderransomout->save($adddata)) {
+                $this->orderransomdispatch->where('id', $data['id'])->setInc('money_total', $data['money']);
+                //加订单操作记录
+                $user = $this->systemuser->where('id', $userInfo['id'])->field('deptid,deptname')->find();
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $ransom_type_text = $this->orderransomout->getItem($ransom_type);
+                $operate_det = '赎楼申请出账：赎楼员-' . $orderinfo['ransomer'] . ",申请一笔" . $data['money'] . "元的" . $ransom_type_text . "赎楼出账";
+                $operate_table = 'order_ransom_out';
+                $operate_table_id = $this->orderransomout->getLastInsID();
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $orderinfo['order_sn'], $stage = show_status_name(1014, 'ORDER_JYDB_STATUS'), '赎楼申请出账', '待赎楼申请出账', $operate_det, $operate_reason = '', 1014, $operate_table, $operate_table_id)) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '赎楼派单操作记录新增失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '申请出账失败！');
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+}

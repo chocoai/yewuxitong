@@ -1,0 +1,41 @@
+<?php
+/*栋阁/楼层/房号信息控制器*/
+namespace app\admin\controller;
+
+use app\model\BuildingUnit as Unit;
+use app\util\ReturnCode;
+
+class Buildingunit extends Base {
+
+
+    /**
+     * 获取栋阁信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @param buildingId 楼盘id
+     */
+    public function getUnit()
+    {
+        $buildingId = $this->request->post('buildingId');
+        if(empty($buildingId))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        return  $this->buildSuccess(Unit::getAll(['building_id'=>$buildingId,'status'=>1],'unit_name,id'));
+    }
+
+    public function addUnit()
+    {
+        $data['unit_name'] = $this->request->post('unitname');
+        $data['unit_alias'] = $this->request->post('unitalias');
+        $data['building_id'] = $this->request->post('buildingId');
+        if(empty($data['unit_name']) || empty($data['unit_alias']) || empty($data['building_id']))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        $unit = new Unit;
+        $data['id'] = 'U' . $this->_building_id();
+        $data['create_time'] = time();
+        if($unit->add($data) >0)
+            return $this->buildSuccess();
+
+        return $this->buildFailed(ReturnCode::ADD_FAILED,'添加失败');
+
+    }
+}

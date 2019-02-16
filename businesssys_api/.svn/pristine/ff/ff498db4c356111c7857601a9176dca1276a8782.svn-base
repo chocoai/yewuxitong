@@ -1,0 +1,24 @@
+<?php
+
+/* * *用户 */
+
+namespace app\admin\controller;
+
+class Dictionary extends Base {
+
+    /**
+     * @api {get} admin/Credit/getDictionaryByType 获取数据字典类型[admin/Credit/getDictionaryByType]
+     * @apiVersion 1.0.0
+     * @apiName getDictionaryByType
+     * @apiGroup Credit
+     * @apiSampleRequest admin/Credit/getDictionaryByType
+     *
+     * @apiSuccess {array} data    数据字典数据集
+     */
+    public function getDictionaryByType() {
+        $type = $this->request->post('type/a');
+        $data = getdictionarylist($type);
+        return $this->buildSuccess($data);
+    }
+
+}

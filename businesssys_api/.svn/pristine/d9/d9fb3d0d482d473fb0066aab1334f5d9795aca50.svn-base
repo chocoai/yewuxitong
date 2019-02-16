@@ -1,0 +1,192 @@
+<?php
+
+$afterBehavior = [
+        /* '\app\admin\behavior\ApiAuth',
+          '\app\admin\behavior\ApiPermission',
+          '\app\admin\behavior\AdminLog' */
+];
+
+return [
+    '[admin]' => [
+        'Login/index' => [
+            'admin/Login/index',
+            ['method' => 'post']
+        ],
+        'Login/logout' => [
+            'admin/Login/logout',
+            ['method' => 'get', 'after_behavior' => ['\app\admin\behavior\ApiAuth', '\app\admin\behavior\AdminLog']]
+        //['method' => 'get']
+        ],
+        'Log/index' => [
+            'admin/Log/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        'Log/del' => [
+            'admin/Log/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        //赵光帅
+        //获取审批列表
+        'Approval/show_Approval_List' => [
+            'admin/Approval/show_Approval_List',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //获取订单的审批记录
+        'Approval/approval_Records' => [
+            'admin/Approval/approval_Records',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //提交审批
+        'Approval/sub_Approval' => [
+            'admin/Approval/sub_Approval',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //查询初审结果
+        'Approval/show_Result' => [
+            'admin/Approval/show_Result',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //提交初审结果
+        'Approval/add_Result' => [
+            'admin/Approval/add_Result',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //删除初审结果(问题汇总)
+        'Approval/del_Problem' => [
+            'admin/Approval/del_Problem',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //删除初审结果(缺少资料)
+        'Approval/del_Data' => [
+            'admin/Approval/del_Data',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //删除初审结果(反担保房产担保)
+        'Approval/del_Guarantee' => [
+            'admin/Approval/del_Guarantee',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //删除初审结果(资产证明)
+        'Approval/del_Assets' => [
+            'admin/Approval/del_Assets',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //查询出缺少的资料
+        'Approval/data_List' => [
+            'admin/Approval/data_List',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //提交缺少的资料
+        'Approval/add_Data' => [
+            'admin/Approval/add_Data',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        //上传文件接口
+        'Approval/image_Upload' => [
+            'admin/Approval/image_Upload',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        
+        
+        /* 阿琪 */
+        /* 根据电话号码获取用户信息 */
+        'Credit/GetcusinfoBymobile' => [
+            'admin/Credit/GetcusinfoBymobile',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        /* 征信列表页 */
+        'Credit/creditList' => [
+            'admin/Credit/creditList',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增用户 */
+        'Credit/addcustomer' => [
+            'admin/Credit/addcustomer',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增证件 */
+        'Credit/addcard' => [
+            'admin/Credit/addcard',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取所有个人证件类型 */
+        'Credit/Getallcardtype ' => [
+            'admin/Credit/Getallcardtype',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取所有企业证件类型 */
+        'Credit/Getallenterpricecardtype' => [
+            'admin/Credit/Getallenterpricecardtype',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        
+        
+        /* 林桂均 */
+        /* 获取城市 */
+        'Regions/getcity' => [
+            'admin/Regions/getcity',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取城区片区 */
+        'Regions/getdistrict' => [
+            'admin/Regions/getdistrict',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 搜索用户获取部门 */
+        'User/usersearch' => [
+            'admin/User/usersearch',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取栋阁信息 */
+        'Buildingunit/getUnit' => [
+            'admin/Buildingunit/getUnit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增栋阁信息 */
+        'Buildingunit/addUnit' => [
+            'admin/Buildingunit/addUnit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取楼层信息 */
+        'Buildingunit/getFloor' => [
+            'admin/Buildingunit/getFloor',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增楼层信息 */
+        'Buildingunit/addFloor' => [
+            'admin/Buildingunit/addFloor',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取楼层信息 */
+        'Buildingunit/getHouse' => [
+            'admin/Buildingunit/getHouse',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增楼层信息 */
+        'Buildingunit/addHouse' => [
+            'admin/Buildingunit/addHouse',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取楼盘信息 */
+        'BuildingInfo/getBuilding' => [
+            'admin/BuildingInfo/getUnit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增楼盘信息 */
+        'BuildingInfo/addUnit' => [
+            'admin/BuildingInfo/addBuilding',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增订单 */
+        'Orders/addOrder' => [
+            'admin/Orders/addOrder',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 新增订单客户信息 */
+        'CustomerInfo/addCustomer' => [
+            'admin/CustomerInfo/addCustomer',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        '__miss__' => ['admin/Miss/index'],
+    ],
+];

@@ -1,0 +1,144 @@
+<?php
+$afterBehavior = [
+    /*'\app\admin\behavior\ApiAuth',
+    '\app\admin\behavior\ApiPermission',
+    '\app\admin\behavior\AdminLog'*/
+];
+
+return [
+    '[admin]' => [
+        'Login/index'                 => [
+            'admin/Login/index',
+            ['method' => 'post']
+        ],
+        'Login/logout'                => [
+            'admin/Login/logout',
+            ['method' => 'get', 'after_behavior' => ['\app\admin\behavior\ApiAuth', '\app\admin\behavior\AdminLog']]
+        	//['method' => 'get']
+        ],
+        'Log/index'                   => [
+            'admin/Log/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        'Log/del'                     => [
+            'admin/Log/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+    	//获取审批列表
+    	 'Approval/show_approval_list'                     => [
+    			'admin/Approval/show_approval_list',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	], 
+    	//获取订单的审批记录
+    	'Approval/approval_records'                     => [
+    			'admin/Approval/approval_records',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//提交审批
+    	'Approval/sub_approval'                     => [
+    			'admin/Approval/sub_approval',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//查询初审结果
+    	'Approval/show_result'                     => [
+    			'admin/Approval/show_result',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//提交初审结果
+    	'Approval/add_result'                     => [
+    			'admin/Approval/add_result',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//删除初审结果(问题汇总)
+    	'Approval/del_problem'                     => [
+    			'admin/Approval/del_problem',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//删除初审结果(缺少资料)
+    	'Approval/del_data'                     => [
+    			'admin/Approval/del_data',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//删除初审结果(反担保房产担保)
+    	'Approval/del_guarantee'                     => [
+    			'admin/Approval/del_guarantee',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//删除初审结果(资产证明)
+    	'Approval/del_assets'                     => [
+    			'admin/Approval/del_assets',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//查询出缺少的资料
+    	'Approval/data_list'                     => [
+    			'admin/Approval/data_list',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	//提交缺少的资料
+    	'Approval/add_data'                     => [
+    			'admin/Approval/add_data',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+
+    		
+    		
+    		
+    	/* 阿琪 */
+    	/*根据电话号码获取用户信息*/
+       'Credit/GetcusinfoBymobile'                     => [
+               'admin/Credit/GetcusinfoBymobile',
+               ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+    		
+    		
+    	
+    	/* 林桂均 */
+    	/*获取城市*/
+    	'Regions/getcity'                     => [
+    			'admin/Regions/getcity',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	/*获取城区片区*/
+    	'Regions/getdistrict'                     => [
+    			'admin/Regions/getdistrict',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+    	/*搜索用户获取部门*/
+    	'User/usersearch'                     => [
+    			'admin/User/usersearch',
+    			['method' => 'post', 'after_behavior' => $afterBehavior]
+    	],
+        /*获取栋阁信息*/
+        'Buildingunit/getUnit'                     => [
+            'admin/Buildingunit/getUnit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /*新增栋阁信息*/
+        'Buildingunit/addUnit'                     => [
+            'admin/Buildingunit/addUnit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /*获取楼层信息*/
+        'Buildingunit/getFloor'                     => [
+            'admin/Buildingunit/getFloor',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /*新增楼层信息*/
+        'Buildingunit/addFloor'                     => [
+            'admin/Buildingunit/addFloor',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /*获取楼层信息*/
+        'Buildingunit/getHouse'                     => [
+            'admin/Buildingunit/getHouse',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /*新增楼层信息*/
+        'Buildingunit/addHouse'                     => [
+            'admin/Buildingunit/addHouse',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+    		
+        '__miss__'                    => ['admin/Miss/index'],
+    ],
+];

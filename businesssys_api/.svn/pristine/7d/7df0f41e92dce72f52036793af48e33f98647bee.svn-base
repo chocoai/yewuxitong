@@ -1,0 +1,33 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+
+class Order extends Base{
+
+    /*
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {int} $startnum    分页起始条数
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$search_text,$startnum,$pageSize){
+           $res = self::alias('a')
+                ->field('a.id,a.order_sn,a.customer_house_ids')
+                ->join('zc_department b','a.departmentid=b.id')
+                //->where('a.username', 'like', "%{$name}%")
+                ->limit($startnum,$pageSize)
+                ->select();
+           return $res;
+    }
+
+}

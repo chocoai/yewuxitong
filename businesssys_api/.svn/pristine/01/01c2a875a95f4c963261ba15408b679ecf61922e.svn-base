@@ -1,0 +1,160 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+use app\util\Tools;
+use think\Db;
+use app\model\TrialFirst;
+
+class Order extends Base{
+
+    /* @author 赵光帅
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$search_text,$page,$pageSize){
+
+           $res = self::alias('a')
+                //->distinct(true)
+                ->field('a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,b.estate_name,b.estate_ecity,b.estate_district,c.name')
+                ->join('estate b','a.order_sn=b.order_sn','LEFT')
+                ->join('system_user c','a.financing_manager_id = c.id','LEFT')
+                ->where($map)
+                //->where('building_name|unit_name|floorname|roomno_name|order_sn', 'like', "%{$search_text}%")
+                ->where('b.estate_name|a.order_sn', 'like', "%{$search_text}%")
+                ->order('a.create_time desc')
+                ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+                //->fetchSql(true)
+                ->toArray();
+                //->select();
+           $result = unique($res['data']);
+           $res['data'] = $result;
+           //到初审信息表去查询该订单是否是正常单
+           foreach ($res['data'] as $k => $v){
+               $isNormal = TrialFirst::getOne(['order_sn' => $v['order_sn'],'delete_time' => NULL],'is_normal');
+               if(empty($isNormal)){
+                   $res['data'][$k]['is_normal'] = -1;
+               }else{
+                   $res['data'][$k]['is_normal'] = $isNormal['is_normal'];
+               }
+           }
+           return $res;
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单列表查询
+     * @param array $where
+     * @param $page
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderList($where=[],$page,$pageSize)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,z.name,y.estate_region,estate_name,y.estate_owner')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->join('system_user z','x.financing_manager_id=z.id')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate($pageSize ? $pageSize : ['list_rows'=>config('apiBusiness.ADMIN_LIST_DEFAULT'),'page'=>$page])
+            ->toArray();
+
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单详情
+     * @param $orderSn
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderDetail($orderSn)
+    {
+        $orderInfo = self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,
+            y.notarization,y.guarantee_money,y.self_financing,y.guarantee_per,y.guarantee_rate,y.bussiness_loan,y.accumulation_fund,y.account_per,y.guarantee_fee,y.fee,y.info_fee,y.total_fee')
+            ->join('order_guarantee y', 'x.order_sn=y.order_sn','left')
+            ->where(['x.order_sn' => $orderSn,'x.status'=>1])->find();
+        if(!$orderInfo) return false;
+
+        //订单按揭信息
+        $mortgage = Db::name('order_mortgage')
+            ->field('type,mortgage_type,money,organization_type,organization,interest_balance,create_uid')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        $orgMortgage = $nowMortgage = [];
+        if($mortgage) {
+            foreach ($mortgage as $val) {
+                $val['mortgage_type'] = self::getMortgageType($val['mortgage_type']);
+                $val['organization_type'] = $val['organization_type'] == '1' ? '银行':'其他';
+                if($val['mortgage_type'] == '1'){
+                    $val['mortgage_type'] = '公积金贷款';
+                }
+
+                if ($val['type'] === 'ORIGINAL') {
+                    $orgMortgage[] = $val;
+                } else {
+                    $nowMortgage[] = $val;
+                }
+            }
+        }
+        $orderInfo['orgMortgage'] = $orgMortgage;
+        $orderInfo['nowMortgage'] = $nowMortgage;
+        //订单首期款信息
+        $orderInfo['dpInfo'] = Db::name('order_dp')
+            ->field('dp_strike_price,dp_earnest_money,dp_money,dp_supervise_bank,dp_buy_way,dp_now_mortgage,dp_redeem_bank,create_uid')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->find();
+        //订单用户信息
+        $customerInfo = Db::name('customer')
+            ->field('ctype,is_seller,is_comborrower,cname,certtype,certcode,certother,mobile,is_guarantee')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        $sellInfo = $buyerInfo = [];
+        if($customerInfo){
+            foreach($customerInfo as $val){
+                $val['ctype'] = $val['ctype'] == '1'  ? '个人':'企业';
+                $val['certtype'] = $val['certtype'] == '1'  ? '身份证':'其他';
+                $val['is_guarantee'] = $val['is_guarantee'] == '1' ? '是':'否';
+                if($val['is_seller'] == '1'){
+                    $val['is_comborrower'] == '0' ? $buyerInfo['customer'][] = $val:$buyerInfo['combor'][] = $val;
+                }elseif($val['is_seller'] == '2'){
+                    $val['is_comborrower'] == '0' ? $sellInfo['customer'][] = $val:$sellInfo['combor'][] = $val;
+                }
+            }
+        }
+        $orderInfo['sellerInfo'] = $sellInfo;
+        $orderInfo['buyerInfo'] = $buyerInfo;
+        //房产信息
+        $orderInfo['estateInfo'] = Db::name('estate')
+            ->field('estate_name,replace(estate_region,\'|\',\'-\') estate_region,estate_area,estate_certtype,estate_certnum,house_type')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        return $orderInfo;
+    }
+
+    private static function getMortgageType($type)
+    {
+        switch ($type){
+            case '1':
+                return '公积金贷款';
+                break;
+            case '2':
+                return '商业贷款';
+                break;
+            case '3':
+                return '装修贷/消费贷';
+                break;
+            default :
+                return '其他';
+        }
+    }
+}

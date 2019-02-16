@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- 上述3个meta标签*必须*放在最前面，任何其他内容都*必须*跟随其后！ -->
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link rel="icon" href="../../favicon.ico">
+
+    <title>Sticky Footer Template for Bootstrap</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="https://cdn.bootcss.com/bootstrap/3.3.7/css/bootstrap.min.css" rel="stylesheet">
+
+    <script src="https://cdn.bootcss.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+    <script src="https://cdn.bootcss.com/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+
+<!-- Begin page content -->
+<div class="container">
+    <div class="page-header">
+        <h1>创建流程</h1>
+    </div>
+    <form class="form-horizontal" action="{:url('create')}" method="post">
+        <div class="form-group">
+            <label class="col-sm-2 control-label">流程名称</label>
+            <div class="col-sm-10">
+                <input type="text" name="flow_name" required class="form-control" placeholder="流程名称">
+                <input type="hidden" name="flow_no" value="{:uuid()}">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="col-sm-2 control-label">对应表</label>
+            <div class="col-sm-10">
+                <input type="text" name="table_name" required class="form-control" placeholder="对应表">
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="col-sm-offset-2 col-sm-10">
+                <button type="submit" class="btn btn-info">确定</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

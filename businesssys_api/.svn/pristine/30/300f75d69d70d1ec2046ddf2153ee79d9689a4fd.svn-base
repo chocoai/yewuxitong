@@ -1,0 +1,125 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/21
+ * Time: 14:38
+ */
+namespace app\model;
+use think\Db;
+use app\model\TrialFirst;
+use app\model\Estate;
+use app\model\Dictionary;
+
+class WorkflowProc extends Base {
+    /*
+     * @author 赵光帅
+     * 获取器 对status(审批结果)字段的转化
+     *
+     * */
+    /*public function getStatusAttr($value)
+    {
+        $status = [-1=>'驳回',0=>'待处理',9=>'通过',-2=>'撤回'];
+        return $status[$value];
+    }*/
+
+    /* @author 赵光帅
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$page,$pageSize){
+        $res = self::alias('d')
+            //->distinct(true)
+            ->field('d.id as proc_id,a.inspector_id,a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,b.estate_name,b.estate_region,c.name')
+            //->field('d.id as pid,a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,c.name')
+            ->join('order a','d.order_sn=a.order_sn')
+            ->join('workflow_flow wf','d.flow_id = wf.id')
+            ->join('system_user c','a.financing_manager_id = c.id')
+            ->join('estate b','d.order_sn=b.order_sn','LEFT')
+            ->where($map)
+            ->order('d.create_time asc')
+            ->group('a.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            //->fetchSql(true)
+            ->toArray();
+        //->select();
+        //将订单状态和订单类型更改为中文
+        $newStageArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_JYDB_STATUS'));
+        //$newTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        //到初审信息表去查询该订单是否是正常单
+        foreach ($res['data'] as $k => $v){
+            $ectryDistrict = explode('|',$v['estate_region']);
+            $res['data'][$k]['estate_ecity'] = $ectryDistrict[0];
+            if(isset($ectryDistrict[1])){
+                $res['data'][$k]['estate_district'] = $ectryDistrict[1];
+            }else{
+                $res['data'][$k]['estate_district'] = '';
+            }
+            $isNormal = TrialFirst::getOne(['order_sn' => $v['order_sn'],'delete_time' => NULL],'is_normal');
+            if(empty($isNormal)){
+                $res['data'][$k]['is_normal'] = -1;
+            }else{
+                $res['data'][$k]['is_normal'] = $isNormal['is_normal'];
+            }
+            $res['data'][$k]['order_type'] = $v['type'];
+            $res['data'][$k]['stage'] = $newStageArr[$v['stage']] ? $newStageArr[$v['stage']]:'';
+            unset($res['data'][$k]['type']);
+            //查询出改订单所有的房产
+            $res['data'][$k]['sumname'] = Db::name('estate')->where(['order_sn' => $v['order_sn'],'status' => 1,'delete_time' => null,'estate_usage' => 'DB'])->column('estate_name');
+            //时间只需要年月日
+            $res['data'][$k]['create_time'] = substr($v['create_time'],0,9);
+            //查询出审查员
+            $res['data'][$k]['inspector_name'] = Db::name('system_user')->where(['id' => $v['inspector_id'],'status' => 1])->value('name');
+
+        }
+        return $res;
+    }
+
+    /* @author 
+     * 风控管理-分单列表查询
+     *
+     * @Param {arr} $map    搜索条件  
+     * */
+    public static function distribute_list($map){
+        $res = self::alias('d')
+        ->field('d.id as proc_id,a.id,a.order_sn,a.type,b.money,a.stage,c.name,c.deptname,d.user_name,d.finish_time,a.dept_manager_id,e.estate_name,e.estate_region,d.create_time')
+            //->field('d.id as pid,a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,c.name')
+            ->join('order a','d.order_sn=a.order_sn')
+            ->join('workflow_flow wf','d.flow_id = wf.id')
+            ->join('system_user c','a.financing_manager_id = c.id')
+            ->join('bs_order_guarantee b','d.order_sn=b.order_sn')
+            ->join('estate e','d.order_sn=e.order_sn','LEFT')
+            ->where($map)
+            ->order('d.create_time asc')
+            ->group('a.id')
+            //->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            //->fetchSql(true)
+            ->select();
+        $num = 1;
+        $list=array();
+        $newTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        foreach($res as $key=>$v){
+            $list[$key]['nod']=$num;
+            $num++;
+            $list[$key]['order_sn']=$v['order_sn'];
+            //$list[$key]['type']=$v['type'];
+            $list[$key]['type'] = $newTypeArr[$v['type']] ? $newTypeArr[$v['type']]:'';
+            $list[$key]['money']=$v['money'];
+            $list[$key]['finish_time']=$v['finish_time'] ? date('Y-m-d H:i',$v['finish_time']):'';
+            $list[$key]['user_name']=$v['user_name'];
+            $list[$key]['name']=$v['name'];
+            $list[$key]['deptname']=$v['deptname'];
+            $manager_name=Db::name('system_user')->field('name')->where(['id'=>$v['dept_manager_id']])->find();
+            $list[$key]['manager_name']=$manager_name['name'];
+        }   
+        return $list;
+    }
+    
+
+
+}

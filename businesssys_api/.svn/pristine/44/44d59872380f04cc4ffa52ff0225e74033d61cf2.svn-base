@@ -1,0 +1,30 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/24
+ * Time: 11:09
+ */
+
+namespace app\model;
+use app\util\Tools;
+
+class SystemDept extends Base
+{
+    /*获取所有部门*/
+    public static function getAllDept(&$trees)
+    {
+        if($trees){
+            $trees = Tools::buildArrFromObj($trees);
+            foreach($trees as &$tree){
+                $tree['child'] = self::where(['parentid'=>$tree['id'],'status'=>1])->field('name,parentid,id')->select();
+                if($tree['child']){
+                    self::getAllDept($tree['child']);
+                }
+            }
+        }
+
+    }
+
+
+}

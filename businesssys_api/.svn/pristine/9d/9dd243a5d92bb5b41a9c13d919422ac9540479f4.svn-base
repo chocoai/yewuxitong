@@ -1,0 +1,17 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/6/11
+ * Time: 10:48
+ */
+
+namespace app\model;
+
+
+use think\Model;
+
+class OrderFundChannel extends Model
+{
+
+}

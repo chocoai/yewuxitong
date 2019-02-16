@@ -1,0 +1,192 @@
+<?php
+
+/* 核卡控制器 */
+
+namespace app\admin\controller;
+
+use app\model\Order;
+use app\model\OrderGuaranteeBank;
+use app\model\OrderVerifyCard;
+use app\model\OrderVerifyCardRecord;
+use app\model\SystemUser;
+
+class Nuclearcard extends Base {
+
+    private $order;
+    private $orderguaranteebank;
+    private $orderverifycard;
+    private $orderverifycardrecord;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->order = new Order();
+        $this->orderguaranteebank = new OrderGuaranteeBank();
+        $this->orderverifycard = new OrderVerifyCard();
+        $this->systemuser = new SystemUser();
+        $this->orderverifycardrecord = new OrderVerifyCardRecord();
+    }
+
+    /**
+     * @api {get} admin/Nuclearcard/nuclearcardList 核卡列表[admin/Nuclearcard/nuclearcardList]
+     * @apiVersion 1.0.0
+     * @apiName nuclearcardList
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearcardList
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type     订单类型
+     * @apiParam {int} account_type     账号类型
+     * @apiParam {int} account_status    账号状态（1正常 2冻结 3锁卡 4挂失 5注销）
+     * @apiParam {int} verify_card_status    核卡状态（0待核卡 1待财务复核 2驳回待处理 3已完成）
+     * @apiParam {int} keys     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} account_type_text    账号类型
+     * @apiSuccess {string} bankcard    银行卡号
+     * @apiSuccess {string} bankaccount    银行户名
+     * @apiSuccess {string} openbank    开户银行
+     * @apiSuccess {string} verify_card_status_text    核卡状态
+     * @apiSuccess {string} account_status_text    账号状态
+     * @apiSuccess {string} check_time    最新查账时间
+     * @apiSuccess {string} financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function nuclearcardList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $create_uid = $this->request->get('create_uid', '');
+        $subordinates = $this->request->get('subordinates', 0);
+        $type = $this->request->get('type', '');
+        $account_type = $this->request->get('account_type', '');
+        $account_status = $this->request->get('account_status', '');
+        $verify_card_status = $this->request->get('verify_card_status', '');
+        $keywords = $this->request->get('keywords', '');
+        //查询条件组装
+        $where = [];
+        $userId = $this->userInfo['id'];
+        if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($userId);
+            } else {
+                $userStr = $userId;
+            }
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        }
+        $type && $where['o.type'] = $type;
+        $account_type && $where['o.type'] = $account_type;
+        $account_status && $where['y.account_status'] = $account_status;
+        $verify_card_status && $where['y.verify_card_status'] = $verify_card_status;
+        $keywords && $where['x.order_sn|e.estate_name'] = ['like', "%{$keywords}%"];
+        $where['x.status'] = 1;
+        $where['x.type'] = array('neq','6');
+        $field = "x.id,x.order_sn,x.bankaccount,x.bankcard,x.openbank,x.type as account_type,y.check_time,y.verify_card_status,y.account_status,o.type,o.finance_sn,o.financing_manager_id,e.estate_name";
+        $creditList = $this->orderguaranteebank->alias('x')
+                        ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+                        ->join('__ESTATE__ e', 'e.order_sn=x.order_sn')
+                        ->join('__ORDER_VERIFY_CARD__ y', 'y.order_sn=x.order_sn', 'left')
+                        ->where($where)->field($field)
+                        ->order('x.create_time', 'DESC')
+                        ->group('x.id')
+                        ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['type_text'] = $this->order->getType($value['type']); //订单类型
+                $value['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+                $value['account_status_text'] = $this->orderverifycard->getAccountstatus($value['account_status']); //账号状态
+                $value['verify_card_status_text'] = $this->orderverifycard->getAccountstatus($value['verify_card_status']); //核卡状态
+                $value['account_type_text'] = $this->orderverifycard->getAccounttype($value['account_type']); //账号类型
+                $value['check_time'] = empty($value['check_time'])?'':date('Y-m-d', strtotime($value['check_time'])); //最新查账时间
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+    
+       /**
+     * @api {get} admin/Nuclearcard/nuclearDetail 核卡详情页[admin/Nuclearcard/nuclearDetail]
+     * @apiVersion 1.0.0
+     * @apiName nuclearDetail
+     * @apiGroup Nuclearcard
+     * @apiSampleRequest admin/Nuclearcard/nuclearDetail
+     *
+     * @apiParam {int} id    赎楼派单id
+     *
+     * @apiSuccess {array} orderinfo    订单信息
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} ransom_status_text    当前状态
+     * @apiSuccess {string} ransom_status   当前状态（当值等于207时才显示上传回执按钮）
+     * @apiSuccess {string} bank_money    银行放款
+     * @apiSuccess {string} guarantee_money    担保金额
+     * @apiSuccess {string} self_financing    自筹金额
+     * @apiSuccess {string} short_loan_interest    短贷利息
+     * @apiSuccess {string} default_interest    罚息
+     * @apiSuccess {string} can_money    可出账金额
+     * @apiSuccess {string} out_money    已出账金额
+     * @apiSuccess {string} use_money    可用余额
+     *
+     * @apiSuccess {array} dispatch    赎楼派单信息
+     * @apiSuccess {string} ransom_type    赎楼类型
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} ransomer_id    赎楼员id(申请出账时要用到)
+     * @apiSuccess {string} arrears    欠款金额
+     *
+     * @apiSuccess {array} debitinfolog    出账申请记录
+     * @apiSuccess {string} money    出账金额
+     * @apiSuccess {string} item_text    出账项目
+     * @apiSuccess {string} way_text    出账方式
+     * @apiSuccess {string} is_prestore_text    是否预存
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} create_time    申请时间
+     * @apiSuccess {string} account_status_text    出账状态
+     * @apiSuccess {string} outok_time    出账时间
+     * @apiSuccess {string} cut_status    是否已经确认扣款（0:未扣款（不显示按钮），1已扣款）
+     *
+     * @apiSuccess {array} checkinfo    当前用户支票信息（申请出账时用到）
+     * @apiSuccess {string} bank    支票银行
+     * @apiSuccess {string} cheque_num    支票号码
+
+     * @apiSuccess {array} receipt_img    回执照片信息
+     * @apiSuccess {string} url    图片路径
+     * @apiSuccess {string} name    保存名字
+     * @apiSuccess {string} id    图片id
+     *
+     */
+    public function nuclearDetail() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $userInfo['id'] = $this->userInfo['id'];
+            if (empty($userInfo['id']))
+                return $this->buildFailed(ReturnCode::UNKNOWN, '登录过期，请重新登录');
+            $data = $this->orderransomdispatch->where('id', $id)->field('ransom_status,order_sn')->find();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '派单信息有误！');
+            }
+            //订单详情
+            $orderinfo = OrderComponents::showDebitorderInfo($data['order_sn'], $data['ransom_status']);
+            //赎楼派单信息
+            $dispatch = OrderComponents::redemptionDispatch($id);
+            //出账申请记录
+            $debitinfolog = OrderComponents::showDebitInfolog($data['order_sn'], $id);
+            //回执信息
+            $receipt_img = OrderComponents::showReceiptimg($id);
+            //支票信息
+            $checkinfo = $this->cheque->getCheckinfo($userInfo['id']);
+            return $this->buildSuccess(['orderinfo' => $orderinfo, 'debitinfolog' => $debitinfolog, 'dispatch' => $dispatch, 'checkinfo' => $checkinfo, 'receipt_img' => $receipt_img]);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+        }
+    }
+
+}

@@ -1,0 +1,97 @@
+<?php
+/**
+ * 工程基类
+ * @since   2017/02/28 创建
+ * @author
+ */
+
+namespace app\admin\controller;
+use app\util\ReturnCode;
+use think\Controller;
+
+class Base extends Controller {
+
+    private $debug = [];
+    protected $userInfo;
+
+    public function _initialize() {
+        $ApiAuth = $this->request->header('ApiAuth');
+        $this->auth_group = model('app\model\SystemAuthGroup')->getAuthGroup();
+        if ($ApiAuth) {
+            $userInfo = cache('Login:' . $ApiAuth);
+            $this->userInfo = json_decode($userInfo, true);
+        }
+    }
+
+    public function buildSuccess($data='', $msg = '操作成功', $code = ReturnCode::SUCCESS) {
+        $return = [
+            'code' => $code,
+            'msg'  => $msg,
+            'data' => $data
+        ];
+        if ($this->debug) {
+            $return['debug'] = $this->debug;
+        }
+
+        return $return;
+    }
+
+    public function buildFailed($code, $msg, $data = []) {
+        $return = [
+            'code' => $code,
+            'msg'  => $msg,
+            'data' => $data
+        ];
+        if ($this->debug) {
+            $return['debug'] = $this->debug;
+        }
+
+        return $return;
+    }
+
+    protected function debug($data) {
+        if ($data) {
+            $this->debug[] = $data;
+        }
+    }
+
+    /**
+     * 生成楼盘id
+     */
+    protected function _building_id() {
+        return date('Ymd', time()) . time() . mt_rand(1000, 9999);
+    }
+
+    /*生产系统序号*/
+    protected function _systemSequence($type){
+        $modelSequen = model('app\model\SystemSequence');
+        $sequen = $modelSequen->lock(true)->where(['type'=>$type])->order('id asc')->field('id,sequence')->find();
+        $curDate = date('Ym');
+        if($sequen){
+            $dateNum = substr($sequen['sequence'],0,6);
+            if($dateNum === $curDate){/*判断日期*/
+                $intNum = intval(substr($sequen['sequence'],6))+1;
+                $length = strlen($intNum);
+                if($length<4){
+                    for($z=0;$z<4-$length;$z++){
+                        $dateNum.=0;
+                    }
+                    $sequenceCode =$dateNum.($intNum);
+                }else{
+                    $sequenceCode = substr($sequen['sequence'],0,6).($intNum);
+                }
+            }else{
+                $sequenceCode = $curDate.'0001';//更新月编号
+            }
+            if($modelSequen->where(['id'=>$sequen['id'],'sequence'=>$sequen['sequence']])->update(['sequence'=>$sequenceCode]) === 1) return $type.$sequenceCode;
+            return false;
+        }else{
+            $sequenceCode = $curDate.'0001';//新建新类型系统编号
+            if($modelSequen->save(['type'=>$type,'sequence'=>$sequenceCode]) > 0) return  $type.$sequenceCode;
+            return false;
+        }
+
+
+    }
+
+}

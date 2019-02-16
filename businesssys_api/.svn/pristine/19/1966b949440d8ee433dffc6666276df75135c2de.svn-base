@@ -1,0 +1,424 @@
+<?php
+
+$afterBehavior = [
+         // '\app\admin\behavior\ApiAuth',
+        // '\app\admin\behavior\ApiPermission',
+        // '\app\admin\behavior\SystemLog',
+];
+
+return [
+    '[admin]' => [
+        'Login/index' => [
+            'admin/Login/index',
+            ['method' => 'post'],
+        ],
+        'Index/upload'                => [
+            'admin/Index/upload',
+            ['method' => 'post', 'after_behavior' => ['\app\admin\behavior\ApiAuth', '\app\admin\behavior\AdminLog']]
+        ],
+        'Login/logout' => [
+            'admin/Login/logout',
+            ['method' => 'get', 'after_behavior' => ['\app\admin\behavior\ApiAuth', '\app\admin\behavior\SystemLog']],
+        //['method' => 'get']
+        ],
+        /*         * ***************************************系统菜单**************************************** */
+        'Menu/index' => [
+            'admin/Menu/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Menu/changeStatus' => [
+            'admin/Menu/changeStatus',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Menu/add' => [
+            'admin/Menu/add',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'Menu/edit' => [
+            'admin/Menu/edit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'Menu/del' => [
+            'admin/Menu/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /*         * ***************************************系统用户**************************************** */
+        'User/index' => [
+            'admin/User/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'User/getUsers' => [
+            'admin/User/getUsers',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'User/changeStatus' => [
+            'admin/User/changeStatus',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'User/add' => [
+            'admin/User/add',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'User/own' => [
+            'admin/User/own',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'User/edit' => [
+            'admin/User/edit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'User/del' => [
+            'admin/User/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /*         * ***************************************系统权限**************************************** */
+        'Auth/index' => [
+            'admin/Auth/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/changeStatus' => [
+            'admin/Auth/changeStatus',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/delMember' => [
+            'admin/Auth/delMember',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/add' => [
+            'admin/Auth/add',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/edit' => [
+            'admin/Auth/edit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/del' => [
+            'admin/Auth/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/getGroups' => [
+            'admin/Auth/getGroups',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Auth/getRuleList' => [
+            'admin/Auth/getRuleList',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /*         * ***************************************系统日志**************************************** */
+        'Log/index' => [
+            'admin/Log/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        'Log/del' => [
+            'admin/Log/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        //赵光帅
+        /***************组织结构*******************/
+        //获取组织结构信息
+        'OrganiZation/strucList' => [
+            'admin/OrganiZation/strucList',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //添加组织结构
+        'OrganiZation/addOrgani' => [
+            'admin/OrganiZation/addOrgani',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //部门信息
+        'OrganiZation/bumenInfo' => [
+            'admin/OrganiZation/bumenInfo',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //删除部门
+        'OrganiZation/delOrgani' => [
+            'admin/OrganiZation/delOrgani',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //编辑组织结构
+        'OrganiZation/editOrgani' => [
+            'admin/OrganiZation/editOrgani',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //递归查询组织结构
+        'OrganiZation/showDigui' => [
+            'admin/OrganiZation/showDigui',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /***************支票管理接口*******************/
+        //获取支票列表
+        'Check/showCheckList' => [
+            'admin/Check/showCheckList',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //模糊查询部门人员列表
+        'Check/showUser' => [
+            'admin/Check/showUser',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票详情
+        'Check/showCheckDetail' => [
+            'admin/Check/showCheckDetail',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票入库
+        'Check/addCheckStorage' => [
+            'admin/Check/addCheckStorage',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票操作验证
+        'Check/verifyOperation' => [
+            'admin/Check/verifyOperation',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //修改支票信息
+        'Check/modifyCheck' => [
+            'admin/Check/modifyCheck',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //领取支票
+        'Check/getCheck' => [
+            'admin/Check/getCheck',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //转让支票
+        'Check/CheckTransfer' => [
+            'admin/Check/CheckTransfer',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //转让确认
+        'Check/transferDetermine' => [
+            'admin/Check/transferDetermine',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票撤回
+        'Check/checkWithdraw' => [
+            'admin/Check/checkWithdraw',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票核销
+        'Check/checkCancel' => [
+            'admin/Check/checkCancel',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票作废
+        'Check/checkInvalid' => [
+            'admin/Check/checkInvalid',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //支票删除
+        'Check/CheckDelete' => [
+            'admin/Check/CheckDelete',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //操作记录列表
+        'Check/operationList' => [
+            'admin/Check/operationList',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /**************风控管理接口**********************/
+        //获取审批列表
+        'Approval/showApprovalList' => [
+            'admin/Approval/showApprovalList',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //获取审批列表
+        'Approval/allPropertyNames' => [
+            'admin/Approval/allPropertyNames',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //审批页面信息
+        'Approval/approvalRecords' => [
+            'admin/Approval/approvalRecords',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //提交审批
+        'Approval/proceMaterialNode' => [
+            'admin/Approval/proceMaterialNode',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //提交审批
+        'Approval/subApproval' => [
+            'admin/Approval/subApproval',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //查询初审结果
+        'Approval/showResult' => [
+            'admin/Approval/showResult',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //提交初审结果
+        'Approval/addResult' => [
+            'admin/Approval/addResult',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //删除初审结果(问题汇总与缺少资料)
+        'Approval/delProblem' => [
+            'admin/Approval/delProblem',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //删除初审结果(反担保房产担保)
+        'Approval/delGuarantee' => [
+            'admin/Approval/delGuarantee',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //查询出缺少的资料
+        'Approval/dataList' => [
+            'admin/Approval/dataList',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //提交缺少的资料
+        'Approval/addData' => [
+            'admin/Approval/addData',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //上传文件接口
+        'Index/fileUpload' => [
+            'admin/Index/fileUpload',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        //删除附件
+        'Approval/delAttachment' => [
+            'admin/Approval/delAttachment',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 阿琪 */
+        /* 获取对应类型字典数据 */
+        'Dictionary/getDictionaryByType' => [
+            'admin/Dictionary/getDictionaryByType',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 征信列表页 */
+        'Credit/creditList' => [
+            'admin/Credit/creditList',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /* 新增征信 */
+        'Credit/addCredit' => [
+            'admin/Credit/addCredit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 征信申请编辑 */
+        'Credit/editCredit' => [
+            'admin/Credit/editCredit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 征信申请删除 */
+        'Credit/delCredit' => [
+            'admin/Credit/delCredit',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /* 提交至人行 */
+        'Credit/submitTobank' => [
+            'admin/Credit/submitTobank',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 获取征信信息（编辑） */
+        'Credit/getCreditinfo' => [
+            'admin/Credit/getCreditinfo',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /* 征信详情 */
+        'Credit/creditDetail' => [
+            'admin/Credit/creditDetail',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /* 模糊获取业务单号 */
+        'Credit/ordersnList' => [
+            'admin/Credit/ordersnList',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+         /* 模糊获取所有理财经理 */
+        'SystemUser/managerList' => [
+            'admin/SystemUser/managerList',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        /* 编辑审核信息 */
+        'Credit/editReviewinfo' => [
+            'admin/Credit/editReviewinfo',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 上传征信信息 */
+        'Credit/uploadCredit' => [
+            'admin/Credit/uploadCredit',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+         /* 下载征信报告 */
+        'Credit/downCredit' => [
+            'admin/Credit/downCredit',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+          /* 获取征信内容 */
+        'Credit/lookCredit' => [
+            'admin/Credit/lookCredit',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        /* 编辑派单 */
+        'Credit/editOrder' => [
+            'admin/Credit/editOrder',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 新增用户 */
+        'Customer/addcreditCustomer' => [
+            'admin/Customer/addcreditCustomer',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 新增证件 */
+        'Customer/addcard' => [
+            'admin/Customer/addcard',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 根据电话号码获取用户信息 */
+        'Customer/getcusinfo' => [
+            'admin/Customer/getcusinfo',
+            ['method' => 'get', 'after_behavior' => $afterBehavior],
+        ],
+        /* 林桂均 */
+        /* 获取城市 */
+        'Regions/getCity' => [
+            'admin/Regions/getCity',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 获取城区片区 */
+        'Regions/getDistrict' => [
+            'admin/Regions/getDistrict',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 搜索用户获取部门 */
+        'User/userSearch' => [
+            'admin/User/userSearch',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 新增订单 */
+        'Orders/addOrder' => [
+            'admin/Orders/addOrder',
+            ['method' => 'post', 'after_behavior' => $afterBehavior],
+        ],
+        /* 订单列表 */
+        'Orders/orderList' => [
+            'admin/Orders/orderList',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 订单详情 */
+        'Orders/orderDetails' => [
+            'admin/Orders/orderDetails',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取订单编号 */
+        'Orders/getOrderSn' => [
+            'admin/Orders/getOrderSn',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取部门组织架构 */
+        'SystemDepartment/index' => [
+            'admin/SystemDepartment/index',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        /* 获取部门组织架构 */
+        'User/userByDeptId' => [
+            'admin/User/userByDeptId',
+            ['method' => 'post', 'after_behavior' => $afterBehavior]
+        ],
+        '__miss__' => ['admin/Miss/index'],
+    ],
+];

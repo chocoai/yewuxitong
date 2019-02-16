@@ -1,0 +1,73 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/6/11
+ * Time: 10:48
+ */
+
+namespace app\model;
+
+
+use think\Model;
+
+class OrderFundChannel extends Model
+{
+    /* @author 赵光帅
+     * 发送指令列表(渠道)
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function instructionList($map,$field, $page, $pageSize) {
+        $resInfo =  self::alias('x')
+            ->field($field)
+            ->join('order o', 'x.order_sn=o.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn')
+            ->join('system_user z', 'o.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('o.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($resInfo){
+            foreach($resInfo['data'] as &$val){
+                $val['type_text'] = $val['type'];
+                $val['type'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']]:'';
+            }
+        }
+        return $resInfo;
+    }
+
+
+    /* @author 赵光帅
+     * 银行放款入账列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function bankList($map, $page, $pageSize) {
+        $resInfo = self::alias('x')
+            ->field('n.order_sn,n.finance_sn,n.type,z.name,estate_name,y.estate_owner,x.fund_channel_name,x.loan_money_time,x.money,x.actual_account_money,x.loan_money_status')
+            ->join('order n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn','LEFT')
+            ->join('system_user z', 'n.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.loan_money_time desc')
+            ->group('n.order_sn')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($resInfo){
+            foreach($resInfo['data'] as &$val){
+                $val['type_text'] = $val['type'];
+                $val['type'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']]:'';
+            }
+        }
+        return $resInfo;
+    }
+
+}

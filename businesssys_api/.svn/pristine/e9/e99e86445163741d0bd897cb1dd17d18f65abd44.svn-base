@@ -1,0 +1,159 @@
+{extend name='/public/base' /}
+{block name='body'}
+<style>
+    /*自定义 multiselect2side */
+    .ms2side__div {
+        border: 0px solid #333;
+        padding-top: 30px;
+        margin-left: 25px;
+    }
+    .ms2side__div select {
+        height: auto;
+        height: 320px;
+    }
+    .ms2side__header {
+        margin-left: 3px;
+        margin-top: -20px;
+        margin-bottom: 5px;
+        width: 180px;
+        height: 20px;
+    }
+    .ms2side__div select {
+        width: 180px;
+        float: left;
+    }
+    .dialog_main {
+        margin: 5px 0 0 5px;
+    }
+</style>
+<div class="container dialog_main">
+
+    <form class="form-search" id="dialog_search">
+        <select name="" class="input-small">
+            <option value="1">用户</option>
+        </select>
+        <input type="text">
+        <button type="submit" class="btn">搜索</button>
+    </form>
+
+    <div class="row">
+        <div class="span2">
+            <p>部门筛选</p>
+            <select id="dept" name="dept_id" size="18" style="width: 180px;">
+                {foreach $depts as $v}
+                <option value="{$v['id']}">{$v['spl']}{$v['name']}</option>
+                {/foreach}
+            </select>
+        </div>
+        <div class="span6">
+            <select name="dialog_searchable" id="dialog_searchable" multiple="multiple" style="display:none;">
+                {foreach $emps as $v}
+                <option value="{$v['id']}" {if(in_array($v['id'],array_column($select_emps,'id')))}
+                    selected="selected" {/if} >{$v['nickname']}
+                </option>
+                {/foreach}
+            </select>
+        </div>
+    </div>
+    <div class="row span7">
+        <div class="pull-right">
+            <button class="btn btn-info" type="button" id="dialog_confirm">确定</button>
+            <button class="btn" type="button" id="dialog_close">取消</button>
+        </div>
+    </div>
+</div><!--end container-->
+{/block}
+{block name='script'}
+<script type="text/javascript">
+    $(function () {
+        $('#dialog_searchable').multiselect2side({
+            selectedPosition: 'right',
+            moveOptions: false,
+            labelsx: '备选',
+            labeldx: '已选',
+            autoSort: true
+            //,autoSortAvailable: true
+        });
+        //搜索用户
+        $("#dialog_search").on("submit", function () {
+
+            //ajax data
+            var data = [{"value": "100", "text": "搜索1"}, {"value": "101", "text": "搜索2"}];//test
+
+            var optionList = [];
+            for (var i = 0; i < data.length; i++) {
+                optionList.push('<option value="');
+                optionList.push(data[i].value);
+                optionList.push('">');
+                optionList.push(data[i].text);
+                optionList.push('</option>');
+            }
+            $('#dialog_searchablems2side__sx').html(optionList.join(''));
+
+            //阻止表单提交
+            return false;
+        });
+
+        $('#dept').change(function () {
+            $.post("{:url('get_user_list')}", {
+                departmentid:$(this).val()
+            }, function (data) {
+                    var optionList = [];
+                    var tpl;
+                    for (var i = 0; i < data.length; i++) {
+                        optionList.push('<option value="');
+                        optionList.push(data[i].id);
+                        optionList.push('">');
+                        optionList.push(data[i].username);
+                        optionList.push('</option>');
+                    }
+                    tpl = optionList.join('') || '';
+                    $('#dialog_searchablems2side__sx').html(tpl);
+            }, 'json');
+        });
+
+
+        $("#dialog_confirm").on("click", function () {
+            var nameText = [];
+            var idText = [];
+            var globalValue = '@leipi@';
+            if (!$('#dialog_searchable').val()) {
+                globalValue = ''
+            } else {
+                $('#dialog_searchable option').each(function () {
+                    if ($(this).attr("selected")) {
+                        if ($(this).val() == 'all')//有全部，其它就不要了
+                        {
+                            nameText = [];
+                            idText = [];
+                            nameText.push($(this).text());
+                            idText.push($(this).val());
+                            return false;
+                        }
+                        nameText.push($(this).text());
+                        idText.push($(this).val());
+                    }
+                });
+                globalValue = nameText.join(',') + '@leipi@' + idText.join(',');
+            }
+            //这里不用 json了，数据库 也是用 , 号隔开保存的
+            //var jsonText = JSON.stringify(nameText) + JSON.stringify(idText);
+
+
+            if (window.ActiveXObject) { //IE
+                window.returnValue = globalValue
+            } else { //非IE
+                if (window.opener) {
+                    window.opener.callbackSuperDialog(globalValue);
+                }
+            }
+            window.close();
+
+
+        });
+        $("#dialog_close").on("click", function () {
+            window.close();
+        });
+    });
+</script>
+{/block}

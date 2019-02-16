@@ -1,0 +1,51 @@
+<?php
+
+namespace app\admin\controller;
+
+use app\model\SystemUser as SystemUserModel;
+use app\util\ReturnCode;
+
+class SystemUser extends Base {
+
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->systemuser = new SystemUserModel();
+    }
+
+    /**
+     * @api {get} admin/SystemUser/managerList 模糊获取理财经理[admin/SystemUser/managerList]
+     * @apiVersion 1.0.0
+     * @apiName managerList
+     * @apiGroup SystemUser
+     * @apiSampleRequest admin/SystemUser/managerList
+     *
+     *  @apiParam {string} name    客户经理姓名
+     * 
+     * @apiSuccess {array} data    客户经理列表
+     */
+    public function managerList() {
+        $name = $this->request->get('name', '');
+        if ($name) {
+            $where = [
+                'su.status' => 1,
+                'su.name' => ['like', "%{$name}%"],
+                'su.is_deleted' => 0,
+                'su.position' => '理财经理'
+            ];
+            $data = $this->systemuser->getmanagernameList($where);
+            if ($data) {
+                foreach ($data as $key => $value) {
+                    $newarray[] = ['id' => $value['id'], 'managername' => $value['name'], 'deptname' => $value['deptname']];
+                }
+                return $this->buildSuccess($newarray);
+            }
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '暂无数据!');
+            ;
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误!');
+        }
+    }
+
+}

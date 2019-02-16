@@ -1,0 +1,47 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+use app\util\Tools;
+
+class CreditInquiry extends Model {
+
+    protected $autoWriteTimestamp = true;
+    protected $updateTime = false;
+    protected $createTime = 'create_time';
+    // 追加属性
+    protected $append = [
+        'apply_time_text',
+        'sub_bank_time_text',
+        'credit_input_time_text'
+    ];
+
+    public function getApplyTimeTextAttr($value, $data) {
+        $value = $value ? $value : $data['apply_time'];
+        return is_numeric($value) ? date("Y-m-d H:i", $value) : $value;
+    }
+
+    public function getSubBankTimeTextAttr($value, $data) {
+        $value = $value ? $value : $data['sub_bank_time'];
+        return is_numeric($value) ? date("Y-m-d H:i", $value) : $value;
+    }
+
+    public function getCreditInputTimeTextAttr($value, $data) {
+        $value = $value ? $value : $data['credit_input_time'];
+        return is_numeric($value) ? date("Y-m-d H:i", $value) : $value;
+    }
+
+    /**
+     * 新增用户
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合
+     * @author zhongjiaqi 4.20
+     */
+    public function addCredit($data) {
+        $res = $this->save($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+}

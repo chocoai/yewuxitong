@@ -1,0 +1,2177 @@
+[
+  {
+    "type": "post",
+    "url": "admin/Approval/addData",
+    "title": "提交资料[admin/Approval/addData]",
+    "version": "1.0.0",
+    "name": "addData",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/addData"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "arr",
+            "optional": false,
+            "field": "datainfo",
+            "description": "<p>数组外层键名</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "describe",
+            "description": "<p>资料描述</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "status",
+            "description": "<p>0未收 1已收</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>主键id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/addResult",
+    "title": "初审结果提交[admin/Approval/addResult]",
+    "version": "1.0.0",
+    "name": "addResult",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/addResult"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "float",
+            "optional": false,
+            "field": "balance_per",
+            "description": "<p>负债成数</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_normal",
+            "description": "<p>是否正常单</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "review_rating",
+            "description": "<p>审查评级</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "risk_rating",
+            "description": "<p>风险评级</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_material",
+            "description": "<p>是否缺资料通过 0未选中  1选中</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee",
+            "description": "<p>是否提供反担保 0未选中  1选中</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_asset_prove",
+            "description": "<p>是否提供资产证明 0未选中  1选中</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee_estate",
+            "description": "<p>是否房产反担保 0未选中  1选中</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee_money",
+            "description": "<p>是否保证金反担保 0未选中  1选中</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee_other",
+            "description": "<p>是否其它方式反担保 0未选中  1选中</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "float",
+            "optional": false,
+            "field": "guarantee_money",
+            "description": "<p>反担保 （保证金）</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "other_way",
+            "description": "<p>其它方式</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "problem_id",
+            "description": "<p>problem(array) =&gt; 问题汇总信息 id,新增则这个id可以为空</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "problem_describe",
+            "description": "<p>problem(array) =&gt; 问题描述</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "problem_status",
+            "description": "<p>problem(array) =&gt; 问题状态 0未解决 1已解决</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "data_id",
+            "description": "<p>data(array) =&gt; 缺少的资料 id,新增则这个id为空</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "data_describe",
+            "description": "<p>data(array) =&gt; 资料描述</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "data_status",
+            "description": "<p>data(array) =&gt; 资料状态 0未收 1已收</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "houseinfo",
+            "description": "<p>(array) =&gt; 房产表id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "assetproof",
+            "description": "<p>(array) =&gt; 房产表id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/allPropertyNames",
+    "title": "查询出订单所有的房产名称[admin/Approval/allPropertyNames]",
+    "version": "1.0.0",
+    "name": "allPropertyNames",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/allPropertyNames"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_name",
+            "description": "<p>每个房产的名称</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/approvalRecords",
+    "title": "审批页面信息[admin/Approval/approvalRecords]",
+    "version": "1.0.0",
+    "name": "approvalRecords",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/approvalRecords"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "create_time",
+            "description": "<p>审批记录的时间</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "process_name",
+            "description": "<p>审批节点</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "auditor_name",
+            "description": "<p>操作人员名称</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "auditor_dept",
+            "description": "<p>操作人员部门</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "status",
+            "description": "<p>操作</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "content",
+            "description": "<p>审批意见</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "item",
+            "description": "<p>注意事项</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "savename",
+            "description": "<p>文件名称</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "path",
+            "description": "<p>文件路径</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "url",
+            "description": "<p>文件链接地址</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/dataList",
+    "title": "缺少的资料列表[admin/Approval/dataList]",
+    "version": "1.0.0",
+    "name": "dataList",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/dataList"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "describe",
+            "description": "<p>资料描述</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "status",
+            "description": "<p>0未收 1已收</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/delGuarantee",
+    "title": "删除房产担保与资产证明[admin/Approval/delGuarantee]",
+    "version": "1.0.0",
+    "name": "delGuarantee",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/delGuarantee"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>数据的id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/delProblem",
+    "title": "删除问题汇总与缺少资料[admin/Approval/delProblem]",
+    "version": "1.0.0",
+    "name": "delProblem",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/delProblem"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>数据的id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/imageUpload",
+    "title": "图片上传[admin/Approval/imageUpload]",
+    "version": "1.0.0",
+    "name": "imageUpload",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/imageUpload"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "file",
+            "optional": false,
+            "field": "pic",
+            "description": "<p>文件文件</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "file_url",
+            "description": "<p>文件链接地址</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>附近表主键id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/showApprovalList",
+    "title": "审批列表[admin/Approval/showApprovalList]",
+    "version": "1.0.0",
+    "name": "showApprovalList",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/showApprovalList"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "create_uid",
+            "description": "<p>人员id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "type",
+            "description": "<p>订单类型</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "stage",
+            "description": "<p>订单状态</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "estate_ecity",
+            "description": "<p>城市</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "estate_district",
+            "description": "<p>城区</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "search_text",
+            "description": "<p>关键字搜索</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "page",
+            "description": "<p>页码</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "limit",
+            "description": "<p>条数</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "total",
+            "description": "<p>总条数</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "per_page",
+            "description": "<p>每页显示的条数</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "current_page",
+            "description": "<p>当前页</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "last_page",
+            "description": "<p>总页数</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>业务单号</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "create_time",
+            "description": "<p>报单时间</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "type",
+            "description": "<p>订单类型</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "money",
+            "description": "<p>订单金额</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "stage",
+            "description": "<p>订单状态</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_name",
+            "description": "<p>房产名称</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_ecity",
+            "description": "<p>城市</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_district",
+            "description": "<p>城区</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/showResult",
+    "title": "查询初审结果[admin/Approval/showResult]",
+    "version": "1.0.0",
+    "name": "showResult",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/showResult"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "float",
+            "optional": false,
+            "field": "balance_per",
+            "description": "<p>负债成数</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_normal",
+            "description": "<p>是否正常单</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "review_rating",
+            "description": "<p>审查评级</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "risk_rating",
+            "description": "<p>风险评级</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_material",
+            "description": "<p>是否缺资料通过</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee",
+            "description": "<p>是否提供反担保</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_asset_prove",
+            "description": "<p>是否提供资产证明</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee_estate",
+            "description": "<p>是否房产反担保</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee_money",
+            "description": "<p>是否保证金反担保</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "is_guarantee_other",
+            "description": "<p>是否其它方式反担保</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "float",
+            "optional": false,
+            "field": "guarantee_money",
+            "description": "<p>反担保 （保证金）</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "other_way",
+            "description": "<p>其它方式</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>problem =&gt; 问题汇总信息id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "describe",
+            "description": "<p>problem =&gt; 问题描述</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "status",
+            "description": "<p>problem =&gt; 问题状态 0未解决 1已解决</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "hid",
+            "description": "<p>houseinfo =&gt; 房产反担保数据表主键id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_name",
+            "description": "<p>houseinfo =&gt; 房产名称</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "estate_certtype",
+            "description": "<p>houseinfo =&gt; 产证类型</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "estate_certnum",
+            "description": "<p>houseinfo =&gt; 产证编码</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "house_type",
+            "description": "<p>houseinfo =&gt; 房屋类型</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_district",
+            "description": "<p>houseinfo =&gt; 所属城区</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_owner",
+            "description": "<p>houseinfo =&gt; 产权人姓名</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "estate_owner_type",
+            "description": "<p>houseinfo =&gt; 产权人类型 1个人 2企业</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/subApproval",
+    "title": "提交审批[admin/Approval/subApproval]",
+    "version": "1.0.0",
+    "name": "subApproval",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/subApproval"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Bank/getBank",
+    "title": "获取银行[admin/Bank/getBank]",
+    "version": "1.0.0",
+    "name": "getBank",
+    "group": "Bank",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Bank/getBank"
+      }
+    ],
+    "filename": "application/admin/controller/Bank.php",
+    "groupTitle": "Bank"
+  },
+  {
+    "type": "post",
+    "url": "admin/Bank/getBranch",
+    "title": "获取支行[admin/Bank/getBranch]",
+    "version": "1.0.0",
+    "name": "getBranch",
+    "group": "Bank",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Bank/getBranch"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>银行表id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Bank.php",
+    "groupTitle": "Bank"
+  },
+  {
+    "type": "post",
+    "url": "admin/BuildingInfo/getBuilding",
+    "title": "获取楼盘名称[admin/BuildingInfo/getBuilding]",
+    "version": "1.0.0",
+    "name": "getBuilding",
+    "group": "BuildingInfo",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/BuildingInfo/getBuilding"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "districtId",
+            "description": "<p>地区表id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/BuildingInfo.php",
+    "groupTitle": "BuildingInfo"
+  },
+  {
+    "type": "post",
+    "url": "admin/Credit/addCredit",
+    "title": "新增征信[admin/Credit/addCredit]",
+    "version": "1.0.0",
+    "name": "addCredit",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/addCredit"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "type",
+            "description": "<p>所属类型 ：(个人、企业)</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "mobile",
+            "description": "<p>联系电话</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "customer_name",
+            "description": "<p>用户/企业名称</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "certdata",
+            "description": "<p>证件信息</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "financing_manager_id",
+            "description": "<p>理财经理</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "pictrue",
+            "description": "<p>授权材料</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "remark_base",
+            "description": "<p>备注</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Customer/addcreditCustomer",
+    "title": "新增用户[admin/Customer/addcreditCustomer]",
+    "version": "1.0.0",
+    "name": "addcreditCustomer",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Customer/addcreditCustomer"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "gender",
+            "description": "<p>性别</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "certdata",
+            "description": "<p>证件信息</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "cname",
+            "description": "<p>用户/企业名称</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "ctype",
+            "description": "<p>所属类型 ：(个人、企业)</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "mobile",
+            "description": "<p>联系电话</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "financing_manager_id",
+            "description": "<p>理财经理</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Customer.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "get",
+    "url": "admin/Credit/creditDetail",
+    "title": "征信详情(批量)[admin/Credit/creditDetail]",
+    "version": "1.0.0",
+    "name": "creditDetail",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/creditDetail"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "base_data",
+            "description": "<p>基础信息</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "search_data",
+            "description": "<p>查询信息</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "review_data",
+            "description": "<p>审核信息</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "authority_data",
+            "description": "<p>权限信息 1 有权限 2 无权限</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "get",
+    "url": "admin/Credit/creditList",
+    "title": "征信列表[admin/Credit/creditList]",
+    "version": "1.0.0",
+    "name": "creditList",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/creditList"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "endtime",
+            "description": "<p>结束时间</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "starttime",
+            "description": "<p>开始时间</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "time_type",
+            "description": "<p>时间类型：下拉框显示(申请时间、提交人行时间、征信录入时间)</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "credit_result",
+            "description": "<p>征信结果 ：下拉框显示(正常、异常)</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "checkstatus",
+            "description": "<p>查询状态 ：(正在查询、征信报告已出、查询失败)</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "keywords",
+            "description": "<p>关键字搜索</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "page",
+            "description": "<p>页码</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "size",
+            "description": "<p>条数</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>列表数据集</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "msg",
+            "description": "<p>数据获取状态</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "count",
+            "description": "<p>总条数</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "get",
+    "url": "admin/Credit/delCredit",
+    "title": "删除征信[admin/Credit/delCredit]",
+    "version": "1.0.0",
+    "name": "delCredit",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/delCredit"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Credit/editCredit",
+    "title": "编辑征信[admin/Credit/editCredit]",
+    "version": "1.0.0",
+    "name": "editCredit",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/editCredit"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "certdata",
+            "description": "<p>证件信息</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "pictrue",
+            "description": "<p>授权材料</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "remark_base",
+            "description": "<p>备注</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Credit/editOrder",
+    "title": "编辑派单[admin/Credit/editOrder]",
+    "version": "1.0.0",
+    "name": "editOrder",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/editOrder"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>业务单号</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "is_auth_accessory",
+            "description": "<p>是否授权</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Credit/editReviewinfo",
+    "title": "编辑审核信息[admin/Credit/editReviewinfo]",
+    "version": "1.0.0",
+    "name": "editReviewinfo",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/editReviewinfo"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "credit_result",
+            "description": "<p>查询状态</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "remark_trial",
+            "description": "<p>征信审核备注</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "picure",
+            "description": "<p>文件数据集</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "get",
+    "url": "admin/Credit/getCreditinfo",
+    "title": "获取征信信息[admin/Credit/getCreditinfo]",
+    "version": "1.0.0",
+    "name": "getCreditinfo",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/getCreditinfo"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "get",
+    "url": "admin/Credit/getDictionaryByType",
+    "title": "获取数据字典类型[admin/Credit/getDictionaryByType]",
+    "version": "1.0.0",
+    "name": "getDictionaryByType",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/getDictionaryByType"
+      }
+    ],
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "data",
+            "description": "<p>数据字典数据集</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Dictionary.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "get",
+    "url": "admin/Credit/ordersnList",
+    "title": "模糊获取业务单号[admin/Credit/ordersnList]",
+    "version": "1.0.0",
+    "name": "ordersnList",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/ordersnList"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>业务单号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>业务单号</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Credit/submitTobank",
+    "title": "提交至人行(批量)[admin/Credit/submitTobank]",
+    "version": "1.0.0",
+    "name": "submitTobank",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/submitTobank"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Credit/uploadCredit",
+    "title": "上传征信信息[admin/Credit/uploadCredit]",
+    "version": "1.0.0",
+    "name": "uploadCredit",
+    "group": "Credit",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Credit/uploadCredit"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>征信id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "checkstatus",
+            "description": "<p>查询状态</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "remark_inquiry",
+            "description": "<p>征信查询备注</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "file",
+            "description": "<p>文件数据集</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Credit.php",
+    "groupTitle": "Credit"
+  },
+  {
+    "type": "post",
+    "url": "admin/Customer/addCard",
+    "title": "新增证件[admin/Customer/addCard]",
+    "version": "1.0.0",
+    "name": "addCard",
+    "group": "Customer",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Customer/addCard"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>用户id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "array",
+            "optional": false,
+            "field": "certdata",
+            "description": "<p>证件信息</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Customer.php",
+    "groupTitle": "Customer"
+  },
+  {
+    "type": "get",
+    "url": "admin/Customer/getCusinfo",
+    "title": "根据手机号自动匹配用户信息[admin/Customer/getCusinfo]",
+    "version": "1.0.0",
+    "name": "getCusinfo",
+    "group": "Customer",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Customer/getCusinfo"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "mobile",
+            "description": "<p>手机号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "selectdata",
+            "description": "<p>用户名称下拉框数据</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "array",
+            "optional": false,
+            "field": "carddata",
+            "description": "<p>证件信息</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "financing_manager_name",
+            "description": "<p>理财经理</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Customer.php",
+    "groupTitle": "Customer"
+  },
+  {
+    "type": "post",
+    "url": "admin/Estate/addEstate",
+    "title": "添加房产[admin/Estate/addEstate]",
+    "version": "1.0.0",
+    "name": "addEstate",
+    "group": "Estate",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Estate/addEstate"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "orderSn",
+            "description": "<p>订单编号</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateName",
+            "description": "<p>房产名称</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "cityId",
+            "description": "<p>所属城市</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "districtId",
+            "description": "<p>所属城区</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateZone",
+            "description": "<p>所属片区</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "float",
+            "optional": false,
+            "field": "estateArea",
+            "description": "<p>房产面积</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "estateCerttype",
+            "description": "<p>产证类型</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "estateCertnum",
+            "description": "<p>产证编码</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "houseType",
+            "description": "<p>房屋类型</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "buildingName",
+            "description": "<p>楼盘名称</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateAlias",
+            "description": "<p>楼盘别名</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateUnit",
+            "description": "<p>栋阁名称</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "unitAlias",
+            "description": "<p>栋阁别名</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateFloor",
+            "description": "<p>楼层</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "floorPlusminus",
+            "description": "<p>楼层正负+-</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateHouse",
+            "description": "<p>房号</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Estate.php",
+    "groupTitle": "Estate"
+  },
+  {
+    "type": "post",
+    "url": "admin/Login/index",
+    "title": "用户登录[admin/Login/index]",
+    "version": "1.0.0",
+    "name": "index",
+    "group": "Login",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Login/index"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "username",
+            "description": "<p>用户名</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "password",
+            "description": "<p>密码</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "headImg",
+            "description": "<p>用户图像</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>用户id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "username",
+            "description": "<p>用户名</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "apiAuth",
+            "description": "<p>api接口权限验证秘钥</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Login.php",
+    "groupTitle": "Login"
+  },
+  {
+    "type": "get",
+    "url": "admin/Login/logout",
+    "title": "退出登录[admin/Login/logout]",
+    "version": "1.0.0",
+    "name": "logout",
+    "group": "Login",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Login/logout"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "apiAuth",
+            "description": "<p>api接口权限验证秘钥</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Login.php",
+    "groupTitle": "Login"
+  },
+  {
+    "type": "post",
+    "url": "admin/Orders/addMortgage",
+    "title": "添加按揭信息[admin/Orders/addMortgage]",
+    "version": "1.0.0",
+    "name": "addMortgage",
+    "group": "Orders",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Orders/addMortgage"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "orderSn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Orders.php",
+    "groupTitle": "Orders"
+  },
+  {
+    "type": "post",
+    "url": "admin/Orders/orderDetails",
+    "title": "订单详情[admin/Orders/orderDetails]",
+    "version": "1.0.0",
+    "name": "orderDetails",
+    "group": "Orders",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Orders/orderDetails"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "orderSn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Orders.php",
+    "groupTitle": "Orders"
+  },
+  {
+    "type": "post",
+    "url": "admin/Orders/orderList",
+    "title": "订单列表[admin/Orders/orderList]",
+    "version": "1.0.0",
+    "name": "orderList",
+    "group": "Orders",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Orders/orderList"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "startTime",
+            "description": "<p>订单开始时间</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "endTime",
+            "description": "<p>订单结束时间</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "search",
+            "description": "<p>查询名称</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "managerId",
+            "description": "<p>理财经理</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateCity",
+            "description": "<p>所属城市</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "estateDistrict",
+            "description": "<p>所属城区</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "stage",
+            "description": "<p>订单状态</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "status",
+            "description": "<p>快速标签状态</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Orders.php",
+    "groupTitle": "Orders"
+  },
+  {
+    "type": "post",
+    "url": "admin/Regions/getBuildingCity",
+    "title": "获取楼盘城市选择接口[admin/Regions/getBuildingCity]",
+    "version": "1.0.0",
+    "name": "getBuildingCity",
+    "group": "Regions",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Regions/getBuildingCity"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>地区表id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Regions.php",
+    "groupTitle": "Regions"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/add_Result",
+    "title": "初审结果提交[admin/Regions/getCity]",
+    "version": "1.0.0",
+    "name": "getCity",
+    "group": "Regions",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Regions/getCity"
+      }
+    ],
+    "filename": "application/admin/controller/Regions.php",
+    "groupTitle": "Regions"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/add_Result",
+    "title": "获取城区/片区[admin/Regions/getDistrict]",
+    "version": "1.0.0",
+    "name": "getDistrict",
+    "group": "Regions",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Regions/getDistrict"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>地区表id</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Regions.php",
+    "groupTitle": "Regions"
+  },
+  {
+    "type": "post",
+    "url": "admin/User/userSearch",
+    "title": "模糊匹配用户获取部门[admin/User/userSearch]",
+    "version": "1.0.0",
+    "name": "userSearch",
+    "group": "User",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/User/userSearch"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "name",
+            "description": "<p>用户编号</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/User.php",
+    "groupTitle": "User"
+  }
+]

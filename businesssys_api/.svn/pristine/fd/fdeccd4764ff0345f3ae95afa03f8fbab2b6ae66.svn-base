@@ -1,0 +1,37 @@
+<?php
+
+/* 银行控制器 */
+
+namespace app\admin\controller;
+
+use app\model\BankCard as BankCardModel;
+
+class BankCard extends Base {
+
+    private $bankcardmodel;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->bankcardmodel = new BankCardModel();
+    }
+
+    /**
+     * @api {get} admin/BankCard/getAllbank 获取所有公司银行[admin/BankCard/getAllbank]
+     * @apiVersion 1.0.0
+     * @apiName getAllbank
+     * @apiGroup BankCard
+     * @apiSampleRequest admin/BankCard/getAllbank
+     *
+     * @apiSuccess {int} id    数据id
+     * @apiSuccess {string} bank    银行
+     * @apiSuccess {string} bank_account    银行账户
+     * @apiSuccess {string} bank_card    银行卡号
+     */
+    public function getAllbank() {
+        $where = ['type' => 1, 'status' => 1];
+        $field = 'id,bank_account,bank_card,bank';
+        $data = $this->bankcardmodel->where($where)->field($field)->order('sort DESC')->select();
+        return $this->buildSuccess($data);
+    }
+
+}

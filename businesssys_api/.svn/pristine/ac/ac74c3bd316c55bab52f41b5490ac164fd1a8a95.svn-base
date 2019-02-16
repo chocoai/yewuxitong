@@ -1,0 +1,35 @@
+<?php
+/**
+*订单验证类
+ */
+namespace app\admin\validate;
+use \think\Validate;
+class OrderValidate extends Validate{
+    protected $rule = [
+        //订单
+        'notarydate'            =>      'dateFormat:Y-m-d',//公正日期
+        'managerId'             =>      'require',//理财经理ID
+        'deptId'                =>      'require',//部门ID
+        'mortgageName'          =>      'require',//按揭姓名
+        'mortgagePhone'         =>      'require|max:11|/^1[3-8]{1}[0-9]{9}$/',//按揭电话
+        'orgMortageInfo'        =>      'require',//原按揭信息
+        'mortageInfo'           =>      'require',//现按揭信息
+        'headPayInfo'           =>      'require',//首期款信息
+        'inputId'               =>      'require',//录入人ID
+        'createId'              =>      'require',//提交人ID
+        'stage'                 =>      'require',//订单状态
+    ];
+
+    protected $message = [
+        'notarydate'         => '公正日期有误',
+        'managerId'         => '理财经理不能为空',
+        'deptId' => '部门不能为空',//部门ID
+        'mortgageName'           => '按揭员姓名不能为空',
+        'orgMortageInfo'         => '原按揭信息不能为空',
+        'mortageInfo'         => '现按揭信息不能为空',
+        'headPayInfo' => '首期款信息不能为空',
+        'inputId'           => '录入人不能为空',
+        'createId'         => '提交人不能为空',
+        'stage'         => '订单状态不能为空',
+    ];
+}

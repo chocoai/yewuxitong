@@ -1,0 +1,109 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+use app\util\Tools;
+
+class CreditInquiry extends Model {
+
+    protected $autoWriteTimestamp = true;
+    protected $updateTime = false;
+    protected $createTime = 'create_time';
+    // 追加属性
+    protected $append = [
+        'apply_time_text',
+        'sub_bank_time_text',
+        'credit_input_time_text'
+    ];
+
+    public function getApplyTimeTextAttr($value, $data) {
+        $value = $value ? $value : $data['apply_time'];
+        return is_numeric($value) ? date("Y-m-d H:i", $value) : $value;
+    }
+
+    public function getSubBankTimeTextAttr($value, $data) {
+        $value = $value ? $value : $data['sub_bank_time'];
+        return is_numeric($value) ? date("Y-m-d H:i", $value) : $value;
+    }
+
+    public function getCreditInputTimeTextAttr($value, $data) {
+        $value = $value ? $value : $data['credit_input_time'];
+        return is_numeric($value) ? date("Y-m-d H:i", $value) : $value;
+    }
+
+    /**
+     * 新增用户
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合
+     * @author zhongjiaqi 4.20
+     */
+    public function addCredit($data) {
+        $res = $this->save($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 获取征信报告状态
+     * @return 征信报告状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  征信报告状态
+     * @author zhongjiaqi 4.20
+     */
+    public function getCheckstatus($status = '') {
+        $statusList = ['1' => '待查询', '2' => '正在查询', '3' => '征信报告已出', '4' => '查询失败'];
+        return empty($status) ? $statusList : $statusList[$status];
+    }
+
+    /**
+     * 更新用户
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合  $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function updateCredit($id, $data) {
+        $res = $this->where('id', $id)->update($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 检测当前征信是否可删除或可编辑(只有征信报告查询状态为待查询才可以)
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param   $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function checkCredit($id) {
+        $res = $this->where('id', $id)->value('checkstatus');
+        return $flag = $res = 1 ? TRUE : FALSE;
+    }
+    /**
+     * 处理新增身份信息（将身份证填和其他证件区分）
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param   $id 需要更新数据的用户id
+     * @author zhongjiaqi 4.21
+     */
+    public function dealwithCarddata($data) {
+        if (count($data) > 1) {
+            foreach ($data as $key => $value) {
+                if ($value['type'] == 1) {
+                    $adddata['certtype'] = 1;
+                    $adddata['certcode'] = $value['num'];
+                    unset($adddata['certdata'][$key]);
+                    break;
+                }
+            }
+            foreach ($adddata['certdata'] as $key => $value) {
+                $othercert[] = $value;
+            }
+            $adddata['certother'] = json_encode($othercert, JSON_UNESCAPED_UNICODE);
+        } else {
+            $adddata['certtype'] = $adddata['certdata'][0]['type'];
+            $adddata['certcode'] = $adddata['certdata'][0]['num'];
+        }
+    }
+
+}

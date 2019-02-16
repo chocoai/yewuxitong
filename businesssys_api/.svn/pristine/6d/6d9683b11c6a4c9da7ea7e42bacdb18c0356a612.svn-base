@@ -1,0 +1,13 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/26
+ * Time: 19:14
+ */
+namespace app\model;
+
+
+class ChequeLog extends Base {
+
+}

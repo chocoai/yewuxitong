@@ -1,0 +1,43 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+use think\Db;
+
+class Order extends Base{
+
+    /*
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {int} $startnum    分页起始条数
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$search_text,$startnum,$pageSize){
+           $res = self::alias('a')
+                ->field('a.id,a.order_sn,a.create_time,c.city_id,c.district_id')
+                ->join('zc_customer_house b','a.customer_house_ids=b.id','LEFT')
+                ->join('zc_building_info c','b.building_id = c.id','LEFT')
+                ->where($map)
+                //->where('building_name|unit_name|floorname|roomno_name|order_sn', 'like', "%{$search_text}%")
+                ->where('building_name|order_sn', 'like', "%{$search_text}%")
+                ->limit($startnum,$pageSize)
+                ->select();
+           foreach ($res as $k => $v){
+               $res[$k]['city_name'] = Db::name('Region')->where('id',$v['city_id'])->value('name');
+               $res[$k]['district_name'] = Db::name('Region')->where('id',$v['district_id'])->value('name');
+               unset($res[$k]['city_id']);
+               unset($res[$k]['district_id']);
+           }
+           return $res;
+    }
+
+}

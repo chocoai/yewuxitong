@@ -1,0 +1,292 @@
+define({ "api": [
+  {
+    "type": "post",
+    "url": "admin/Approval/approval_records",
+    "title": "审批记录列表[admin/Approval/approval_records]",
+    "version": "1.0.0",
+    "name": "approval_records",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/approval_records"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "id",
+            "description": "<p>时间</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "type",
+            "description": "<p>审批节点</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/show_approval_list",
+    "title": "审批列表[admin/Approval/show_approval_list]",
+    "version": "1.0.0",
+    "name": "show_approval_list",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/show_approval_list"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "user_id",
+            "description": "<p>录入人员id</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "order_type",
+            "description": "<p>订单类型</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "order_status",
+            "description": "<p>订单状态</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "city",
+            "description": "<p>城市</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "area",
+            "description": "<p>城区</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "search_text",
+            "description": "<p>关键字搜索</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "page",
+            "description": "<p>页码</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "int",
+            "optional": false,
+            "field": "limit",
+            "description": "<p>条数</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>美业师id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "type",
+            "description": "<p>技术类型</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Approval/sub_approval",
+    "title": "提交审批[admin/Approval/sub_approval]",
+    "version": "1.0.0",
+    "name": "sub_approval",
+    "group": "Approval",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Approval/sub_approval"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "order_sn",
+            "description": "<p>订单编号</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>美业师id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "type",
+            "description": "<p>技术类型</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Approval.php",
+    "groupTitle": "Approval"
+  },
+  {
+    "type": "post",
+    "url": "admin/Login/index",
+    "title": "用户登录[admin/Login/index]",
+    "version": "1.0.0",
+    "name": "index",
+    "group": "Login",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Login/index"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "username",
+            "description": "<p>用户名</p>"
+          },
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "password",
+            "description": "<p>密码</p>"
+          }
+        ]
+      }
+    },
+    "success": {
+      "fields": {
+        "Success 200": [
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "headImg",
+            "description": "<p>用户图像</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "int",
+            "optional": false,
+            "field": "id",
+            "description": "<p>用户id</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "username",
+            "description": "<p>用户名</p>"
+          },
+          {
+            "group": "Success 200",
+            "type": "string",
+            "optional": false,
+            "field": "apiAuth",
+            "description": "<p>api接口权限验证秘钥</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Login.php",
+    "groupTitle": "Login"
+  },
+  {
+    "type": "get",
+    "url": "admin/Login/logout",
+    "title": "退出登录[admin/Login/logout]",
+    "version": "1.0.0",
+    "name": "logout",
+    "group": "Login",
+    "sampleRequest": [
+      {
+        "url": "http://www.busys.com/admin/Login/logout"
+      }
+    ],
+    "parameter": {
+      "fields": {
+        "Parameter": [
+          {
+            "group": "Parameter",
+            "type": "string",
+            "optional": false,
+            "field": "apiAuth",
+            "description": "<p>api接口权限验证秘钥</p>"
+          }
+        ]
+      }
+    },
+    "filename": "application/admin/controller/Login.php",
+    "groupTitle": "Login"
+  }
+] });

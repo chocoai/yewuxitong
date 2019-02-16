@@ -1,0 +1,165 @@
+<?php
+
+namespace app\model;
+
+use app\util\Tools;
+
+class SystemUser extends Base {
+
+    /**
+     * 通过人员模糊查询
+     * @param $name
+     * @return false|\PDOStatement|string|\think\Collection
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function userSearch($name) {
+        return self::alias('a')
+                        ->field('a.id,a.name,b.name as dept_name')
+                        ->join('system_dept b', 'a.deptid=b.id')
+                        ->where('a.name', 'like', "%{$name}%")
+                        ->limit(10)
+                        ->select();
+    }
+
+    /**
+     * 获取订单查询用户范围
+     * @param $id
+     * @return bool|string
+     * @throws \think\Exception
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public static function getOrderPowerStr($id) {
+        $where['superpath'] = ['like', '[' . $id . ']'];
+        $res = self::where($where)->field('GROUP_CONCAT(id) AS idstr')->find();
+        return $res['idstr'] ? $res = $id . ',' . $res['idstr'] : $id;
+    }
+
+    /**
+     * 判断用户是否有权限查询
+     * @param $userId 当前登录会员id
+     * @param $managerId  查询人id
+     * @param $subordinates
+     */
+    public static function orderCheckPower($id, $managerId, $subordinates = 0) {
+        $reg = '(\\\\[' . $id . '\\\\])';
+        $count = self::where('superpath regexp \'' . $reg . '\' and id=' . $managerId)->count();
+        if ($count <= 0)
+            return false;
+        return $subordinates == '1' ? self::getOrderPowerStr($managerId) : $managerId;
+    }
+
+    /**
+     * 模糊获取所有理财经理和对应部门
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $where 查询条件
+     * @author zhongjiaqi 4.25
+     */
+    public function getmanagernameList($where) {
+        $res = $this->alias('su')
+                ->field('su.id,su.name,su.deptname,su.deptid')
+                ->join('__SYSTEM_POSITION__ sp', 'sp.id=su.position_id', 'LEFT')
+                ->where($where)
+                ->limit(10)
+                ->select();
+        return Tools::buildArrFromObj($res);
+    }
+
+    /**
+     * 获取当前部门下面的所有人员
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 部门id
+     * @author zhongjiaqi 5.17
+     */
+    public function getDeptpeopleList($id) {
+        if ($id) {
+            $where = ['deptid' => $id, 'status' => 1];
+            $res = $this->where($where)->field('id,name')->select();
+            return Tools::buildArrFromObj($res);
+        }
+        return false;
+    }
+
+    /**
+     * 获取用户全路径
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 用户id
+     * @author zhongjiaqi 5.15
+     */
+    public function getFullpath($id, &$newarrays = []) {
+        if ($id) {
+            $superid = $this->where('id', $id)->value('superid');
+            if ($superid != 0) {
+                $newarrays[] = $superid;
+                $this->getFullpath($superid, $newarrays);
+            }
+        }
+        krsort($newarrays);
+        return $newarrays;
+    }
+
+    /**
+     * 检测是否用户是否满足添加或修改需求（相同名字数字化处理）
+     * @return 数据集
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $name 姓名
+     * @param $mobile 联系电话
+     * @param $num 工号
+     * @param $id 用户id(编辑的时候要除去自己再对比)
+     * @author zhongjiaqi 5.21
+     */
+    public function checkSameuser($name, $mobile, $num, $id = '') {
+        if (!empty($id)) {
+            $where ['id'] = array('neq', $id);
+        }
+        $where['is_deleted'] = 0;
+        $where['status'] = 1;
+        if ($num) {
+            $where['num'] = $num;
+            if ($this->where($where)->count() > 0) {
+                return $code = ['code' => 1, 'msg' => '存在相同工号的用户，请确认后重试！'];
+            }
+        }
+        if ($mobile) {
+            $where['mobile'] = $mobile;
+            if ($this->where($where)->count() > 0) {
+                return $code = ['code' => 1, 'msg' => '存在相同手机号的用户，请确认后重试！'];
+            }
+        }
+        if ($name) {
+            $where['name'] = $name;
+            if ($this->where($where)->count() > 0) {
+                $admin = $this->where($where)->order('id DESC')->field('name')->find();
+                $number = (int) preg_replace('/\D/s', '', $admin['name']) + 1;
+                empty($number) && $number = 1;
+                preg_match_all('/[\x{4e00}-\x{9fff}]+/u', $admin['name'], $matches); //匹配提取字符汉子
+                $str = join('', $matches[0]);  //获取到汉子
+                $name = $str . $number;
+                return $code = ['code' => 0, 'name' => $name];
+            }
+        }
+    }
+
+    /**
+     * 获取部门下的所有理财经理
+     */
+    public static function getDeptManager($condition, $field, $deptId) {
+        $reg1 = '^53(,|$)|,53($|,)'; //53代表理财经理
+        $condition['a.status'] = 1;
+        $condition['a.is_deleted'] = 0;
+        $condition['deptpath'] = ['like', '%[' . $deptId . ']%'];
+        return self::alias('a')
+                        ->field($field)
+                        ->join('system_auth_group_access b', 'a.id=b.uid', 'left')
+                        ->where($condition)
+                        ->where('b.groupid regexp \'' . $reg1 . '\' and b.system_id=2')
+                        ->select();
+    }
+
+}

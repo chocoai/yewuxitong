@@ -1,0 +1,35 @@
+<?php
+/*客户信息接口控制器*/
+namespace app\admin\controller;
+
+use app\model\CustomerInfo as Customer;
+use app\util\ReturnCode;
+
+
+class CustomerInfo extends Base
+{
+
+    /**
+     * 添加客户-----待数据表更新开发
+     */
+    public function addCustomer()
+    {
+        $type = $this->request->post('type');
+        $name = $this->request->post('name');
+        $phone = $this->request->post('phone');
+        $certType = $this->request->post('certType');
+        $certCode = $this->request->post('certCode');
+        $customer = new Customer;
+        if($customer::getCount($data) > 0)
+            return $this->buildFailed(ReturnCode::DATA_EXISTS, '系统已存在客户!');
+        $data['floor_id'] = $floor_id;
+        $data['building_id'] = $building_id;
+        $data['id'] = 'H' . $this->_building_id();
+        $data['create_time'] = time();
+        if($customer->add($data) >0)
+            return $this->buildSuccess();
+
+        return $this->buildFailed(ReturnCode::ADD_FAILED,'客户添加失败');
+    }
+
+}

@@ -1,0 +1,363 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/8/3
+ * Time: 9:47
+ */
+/* 银行账户管理 */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\BankAccount;
+use app\model\BankCard;
+
+class AccountManagement extends Base {
+    /**
+     * @api {post} admin/AccountManagement/bankAccountList 银行账户列表[admin/AccountManagement/bankAccountList]
+     * @apiVersion 1.0.0
+     * @apiName bankAccountList
+     * @apiGroup AccountManagement
+     * @apiSampleRequest admin/AccountManagement/bankAccountList
+     *
+     *
+     * @apiParam {int} account_type    账户类型 1公司账户 2个人账户
+     * @apiParam {string} bank    开户银行  中国银行 中国建设银行
+     * @apiParam {int}  account_use  账号用途 1收费 2出账 3过账 4赎楼 5保证金 6其它
+     * @apiParam {int}  status   账号状态（-1删除 1正常 2停用 3已销户 4已退回）
+     * @apiParam {int} search_text    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *
+     * "data": {
+            "total": 2,
+            "per_page": 10,
+            "current_page": 1,
+            "last_page": 1,
+            "data": [
+                {
+                "bank_card": "6218002532145268",    银行卡号
+                "bank_account": "武汉汇金",         银行户名
+                "account_type": 1,                  账户类型 1公司账户 2个人账户
+                "bank": "中国建设银行",             开户银行
+                "open_city": "深圳",                所属城市
+                "status": 1,                       账号状态 -1删除 1正常 2停用 3已销户 4已退回
+                "account_manager": "刘传英",       账号负责人
+                "update_time": "1974-11-28 17:55:46"    更新时间
+                },
+                {
+                "bank_card": "6217002870005119528",
+                "bank_account": "中诚致信",
+                "account_type": 1,
+                "bank": "中国银行",
+                "open_city": "1",
+                "status": 1,
+                "account_manager": "test",
+                "update_time": "1974-10-23 09:24:12"
+                }
+            ]
+        }
+     */
+
+    public function bankAccountList(){
+        $account_type = $this->request->post('account_type','','int');
+        $bank = $this->request->post('bank','','trim');
+        $account_use = $this->request->post('account_use','','int');
+        $status = $this->request->post('status','','int');
+        $searchText = $this->request->post('search_text','','trim');
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+
+        $map = [];
+        $account_type && $map['account_type'] = $account_type;
+        $bank && $map['bank'] = $bank;
+        $account_use && $map['account_use'] = ['like', "%{$account_use}%"];
+        $status && $map['status'] = $status;
+        $searchText && $map['bank_account|bank_card']=['like', "%{$searchText}%"];
+        $map['status'] = ['<>','-1'];
+        $map['delete_time'] = null;
+        $field = 'bank_card,bank_account,account_type,bank,open_city,status,account_manager,update_time';
+        try{
+            return $this->buildSuccess(BankAccount::bankAccountList($map,$field,$page,$pageSize));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!'.$e->getMessage());
+        }
+    }
+
+
+    /**
+     * @api {post} admin/AccountManagement/addAccount 添加银行账户[admin/AccountManagement/addAccount]
+     * @apiVersion 1.0.0
+     * @apiName addAccount
+     * @apiGroup AccountManagement
+     * @apiSampleRequest admin/AccountManagement/addAccount
+     *
+     * @apiParam {int}  account_type   账户类型 1公司账户 2个人账户
+     * @apiParam {string}  bank_account   银行户名
+     * @apiParam {int}  bank_card   银行卡号
+     * @apiParam {int}   open_city  开户城市(传名称,比如 深圳)
+     * @apiParam {string}  bank   开户银行
+     * @apiParam {string}  bank_branch   开户支行
+     * @apiParam {int}  status  账号状态  -1删除 1正常 2停用 3已销户 4已退回
+     * @apiParam {string}  account_manager   账号负责人
+     * @apiParam {int}  account_manager_uid   账号负责人id
+     * @apiParam {int}  account_nature   账号性质(账户类型为公司需传此参数)  1基本账户 2一般账户 3临时账户 4专用庄户
+     * @apiParam {string}  key_transactor   经办key管理员(账户类型为公司需传此参数)
+     * @apiParam {int}  key_transactor_uid  经办key管理员id(账户类型为公司需传此参数)
+     * @apiParam {string}  key_reviewer   复核key管理员(账户类型为公司需传此参数)
+     * @apiParam {int}  key_reviewer_uid  复核key管理员id(账户类型为公司需传此参数)
+     * @apiParam {string}  account_possess   所属员工(账户类型为个人需传此参数)
+     * @apiParam {int}  account_possess_uid  所属员工ID(账户类型为个人需传此参数)
+     * @apiParam {int}  account_way  对账方式 1网上对账 2邮寄对账 3其他方式
+     * @apiParam {int}  is_review  是否需要复核 0 否 1 是
+     * @apiParam {int}  account_cycle  对账周期   1 每月 2 每季度
+     * @apiParam {int}  account_time  对账时间    1 次日 2 月初
+     * @apiParam {float}  single_limit_public  单笔限额 对公
+     * @apiParam {float}  single_limit_private  单笔限额 对私
+     * @apiParam {float}  day_limit_public  单日限额 对公
+     * @apiParam {float}  day_limit_private  单日限额 对私
+     * @apiParam {string}  customer_manager  客户经理姓名
+     * @apiParam {int}  customer_manager_mobile  客户经理联系电话
+     * @apiParam {string}  bank_branch_address  支行地址
+     * @apiParam {string}  account_use  账号用途(传对应用途的code组成的字符串，比如 2,3,4) 1收费 2出账 3过账 4赎楼 5保证金 6其它
+     * @apiParam {string}  card_front  卡号照片正面地址
+     * @apiParam {string}  card_back  卡号照片反面地址
+     * @apiParam {string}  remark  备注说明
+     */
+
+    public function addAccount(){
+        //$accountInfo = $this->request->Post('', null, 'trim');
+        $accountInfo = input('', null, 'trim');
+        unset($accountInfo['/admin/AccountManagement/addAccount']);
+        if($accountInfo['account_type'] == 2 && (empty($accountInfo['account_possess']) || empty($accountInfo['account_possess_uid']))) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '所属员工不能为空');
+        //验证器验证参数
+        $valiDate = validate('ValidAccount');
+        if(!$valiDate->check($accountInfo)){
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+        }
+        try{
+            $accountInfo['create_uid'] = $this->userInfo['id'];
+            $accountInfo['create_time'] = time();
+            $accountInfo['update_time'] = time();
+            if(BankAccount::create($accountInfo)){
+                return $this->buildSuccess('银行账号添加成功');
+            }
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '银行账户添加失败'.$e->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/AccountManagement/editAccount 编辑银行账户[admin/AccountManagement/editAccount]
+     * @apiVersion 1.0.0
+     * @apiName editAccount
+     * @apiGroup AccountManagement
+     * @apiSampleRequest admin/AccountManagement/editAccount
+     *
+     * @apiParam {int}  id   银行账户id
+     * @apiParam {int}  account_type   账户类型 1公司账户 2个人账户
+     * @apiParam {string}  bank_account   银行户名
+     * @apiParam {int}  bank_card   银行卡号
+     * @apiParam {int}   open_city  开户城市(传名称,比如 深圳)
+     * @apiParam {string}  bank   开户银行
+     * @apiParam {string}  bank_branch   开户支行
+     * @apiParam {int}  status  账号状态  -1删除 1正常 2停用 3已销户 4已退回
+     * @apiParam {string}  account_manager   账号负责人
+     * @apiParam {int}  account_manager_uid   账号负责人id
+     * @apiParam {int}  account_nature   账号性质(账户类型为公司需传此参数)  1基本账户 2一般账户 3临时账户 4专用庄户
+     * @apiParam {string}  key_transactor   经办key管理员(账户类型为公司需传此参数)
+     * @apiParam {int}  key_transactor_uid  经办key管理员id(账户类型为公司需传此参数)
+     * @apiParam {string}  key_reviewer   复核key管理员(账户类型为公司需传此参数)
+     * @apiParam {int}  key_reviewer_uid  复核key管理员id(账户类型为公司需传此参数)
+     * @apiParam {string}  account_possess   所属员工(账户类型为个人需传此参数)
+     * @apiParam {int}  account_possess_uid  所属员工ID(账户类型为个人需传此参数)
+     * @apiParam {int}  account_way  对账方式 1网上对账 2邮寄对账 3其他方式
+     * @apiParam {int}  is_review  是否需要复核 0 否 1 是
+     * @apiParam {int}  account_cycle  对账周期   1 每月 2 每季度
+     * @apiParam {int}  account_time  对账时间    1 次日 2 月初
+     * @apiParam {float}  single_limit_public  单笔限额 对公
+     * @apiParam {float}  single_limit_private  单笔限额 对私
+     * @apiParam {float}  day_limit_public  单日限额 对公
+     * @apiParam {float}  day_limit_private  单日限额 对私
+     * @apiParam {string}  customer_manager  客户经理姓名
+     * @apiParam {int}  customer_manager_mobile  客户经理联系电话
+     * @apiParam {string}  bank_branch_address  支行地址
+     * @apiParam {string}  account_use  账号用途(传选择对应用途的code组成的字符串，比如 2,3,4) 1收费 2出账 3过账 4赎楼 5保证金 6其它
+     * @apiParam {string}  card_front  卡号照片正面地址
+     * @apiParam {string}  card_back  卡号照片反面地址
+     * @apiParam {string}  remark  备注说明
+     */
+
+    public function editAccount(){
+        //$accountInfo = $this->request->Post('', null, 'trim');
+        $accountInfo = input('', null, 'trim');
+        $id = $accountInfo['id'];
+        unset($accountInfo['/admin/AccountManagement/editAccount']);
+        if(empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '银行账户id不能为空');
+        if($accountInfo['account_type'] == 2 && (empty($accountInfo['account_possess']) || empty($accountInfo['account_possess_uid']))) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '所属员工不能为空');
+        //验证器验证参数
+        $valiDate = validate('ValidAccount');
+        if(!$valiDate->check($accountInfo)){
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+        }
+
+        try{
+            if($accountInfo['account_type'] == 1){
+                $accountInfo['account_possess'] = '';
+                $accountInfo['account_possess_uid'] = '';
+            }else{
+                $accountInfo['account_nature'] = '';
+                $accountInfo['key_transactor'] = '';
+                $accountInfo['key_transactor_uid'] = '';
+                $accountInfo['key_reviewer'] = '';
+                $accountInfo['key_reviewer_uid'] = '';
+            }
+
+            $accountInfo['update_time'] = time();
+            $bankAccount = new BankAccount();
+            if($bankAccount->save($accountInfo,['id' => $id])){
+                return $this->buildSuccess('银行账号更新成功');
+            }
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '银行账户更新失败'.$e->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/AccountManagement/getOneAccount 查询出单个银行账户信息[admin/AccountManagement/getOneAccount]
+     * @apiVersion 1.0.0
+     * @apiName getOneAccount
+     * @apiGroup AccountManagement
+     * @apiSampleRequest admin/AccountManagement/getOneAccount
+     *
+     * @apiParam {int}  id   银行账户id
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *
+     * "data": {
+            "id": 1,                                 银行账户id
+            "account_type": 1,                       账户类型 1公司账户 2个人账户
+            "bank_account": "中诚致信",              银行户名
+            "bank_card": "6217002870005119528",      银行卡号
+            "open_city": "1",                        开户城市
+            "bank": "中国银行",                      开户银行
+            "bank_branch": "中国银行-车公庙支行",    开户支行
+            "account_manager": "test",              账号负责人
+            "account_manager_uid": 1,
+            "account_possess": null,                所属员工
+            "account_possess_uid": null,
+            "account_nature": 1,                  账号性质  1基本账户 2一般账户 3临时账户 4专用庄户
+            "key_transactor": "test",             经办key管理员
+            "key_transactor_uid": 1,
+            "key_reviewer": "test",              复核key管理员
+            "key_reviewer_uid": 1,
+            "account_way": 1,                    对账方式 1网上对账 2邮寄对账 3其他方式
+            "is_review": 1,                      是否需要复核 0 否 1 是
+            "account_cycle": "1",                对账周期   1 每月 2 每季度
+            "account_time": "1",                 对账时间    1 次日 2 月初
+            "single_limit_public": "15289.00",    单笔限额 对公
+            "single_limit_private": "15465.00",   单笔限额 对私
+            "day_limit_public": "54165.00",       单日限额 对公
+            "day_limit_private": "1465.00",        单日限额 对私
+            "customer_manager": "李玉刚",          客户经理姓名
+            "customer_manager_mobile": "15172341845",    客户经理联系电话
+            "bank_branch_address": "福田区车公庙",        支行地址
+            "account_use": "1,2,3",                      账号用途 1收费 2出账 3过账 4赎楼 5保证金 6其它
+            "card_front": "www.img.com/image.png",       卡号照片正面地址
+            "card_back": "www.img.com/image.png",        卡号照片反面地址
+            "remark": "测试数据测试数据",                 备注说明
+            "sort": null,
+            "status": 1,                             账号状态  -1删除 1正常 2停用 3已销户 4已退回
+            "create_uid": 1,
+            "create_time": "1974-10-23 09:24:12",
+            "update_time": "1974-10-23 09:24:12",
+            "delete_time": null
+         }
+     */
+
+    public function getOneAccount(){
+        //$accountInfo = $this->request->Post('', null, 'trim');
+        $id = input('id', null, 'int');
+        if(empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '银行账户id不能为空');
+
+        try{
+            return $this->buildSuccess(BankAccount::get($id));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '银行账户更新失败'.$e->getMessage());
+        }
+    }
+
+
+    /**
+     * @api {post} admin/AccountManagement/accountSettingList 账号设置列表[admin/AccountManagement/accountSettingList]
+     * @apiVersion 1.0.0
+     * @apiName accountSettingList
+     * @apiGroup AccountManagement
+     * @apiSampleRequest admin/AccountManagement/accountSettingList
+     *
+     *
+     * @apiParam {int} type    1银行放款入账 2赎楼员账户 3渠道放款入账 4额度类出账 5现金类出账
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *
+        "data": [
+            {
+            "bank_card": "6218002532145268",    银行卡号
+            "bank_account": "武汉汇金",         银行户名
+            "account_type": 1,                  账户类型 1公司账户 2个人账户
+            "bank": "中国建设银行",             开户银行
+            "open_city": "1",
+            "status": 1,                       账号状态 -1删除 1正常 2停用 3已销户 4已退回
+            "account_manager": "刘传英",       账号负责人
+            "update_time": "1974-11-28 17:55:46"    更新时间
+            "open_city_str": "深圳"                 所属城市
+            },
+            {
+            "bank_card": "6217002870005119528",
+            "bank_account": "中诚致信",
+            "account_type": 1,
+            "bank": "中国银行",
+            "open_city": "1",
+            "status": 1,
+            "account_manager": "test",
+            "update_time": "1974-10-23 09:24:12"
+            }
+        ]
+     */
+
+    public function accountSettingList(){
+        $type = $this->request->post('type','','int');
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+
+        $map = [];
+        $type && $map['type'] = $type;
+        $map['bc.status'] = ['<>','-1'];
+        $map['bc.delete_time'] = null;
+        $field = 'bc.id,bc.name,bc.bank_card,bc.bank_account,ba.account_type,bc.bank,ba.open_city,bc.status,account_manager,update_time';
+        try{
+            return $this->buildSuccess(BankCard::accountSettingList($map,$field,$page,$pageSize));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+}

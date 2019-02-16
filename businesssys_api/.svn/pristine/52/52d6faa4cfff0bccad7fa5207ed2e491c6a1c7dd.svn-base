@@ -1,0 +1,166 @@
+<?php
+
+//财务回款相关组件类
+
+namespace app\util;
+
+use think\Db;
+use app\model\Dictionary;
+use app\model\Order;
+use app\model\OrderRansomReturn;
+use app\model\Attachment;
+use app\model\OrderGuaranteeBank;
+
+class FinancialBack {
+
+    /**
+     * 订单信息 
+     * @param string $order_sn 订单号
+     */
+    public static function orderBaseinfo($order_sn) {
+        $where = ['order_sn' => $order_sn];
+        $orderinfo = Db::name('order')->where($where)->field('type,return_money_status')->find();
+        if ($orderinfo['type'] == 'JYXJ' || $orderinfo['type'] == 'TMXJ' || $orderinfo['type'] == 'GMDZ' || $orderinfo['type'] == 'SQDZ' || $orderinfo['type'] == 'PDXJ' || $orderinfo['type'] == 'DQJK') {
+            $info['estate_name'] = Db::name('estate')->where(['order_sn' => $order_sn, 'estate_usage' => 'DB', 'status' => 1])->column('estate_name'); //房产名称
+            $info['estate_owner'] = implode('、', Db::name('customer')->where(['order_sn' => $order_sn, 'is_seller' => 2, 'status' => 1])->column('cname')); //业主姓名
+            $info['type_text'] = (new Order())->getType($orderinfo['type']); //订单类型
+            $info['type'] = $orderinfo['type']; //订单类型
+            $info['finance_sn'] = Db::name('order')->where($where)->value('finance_sn'); //财务序号
+            $info['return_money_status'] = $orderinfo['return_money_status']; //出账状态
+            $info['return_money_status_text'] = self::GetorderbackStatus($orderinfo['return_money_status']); //出账状态
+            $info['order_sn'] = $order_sn; //订单编号
+            $moneyinfo = Db::name('order_guarantee')->where($where)->field('notarization,return_money_mode,return_money_amount,loan_money,money,ac_self_financing,ac_short_loan_interest,ac_default_interest,com_loan_money')->find();
+            $info['money'] = $moneyinfo['money']; //担保金额
+            $info['default_interest'] = $moneyinfo['ac_default_interest']; //罚息
+            $info['self_financing'] = $moneyinfo['ac_self_financing']; //自筹金额
+            $info['channel_money'] = $moneyinfo['loan_money']; //渠道放款
+            $info['company_money'] = $moneyinfo['com_loan_money']; //公司放款
+            $info['can_money'] = $info['channel_money'] + $info['self_financing'] + $info['company_money'] + $info['default_interest']; //可出账金额
+            $whereone['account_status'] = ['neq', 4];
+            $whereone['order_sn'] = $order_sn;
+            $info['out_money'] = Db::name('order_ransom_out')->where($whereone)->sum('money'); //已出账金额
+            $info['use_money'] = $info['can_money'] - $info['out_money']; //可用余额
+            $info['notarization'] = $moneyinfo['notarization']; //公证日期
+            $info['return_money_amount'] = $moneyinfo['return_money_amount']; //转回金额
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_REPAY_METHOD'));
+            $info['return_money_mode'] = $newStageArr[$moneyinfo['return_money_mode']] ? $newStageArr[$moneyinfo['return_money_mode']] : ''; //转回方式
+            return $info;
+        }
+        return false;
+    }
+
+    public static function GetorderbackStatus($param) {
+        $arrayList = ['1' => '回款待完成', '2' => '回款完成待复核', '3' => '回款完成待核算', '4' => '回款已完成'];
+        return $arrayList[$param];
+    }
+
+    /**
+     * 回款账户信息 
+     * @param string $order_sn 订单号
+     */
+    public static function orderBackcardinfo($order_sn) {
+        $where = ['x.order_sn' => $order_sn, 't.type' => 4];
+        $bankinfos = Db::name('order_guarantee_bank')->alias('x')
+                ->join('__ORDER_GUARANTEE_BANK_TYPE__ t', 't.order_guarantee_bank_id=x.id', 'left')
+                ->where($where)
+                ->field('x.id,x.bankaccount,x.accounttype,x.bankcard,x.openbank,x.verify_card_status')
+                ->select();
+        if (!empty($bankinfos)) {
+            $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('REPAYMENT_ACCOUNT_TYPE'));
+            foreach ($bankinfos as &$value) {
+                $bankuse = Db::name('order_guarantee_bank_type')->where(['order_guarantee_bank_id' => $value['id'], 'status' => 1])->column('type');
+                $bankuse_info = [];
+                foreach ($bankuse as $k => $v) {
+                    $bankuse_info[] = $newStageArr[$v];
+                }
+                $value['type_text'] = implode('、', $bankuse_info); //银行卡用途
+                $value['verify_card_status'] = isset($value['verify_card_status']) ? (new \app\model\OrderGuaranteeBank())->getAccountstatus($value['verify_card_status']) : ''; //核卡状态
+                $value['accounttype'] = Db::name('dictionary')->where(['type' => 'JYDB_ACCOUNT_TYPE', 'code' => $value['accounttype']])->value('valname'); //账户类型
+            }
+        }
+        return $bankinfos;
+    }
+
+    /**
+     * 出账回款信息 
+     * @param string $order_sn 订单号
+     */
+    public static function outBackinfo($order_sn) {
+        $where = ['order_sn' => $order_sn, 'status' => 1];
+        $moneyinfo = Db::name('order_guarantee')->where($where)->field('out_account_cus_total,out_account_com_total')->find();
+        $outacount_time = Db::name('order_ransom_out')->where(['order_sn' => $order_sn, 'account_status' => ['in', '2,3,5']])->order('outok_time', 'desc')->limit(1)->value('outok_time');
+        $advanceday = Db::name('order_advance_money')->where($where)->min('advance_day'); //大于1说明有多个垫资天数  取垫资天数少的
+        if (empty($advanceday) || empty($moneyinfo)) {
+            return false;
+        }
+        $data['sq_money'] = DB::name('order_other')->where(['order_sn' => $order_sn, 'process_type' => 'SQ_TRANSFER', 'stage' => 308, 'status' => 1])->sum('money'); ///首期款出账
+        $data['out_account_total'] = Db::name('order_ransom_out')->where(['order_sn' => $order_sn, 'account_status' => ['in', '2,3,5']])->sum('money'); //应收出账总额  财务已出账总金额
+        $data['out_account_total'] = $data['out_account_total'] + $data['sq_money'];
+        $data['account_com_total'] = Db::name('order_ransom_out')->where(['order_sn' => $order_sn, 'account_status' => ['in', '2,3,5']])->sum('out_account_com'); //公司实际垫资总额 
+        $data['account_com_total'] = $data['account_com_total'] + $data['sq_money'];
+        $data['account_cus_total'] = Db::name('order_ransom_out')->where(['order_sn' => $order_sn, 'account_status' => ['in', '2,3,5']])->sum('out_account_cus'); //业主实际垫资总额
+        $data['out_time'] = !empty($outacount_time) ? date('Y-m-d', $outacount_time) : '暂无数据';
+        $exwhere = ['process_type' => 'EXHIBITION', 'stage' => 308, 'status' => 1, 'order_sn' => $order_sn];
+        $end_id = Db::name('order_other')->where($exwhere)->column('id');
+        if (!empty($end_id)) {//如果不为空 展期合同生效
+            foreach ($end_id as $value) {
+                $datas[] = Db::name('order_other_exhibition')->where('order_other_id', $value)->value('exhibition_endtime');
+            }
+            $data['expectday'] = max($datas);
+        } else {
+            $advanceday = $advanceday - 1; //算头算尾
+            $day_str = "+" . $advanceday . " day";
+            $data['expectday'] = !empty($outacount_time) ? date('Y-m-d', strtotime($day_str, $outacount_time)) : '暂无数据';
+        }
+        $data['readyin_money'] = Db::name('order_ransom_return')->where(['return_money_into_status' => ['in', '2,3'], 'order_sn' => $order_sn, 'status' => 1])->sum('money');
+        $data['unreadyin_money'] = $data['account_com_total'] - $data['readyin_money'];
+        $data['return_time'] = Db::name('order_ransom_return')->where(['return_money_into_status' => ['in', '2,3'], 'order_sn' => $order_sn, 'status' => 1])->order('return_time', 'desc')->value('return_time');
+        $data['ac_return_time'] = Db::name('order_ransom_return')->where(['return_money_into_status' => ['in', '2,3'], 'order_sn' => $order_sn, 'status' => 1])->order('ac_return_time', 'desc')->value('ac_return_time');
+        return $data;
+    }
+
+    /**
+     * 费用信息 
+     * @param string $order_sn 订单号
+     */
+    public static function getfee($order_sn) {
+        $where = ['order_sn' => $order_sn];
+        $moneyinfo = Db::name('order_guarantee')->where($where)->field('ac_guarantee_fee,ac_exhibition_fee,info_fee,ac_overdue_money,ac_transfer_fee,ac_other_money,fee,ac_fee')->find();
+        $feewhere = array_merge($where, ['status' => 1, 'type' => 1]);
+        $overfeewhere = array_merge($where, ['status' => 1, 'type' => 3]);
+        $exfeewhere = array_merge($where, ['status' => 1, 'type' => 2]);
+        $data['gufee_total'] = Db::name('order_collect_fee')->where($feewhere)->sum('money'); //累计消耗总担保费
+        $data['exhibition_fee_total'] = Db::name('order_collect_fee')->where($exfeewhere)->sum('money'); //实际展期费
+        $data['on_gufee'] = $moneyinfo['ac_guarantee_fee']; //预收担保费 =实收担保费 + 信息费;
+        $data['ac_exhibition_fee'] = $moneyinfo['ac_exhibition_fee']; //已收展期费
+        $data['info_fee'] = $moneyinfo['info_fee']; //预收信息费
+        $data['ac_overdue_money'] = Db::name('order_collect_fee')->where($overfeewhere)->sum('money'); //实际逾期费
+        $data['ready_overdue_money'] = $moneyinfo['ac_overdue_money']; //已收逾期费
+        $data['ac_transfer_fee'] = $moneyinfo['ac_transfer_fee']; //过账手续费
+        $data['ac_other_money'] = $moneyinfo['ac_other_money']; //其余费用调整                   /////////////////////待定
+        $data['ac_fee'] = $moneyinfo['ac_fee']; //手续费
+        $data['totol_money'] = $data['gufee_total'] + $data['info_fee'] + $data['ac_overdue_money'] + $data['ac_transfer_fee'] + $data['ac_other_money'] + $data['ac_fee']; //应收总费用
+        $data['ready_money'] = $data['on_gufee'] + $data['ac_exhibition_fee'] + $data['ready_overdue_money'] + $data['ac_fee'] + $data['ac_transfer_fee']; //已收费用
+        $data['un_money'] = $data['totol_money'] - $data['ready_money']; //待收费用
+        return $data;
+    }
+
+    /**
+     * 出账入账流水 
+     * @param string $order_sn 订单号
+     */
+    public static function orderBackmoneyrecord($order_sn) {
+        $where = ['order_sn' => $order_sn];
+        $data = Db::name('order_ransom_return')->where($where)->field('id,order_sn,bank_name,money,return_time,ac_return_time,return_money_into_status,create_uid,remark')->select();
+        foreach ($data as &$value) {
+            $aids = Db::name('order_attachment')->where(['order_sn' => $value['order_sn'], 'type' => 2, 'status' => 1])->column('attachment_id');
+            foreach ($aids as $v) {
+                $value['attachment'][] = (new Attachment())->getUrl($v);
+            }
+            $value['return_money_into_status_text'] = (new OrderRansomReturn())->getReturnMoneyIntoStatus($value['return_money_into_status']);
+            $value['user_name'] = DB::name('system_user')->where('id', $value['create_uid'])->value('name');
+        }
+        return $data;
+    }
+
+}

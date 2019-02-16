@@ -1,0 +1,40 @@
+<?php
+/*客户信息接口控制器*/
+namespace app\admin\controller;
+
+use app\model\Customer;
+use app\util\ReturnCode;
+
+
+class CustomerInfo extends Base
+{
+
+    /**
+     * @author 林桂均
+     * 添加个人客户
+     */
+    public function addCustomer()
+    {
+        $data['ctype'] = $this->request->post('ctype');//个人/企业
+        $data['cname'] = $this->request->post('name','','trim');//客户姓名
+        $data['mobile'] = $this->request->post('mobile','','trim');//电话
+        $data['certtype'] = $this->request->post('certType',-1,'int');//证件类型
+        $data['certcode'] = $this->request->post('certCode','','trim');//证件号码
+        $data['is_seller'] = $this->request->post('isSeller');//买方/卖方
+        $data['is_comborrower'] = $this->request->post('isComborrower');//是否共同借款人
+        $certother = $this->request->post('certother','');   //其他证件
+        $certother != '' && $data['certother'] = $certother;
+        if($data['ctype'] !== '1' && $data['ctype'] !== '2') return $this->buildFailed(ReturnCode::PARAM_INVALID, '客户类型有误!');
+        if($data['is_comborrower'] !== '1' && $data['is_comborrower'] !== '2') return $this->buildFailed(ReturnCode::PARAM_INVALID, '是否共同借款人有误!');
+        if($data['certtype'] !== '1' && $data['certtype'] !== '2') return $this->buildFailed(ReturnCode::PARAM_INVALID, '证件类型有误!');
+        if(empty($data['cname']) || empty($data['mobile']) || empty($data['certcode']))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        $data['create_time'] = time();
+        $id = Customer::insertGetId($data);
+        if($id !== false)
+            return $this->buildSuccess(['customerId'=>$id]);
+
+        return $this->buildFailed(ReturnCode::ADD_FAILED,'客户添加失败');
+    }
+
+}

@@ -1,0 +1,51 @@
+<?php
+
+namespace app\workflow\model;
+
+//实例流程
+class WorkflowEntry extends Base
+{
+    protected $autoWriteTimestamp = true;
+
+    //模型关联
+    public function flow()
+    {
+        return $this->belongsTo("WorkflowFlow", "flow_id");
+    }
+
+    public function user()
+    {
+        return $this->belongsTo("SystemUser", "user_id");
+    }
+
+
+    public function procs()
+    {
+        return $this->hasMany("WorkflowProc", "entry_id");
+    }
+
+    public function process()
+    {
+        return $this->belongsTo("WorkflowProcess", "process_id");
+    }
+
+    public function parentEntry()
+    {
+        return $this->belongsTo('WorkflowEntry', 'pid');
+    }
+
+    public function children()
+    {
+        return $this->hasMany('WorkflowEntry', 'pid');
+    }
+
+    public function enterProcess()
+    {
+        return $this->belongsTo('WorkflowProcess', 'enter_process_id');
+    }
+
+    public function childProcess()
+    {
+        return $this->belongsTo('WorkflowProcess', 'child');
+    }
+}

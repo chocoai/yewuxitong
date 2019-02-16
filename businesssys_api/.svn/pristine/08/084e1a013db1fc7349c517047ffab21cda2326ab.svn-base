@@ -1,0 +1,320 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/25
+ * Time: 11:50
+ */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\Cheque;
+use app\model\SystemUser;
+use think\Db;
+
+class Check extends Base {
+        // @author 赵光帅
+        /**
+         * @api {post} admin/Check/showCheckList 支票列表[admin/Check/showCheckList]
+         * @apiVersion 1.0.0
+         * @apiName showCheckList
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/showCheckList
+         *
+         *
+         * @apiParam {int}  owner   支票所有人id
+         * @apiParam {int}  subor   1 含下属 0 不含下属
+         * @apiParam {int}  time_type   1入库时间 2领取时间 3使用时间
+         * @apiParam {int}  start_time   开始时间
+         * @apiParam {int}  end_time   结束时间
+         * @apiParam {int}  status   支票状态-1删除 1库存中 2领取待使用 3转让待确认 4使用待核销 5作废待核销 6使用已核销 7作废已核销
+         * @apiParam {string}  bankname  中国银行 中国农业银行 中国工商银行 中国建设银行
+         * @apiParam {string}  search_text   支票号 订单号
+         * @apiParam {int} page    页码
+         * @apiParam {int} limit    条数
+         *
+         * @apiSuccess {int} total    总条数
+         * @apiSuccess {int} per_page    每页显示的条数
+         * @apiSuccess {int} current_page    当前页
+         * @apiSuccess {int} last_page    总页数
+         * @apiSuccess {int} id    支票表主键id
+         * @apiSuccess {string} order_sn    业务单号
+         * @apiSuccess {string} create_time    入库时间
+         * @apiSuccess {string} cheque_num    支票号
+         * @apiSuccess {string} bankname    银行名称
+         * @apiSuccess {string} status    支票状态
+         * @apiSuccess {string} use_time    使用时间
+         * @apiSuccess {string} user    使用人
+         * @apiSuccess {string} owner    领取人
+         * @apiSuccess {string} owner_time    领取时间
+         *
+         */
+
+        public function showCheckList(){
+            $ownerId = input('owner');
+            //$suborXs = input('subor');
+            $timeType = input('time_type');
+            $startTime = input('start_time');
+            $endTime = input('end_time');
+            $staTus = input('status');
+            $bankName = input('bankname');
+            $searchText = input('search_text');
+            $page = input('page') ? input('page') : 1;
+            $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+
+            $map = [];
+            if(!empty($ownerId) && isset($ownerId)){
+                $map['owner|transferor'] = $ownerId;
+            }else{
+                $map['owner'] = $this->userInfo['id'];
+            }
+            if ($timeType == 1) {  //入库时间
+                if($startTime && $endTime){
+                    //$map['create_time'] = ['between'=>[$startTime,$endTime]];
+                    $map['create_time'] = array(array('egt', $startTime), array('elt', $endTime));
+                }elseif($startTime){
+                    $map['create_time'] = ['egt',$startTime];
+                }elseif($endTime){
+                    $map['create_time'] = ['elt',$endTime];
+                }
+            }elseif ($timeType == 2){ //领取时间
+                if($startTime && $endTime){
+                    //$map['receive_time'] = ['between'=>[$startTime,$endTime]];
+                    $map['receive_time'] = array(array('egt', $startTime), array('elt', $endTime));
+                }elseif($startTime){
+                    $map['receive_time'] = ['egt',$startTime];
+                }elseif($endTime){
+                    $map['receive_time'] = ['elt',$endTime];
+                }
+            }elseif ($timeType == 3){ //使用时间
+                if($startTime && $endTime){
+                    //$map['use_time'] = ['between'=>[$startTime,$endTime]];
+                    $map['use_time'] = array(array('egt', $startTime), array('elt', $endTime));
+                }elseif($startTime){
+                    $map['use_time'] = ['egt',$startTime];
+                }elseif($endTime){
+                    $map['use_time'] = ['elt',$endTime];
+                }
+            }
+            $staTus && $map['status'] = $staTus;
+            $bankName && $map['bankname'] = $bankName;
+            $searchText && $map['order_sn|cheque_num']=['like', "%{$searchText}%"];
+            try{
+                $resInfo = Cheque::checkList($map,$page,$pageSize);
+                return $this->buildSuccess($resInfo);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+            }
+
+        }
+
+        /**
+         * @api {post} admin/Check/showUser 人员模糊搜索[admin/Check/showUser]
+         * @apiVersion 1.0.0
+         * @apiName showUser
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/showUser
+         *
+         * @apiParam {int} people    0未选择 1领取人 2使用人
+         * @apiParam {string} search_text    人员名称
+         * @apiParam {int} page    页码
+         * @apiParam {int} limit    条数
+         *
+         * @apiSuccess {int} id    用户id
+         * @apiSuccess {string} name    用户名
+         * @apiSuccess {string} deptname    用户部门
+         */
+
+        public function showUser()
+        {
+            $peopleGroup = input('people');
+            $searchText = input('search_text');
+            $page = input('page') ? input('page') : 1;
+            $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+
+            try{
+                $resInfo = Cheque::showUserinfo($peopleGroup,$searchText,$page,$pageSize);
+                return $this->buildSuccess($resInfo);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+            }
+        }
+
+        /**
+         * @api {post} admin/Check/showCheckDetail 支票详情[admin/Check/showCheckDetail]
+         * @apiVersion 1.0.0
+         * @apiName showCheckDetail
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/showCheckDetail
+         *
+         * @apiParam {int} id    支票id
+         * @apiParam {int} show_type    点击编辑支票查询支票信息时传该参数，且值为1
+         *
+         * @apiSuccess {int} id    支票id
+         * @apiSuccess {string} cheque_num    支票号码
+         * @apiSuccess {string} bankname    银行名称
+         * @apiSuccess {string} status    支票状态
+         * @apiSuccess {int}   money  支票金额
+         * @apiSuccess {string} create_uid    入库人名
+         * @apiSuccess {string} create_time    入库时间
+         */
+
+        public function showCheckDetail()
+        {
+            $checkId = input('id');
+            $showTypt = input('show_type');
+            if(empty($checkId)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '支票id不能为空!');
+            try{
+                $resInfo = Cheque::getOne(['id' => $checkId],'id,cheque_num,bankname,status,money,create_uid,create_time,owner,order_sn,remark');
+                if($showTypt == 1){
+                    if($resInfo['status'] != '库存中'){
+                       return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '该支票所处的状态不能被编辑!');
+                    }
+                }
+                $resInfo['create_uid'] = Cheque::getUserName($resInfo['create_uid']);
+                $resInfo['owner'] = Cheque::getUserName($resInfo['owner']);
+                return $this->buildSuccess($resInfo);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+            }
+        }
+
+        /**
+         * @api {post} admin/Check/addCheckStorage 支票入库[admin/Check/addCheckStorage]
+         * @apiVersion 1.0.0
+         * @apiName addCheckStorage
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/addCheckStorage
+         *
+         * @apiParam {string}  starebanks 起始票号
+         * @apiParam {string}  endbanks 结束票号
+         * @apiParam {string}  bankname   银行名称 中国银行，农业银行，工商银行，建设银行
+         *
+         */
+
+        public function addCheckStorage()
+        {
+            $stareBanks = input('starebanks');
+            $endBanks = input('endbanks');
+            $bankName = input('bankname');
+            $valiDate = validate('BanksVerify');
+            $data=['starebanks'=>$stareBanks,'endbanks'=>$endBanks,'bankname'=>$bankName];
+            if($endBanks < $stareBanks) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '起始票号不能大于结束票号');
+            if(!$valiDate->check($data)){
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+            }
+            try{
+                // 启动事务
+                Db::startTrans();
+                for ($i = $stareBanks;$i <= $endBanks;$i++){
+                    //查询出该票号的支票是否已经存在
+                    $cheInfo = Cheque::getOne(['cheque_num' => $i],'id');
+                    if(!empty($cheInfo) && isset($cheInfo)){
+                        // 回滚事务
+                        Db::rollback();
+                        return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '该票号'.$i.'的支票已经存在');
+                    }else{
+                        $checkData['cheque_num'] = $i;
+                        $checkData['bankname'] = $bankName;
+                        $checkData['status'] = 1;
+                        //$checkData['create_uid'] = $this->userInfo['id'];
+                        $checkData['create_uid'] = 10000;
+                        $checkData['create_time'] = time();
+                        //添加支票
+                        $resInfo = Cheque::create($checkData);
+
+                        //添加操作日志
+                        $operateDet = '入库成功，入库人:'; //操作详情
+                        Cheque::addCheckLog($resInfo->id,$i,'入库',$operateDet);
+
+                    }
+                }
+                // 提交事务
+                Db::commit();
+                return $this->buildSuccess('添加成功');
+            }catch (\Exception $e){
+                // 回滚事务
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '添加失败!');
+            }
+        }
+
+        /**
+         * @api {post} admin/Check/verifyOperation 支票操作的验证[admin/Check/verifyOperation]
+         * @apiVersion 1.0.0
+         * @apiName verifyOperation
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/verifyOperation
+         *
+         * @apiParam {array} status_arr    支票的状态[1,2,3]
+         *
+         */
+
+        public function verifyOperation()
+        {
+            $statusArr = input('status_arr');
+            //$statusArr = [4,5,4,5,3];
+            if(empty($statusArr)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数不能为空!');
+            if(count($statusArr) == 1){ //选择一个肯定合法
+                return $this->buildSuccess('选择合法');
+            }else{
+                //对数组进行去重
+                $uniqueStatus = array_unique($statusArr);
+                if(count($uniqueStatus) == 1){
+                    return $this->buildSuccess('选择合法');
+                }else{
+                    foreach ($uniqueStatus as $k=>$v){
+                        if(!in_array($v,[4,5])){
+                            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '选择不合法,请重新选择!');
+                        }
+                    }
+                    return $this->buildSuccess('选择合法');
+                }
+            }
+        }
+
+        /**
+         * @api {post} admin/Check/modifyCheck 修改支票信息[admin/Check/modifyCheck]
+         * @apiVersion 1.0.0
+         * @apiName modifyCheck
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/modifyCheck
+         *
+         * @apiParam {int} id    支票id
+         * @apiParam {int} cheque_num    支票号码
+         * @apiParam {string} bankname    银行名称 中国银行，农业银行，工商银行，建设银行
+         * @apiParam {string} remark    备注说明
+         */
+
+        public function modifyCheck()
+        {
+            $checkId = input('id');
+            $chequeNum = input('cheque_num');
+            $bankName = input('bankname');
+            $reMark = input('remark');
+            $valiDate = validate('BanverVali');
+            $data=['id' => $checkId,'cheque_num'=>$chequeNum,'bankname'=>$bankName];
+            if(!$valiDate->check($data)){
+                return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+            }
+            //查询出该票号的支票是否已经存在
+            $map['cheque_num'] = $chequeNum;
+            $map['id'] = ['<>',$checkId];
+            //$cheInfo = Cheque::getOne($map,'id');
+            $cheInfo = Cheque::get($map);
+            var_dump($cheInfo);exit;
+            if(!empty($cheInfo) && isset($cheInfo)){
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '该票号的支票已经存在');
+            }
+
+
+
+
+        }
+
+
+
+
+
+
+}

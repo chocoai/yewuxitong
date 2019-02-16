@@ -1,0 +1,14 @@
+<?php
+
+namespace app\model;
+
+
+/**展期
+ * Class OrderOtherExhibition
+ * @package app\model
+ * @author: bordon
+ */
+class OrderOtherExhibition extends Base
+{
+
+}

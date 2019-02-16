@@ -1,0 +1,17 @@
+<?php
+
+
+/**
+ * 用户自定义验证文件需要继承此类
+ * Class Base
+ * @author: bordon
+ */
+class Base
+{
+    protected $workflow;
+
+    public function _construct($workflow)
+    {
+        $this->workflow = $workflow;
+    }
+}

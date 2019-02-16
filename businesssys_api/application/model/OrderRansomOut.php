@@ -1,0 +1,230 @@
+<?php
+
+/**
+ * 赎楼出账表
+ * Date: 2018/5/21
+ */
+
+namespace app\model;
+
+use think\Db;
+use app\model\OrderGuarantee;
+use app\model\OrderCostDetail;
+
+class OrderRansomOut extends Base {
+    /*     * 应收回款金额
+     * @param $order_sn 订单编号
+     * @return float|int
+     * @author: bordon
+     */
+
+    public static function getReturnMoneyAmount($order_sn) {
+        $return_money_amount = self::where(['order_sn' => $order_sn, 'account_status' => ['in', '2,3,5'], 'status' => 1])->sum('out_account_com');
+        $sq_money = DB::name('order_other')->where(['order_sn' => $order_sn, 'process_type' => 'SQ_TRANSFER', 'stage' => 308, 'status' => 1])->sum('money'); ///首期款出账
+        $return_money_amount = $return_money_amount + $sq_money;//待回款金额要加上首期款转出
+        return $return_money_amount ? $return_money_amount : 0;
+    }
+
+    /**
+     * 获取出账状态
+     * @return 出账状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status
+     * @author zhongjiaqi 5.18
+     */
+    public function getAccountstatus($status = '') {
+        $statusList = ['1' => '待财务出账', '2' => '待财务复核', '3' => '财务已出账', '4' => '出账已退回', '5' => '银行已扣款'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 获取账目
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status
+     * @author zhongjiaqi 5.22
+     */
+    public function getItem($status = '') {
+        $statusList = ['1' => '公积金贷款', '2' => '商业贷款', '3' => '装修贷/消费贷', '4' => '银行罚息'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 获取出账类型
+     * @return 出账类型
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status
+     * @author zhongjiaqi 7.17
+     */
+    public function getAccounttype($status = '') {
+        $statusList = ['1' => '卖方账户', '2' => '卖方共同借款人账户', '3' => '买方账户', '4' => '买方共同借款人账户', '5' => '其他账户', '6' => '公司个人账户', '7' => '第三方账户', '8' => '公司账户', '9' => '跟单员账户'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 判断是否可以点击完成赎楼（有未出账流水并且出账没有被退回不能点击完成赎楼）
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 派单id
+     * @author zhongjiaqi 5.29
+     */
+    public function checkiscomplete($id) {
+        $flag = true;
+        $stage = $this->where('ransom_dispatch_id', $id)->field('cut_status,account_status')->select();
+        foreach ($stage as $value) {
+            if ($value['cut_status'] == 0 && $value['account_status'] != 4) {
+                $flag = false;
+                break;
+            }
+        }
+        return $flag;
+    }
+
+    /**
+     * 判断是否此订单是否可以退回或改派(只有没有出账记录或有出账记录但是全部被退回才可以点击退回或改派)
+     * @return 赎楼类型
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id  派单表ID
+     * @author zhongjiaqi 8.16
+     */
+    public function checkIsbackOrchange($id) {
+        $flag = true;
+        if ($id) {
+            $stage = $this->where(['ransom_dispatch_id' => $id])->field('account_status')->select();
+            if (count($stage) > 0) {
+                foreach ($stage as $value) {
+                    if ($value['account_status'] != 4) {
+                        $flag = false;
+                        break;
+                    }
+                }
+            } else {
+                $flag = true;
+            }
+        }
+        return $flag;
+    }
+
+    /**
+     * 获取当前订单的所有金额
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单order_sn
+     * @author zhongjiaqi 8.22
+     */
+    public function getOrdermoney($order_sn) {
+        $where = ['order_sn' => $order_sn];
+        $moneyinfo = Db::name('order_guarantee')->where($where)->field('loan_money,money,ac_self_financing,ac_short_loan_interest,ac_default_interest,com_loan_money')->find();
+        $order_type = Db::name('order')->where($where)->value('type');
+        $info['money'] = $moneyinfo['money']; //担保金额
+        $info['default_interest'] = $moneyinfo['ac_default_interest']; //罚息
+        $info['self_financing'] = $moneyinfo['ac_self_financing']; //自筹金额
+        if ($order_type == 'JYXJ' || $order_type == 'TMXJ' || $order_type == 'GMDZ' || $order_type == 'SQDZ' || $order_type == 'PDXJ' || $order_type == 'DQJK') {
+            $info['channel_money'] = $moneyinfo['loan_money']; //渠道放款
+            $info['company_money'] = $moneyinfo['com_loan_money']; //公司放款
+            $info['can_money'] = $info['channel_money'] + $info['self_financing'] + $info['company_money'] + $info['default_interest']; //可出账金额
+        } elseif ($order_type == 'JYDB') {
+            $info['loan_money'] = $moneyinfo['loan_money']; //银行放款
+            $info['short_loan_interest'] = $moneyinfo['ac_short_loan_interest']; //短贷利息
+            $info['can_money'] = $info['loan_money'] + $info['self_financing'] + $info['short_loan_interest'] + $info['default_interest']; //可出账金额
+        }
+        $whereone['account_status'] = ['neq', 4];
+        $whereone['order_sn'] = $order_sn;
+        $info['out_money'] = Db::name('order_ransom_out')->where($whereone)->sum('money'); //已出账金额
+        $info['use_money'] = $info['can_money'] - $info['out_money']; //可用余额
+        return $info;
+    }
+
+    /**
+     * 申请出账区分是公司金额还是业主金额
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单号
+     * @param $money 出账金额
+     * @author zhongjiaqi 8.22
+     */
+    public function distinctMoney($order_sn, $id, $money) {
+        $where = ['order_sn' => $order_sn];
+        $moneyinfo = Db::name('order_guarantee')->where($where)->field('id,loan_money,ac_self_financing,ac_default_interest,com_loan_money,out_account_com_total,out_account_cus_total')->find();
+        if (!empty($moneyinfo)) {
+            $order_info = Db::name('order')->where($where)->field('type,finance_sn')->find();
+            if ($order_info['type'] == 'JYXJ' || $order_info['type'] == 'TMXJ' || $order_info['type'] == 'GMDZ' || $order_info['type'] == 'SQDZ' || $order_info['type'] == 'PDXJ' || $order_info['type'] == 'DQJK') {
+                $companyMoney = $moneyinfo['loan_money'] + $moneyinfo['com_loan_money']; //公司放款和渠道放款之和就是公司金额
+//                $customerMoney = $moneyinfo['ac_self_financing'] + $moneyinfo['ac_default_interest']; //自筹和罚息之和就是业主金额
+                $out_account_com_total = $moneyinfo['out_account_com_total'] + $money; //当前累计公司金额 = 出账前累计金额 + 当前出账金额
+                if ($out_account_com_total <= $companyMoney) {
+                    $adddata['out_account_com'] = $money;
+                    $adddata['out_account_cus'] = 0.00;
+                    $updatedata['out_account_com_total'] = $out_account_com_total;
+                    $updatedata['out_account_cus_total'] = $moneyinfo['out_account_cus_total'];
+                } else {
+                    $lastMoney = $out_account_com_total - $companyMoney; //当公司金额已经满了的时候  剩下的出账金额算在业主金额里面 
+                    $adddata['out_account_com'] = $money - $lastMoney; //申请出账金额减去差值  就是这次补满公司金额的值 也就是本次出账 公司金额的值
+                    $adddata['out_account_cus'] = $lastMoney;
+                    $updatedata['out_account_com_total'] = $companyMoney;
+                    $updatedata['out_account_cus_total'] = $moneyinfo['out_account_cus_total'] + $lastMoney;
+                }
+                //获取出账项目
+                $data = $this->where('id', $id)->field('item')->find();
+                if ($order_info['type'] == 'SQDZ' || $order_info['type'] == 'PDXJ' || $order_info['type'] == 'DQJK') {
+                    $item_array = ['SQDZ' => '首期款垫资', 'PDXJ' => '凭抵押回执', 'DQJK' => '短期借款'];
+                    $item = $item_array[$order_info['type']];
+                } else {
+                    $item = $this->getItem($data['item']);
+                }
+                $return_money_already = Db::name('order_ransom_return')->where(['return_money_into_status' => ['in', '2,3'], 'order_sn' => $order_sn, 'status' => 1])->sum('money'); //累计回款总额
+                $return_money_wait = $updatedata['out_account_com_total'] - $return_money_already; //待回款金额
+                if ($this->save($adddata, ['id' => $id]) && DB::name('order_guarantee')->where('id', $moneyinfo['id'])->update($updatedata) > 0) {
+                    $ordercostModel = new OrderCostDetail();
+                    if (!$ordercostModel->AddcostRecord($order_info['finance_sn'], $order_sn, 1, $item, '财务已出账', $money, $updatedata['out_account_com_total'], $return_money_already, $return_money_wait, 'order_ransom_out', $id, 1)) {
+                        return FALSE;
+                    }
+                    return TRUE;
+                }
+            } elseif ($order_info['type'] == 'JYDB') {
+                return TRUE; //交易担保不区分公司金额还是业主金额
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 退单加回公司金额还是业主金额
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $order_sn 订单号
+     * @param $money 出账金额
+     * @author zhongjiaqi 7.6
+     */
+    public function backMoney($outid) {
+        $where = ['id' => $outid];
+        $moneyinfo = $this->where($where)->field('item,money,order_sn,out_account_com,out_account_cus')->find();
+        if (!empty($moneyinfo)) {
+            $orderGuarantee = new OrderGuarantee;
+            $order_info = Db::name('order')->where('order_sn', $moneyinfo['order_sn'])->field('type,finance_sn')->find();
+            if ($order_info['type'] == 'JYXJ' || $order_info['type'] == 'TMXJ' || $order_info['type'] == 'GMDZ' || $order_info['type'] == 'SQDZ' || $order_info['type'] == 'PDXJ' || $order_info['type'] == 'DQJK') {
+                $orderGuarantee->where('order_sn', $moneyinfo['order_sn'])->setDec('out_account_com_total', $moneyinfo['out_account_com']);
+                $orderGuarantee->where('order_sn', $moneyinfo['order_sn'])->setDec('out_account_cus_total', $moneyinfo['out_account_cus']);
+                if ($order_info['type'] == 'SQDZ' || $order_info['type'] == 'PDXJ' || $order_info['type'] == 'DQJK') {
+                    $item_array = ['SQDZ' => '首期款垫资', 'PDXJ' => '凭抵押回执', 'DQJK' => '短期借款'];
+                    $item = $item_array[$order_info['type']];
+                } else {
+                    $item = $this->getItem($moneyinfo['item']);
+                }
+                $ordercostModel = new OrderCostDetail();
+                $gu_info = Db::name('order_guarantee')->where($where)->field('out_account_com_total,out_account_cus_total')->find();
+                $return_money_already = Db::name('order_ransom_return')->where(['return_money_into_status' => ['in', '2,3'], 'order_sn' => $moneyinfo['order_sn'], 'status' => 1])->sum('money'); //累计回款总额
+                $return_money_wait = $gu_info['out_account_com_total'] - $return_money_already; //待回款金额
+                if (!$ordercostModel->AddcostRecord($order_info['finance_sn'], $moneyinfo['order_sn'], 1, $item, '出账已退回', $moneyinfo['money'], $gu_info['out_account_com_total'], $return_money_already, $return_money_wait, 'order_ransom_out', $outid, 3)) {
+                    return FALSE;
+                }
+                Db::name('order_cost_detail')->where(['tablename' => 'order_ransom_out', 'tableid' => $outid])->update(['status' => 2]); //如果退回成功 要讲原来出账记录状态改成2 用于统计累计出账总额
+                return TRUE;
+            } elseif ($order_info['type'] == 'JYDB') {
+                return TRUE; //交易担保不区分公司金额还是业主金额
+            }
+        }
+        return false;
+    }
+
+}

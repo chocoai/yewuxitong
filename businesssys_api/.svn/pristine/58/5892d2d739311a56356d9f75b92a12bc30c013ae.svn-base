@@ -1,0 +1,156 @@
+<?php
+
+/* 赎楼控制器 */
+
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\OrderRansomOut;
+use app\model\OrderRansomDispatch;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\Dictionary;
+use app\util\OrderComponents;
+
+class Foreclosure extends Base {
+
+    private $orderransomout;
+    private $dictionary;
+    private $orderransomdispatch;
+    private $order;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->orderransomout = new OrderRansomOut();
+        $this->orderransomdispatch = new OrderRansomDispatch();
+        $this->dictionary = new Dictionary();
+        $this->order = new Order();
+        $this->systemuser = new SystemUser();
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/ransomList 赎楼列表[admin/Foreclosure/ransomList]
+     * @apiVersion 1.0.0
+     * @apiName ransomList
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/ransomList
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiSuccess {int} type     订单类型(JYDB交易担保 FJYDB非交易担保 JYXJ交易现金)
+     * @apiSuccess {int} ransom_status     赎楼状态
+     * @apiSuccess {int} ransom_type     赎楼类型（BUSINESS商业贷款 FUND公积金贷款 CONSUME家装/消费贷）
+     * @apiSuccess {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} ransom_status_text    赎楼状态
+     * @apiSuccess {string} ransom_type_text    赎楼类型
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} create_time    派单时间
+     * @apiSuccess {string} financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function ransomList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+
+        $create_uid = $this->request->get('create_uid', 0);
+        $subordinates = $this->request->get('subordinates', 0);
+        $type = $this->request->get('type', '');
+        $ransom_status = $this->request->get('ransom_status', '');
+        $ransom_type = $this->request->get('ransom_type', '');
+        $keywords = $this->request->get('keywords', '');
+        //查询条件组装
+        $where = [];
+        $userId = $this->userInfo['id'];
+        $userStr = $create_uid === 0 ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId, $create_uid, $subordinates);
+        if ($userStr !== false) {
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        } else {
+            return $this->buildSuccess();
+        }
+        $type && $where['o.type'] = $type;
+        $ransom_status && $where['x.ransom_status'] = $ransom_status;
+        $ransom_type && $where['x.ransom_type'] = $ransom_type;
+        $keywords && $where['x.order_sn|o.finance_sn|e.estate_name'] = ['like', "%{$keywords}%"];
+        $field = "x.id,x.order_sn,x.ransom_bank,x.ransom_status,x.ransom_type,x.ransomer,x.create_time,o.type,o.finance_sn,o.financing_manager_id,e.estate_name,e.estate_owner";
+        $creditList = $this->orderransomdispatch->alias('x')
+                        ->join('__ORDER__ o', 'o.order_sn=x.order_sn')
+                        ->join('__ESTATE__ e', 'e.order_sn=x.order_sn')
+                        ->where($where)->field($field)
+                        ->order('x.create_time', 'DESC')
+                        ->group('x.order_sn')
+                        ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['ransom_status_text'] = $this->dictionary->getValnameByCode('ORDER_JYDB_STATUS', $value['ransom_status']); //赎楼状态
+                $value['ransom_type_text'] = $this->orderransomdispatch->getRansomtype($value['ransom_type']); //赎楼类型
+                $value['type_text'] = $this->order->getType($value['type']); //订单类型
+                $value['create_time'] = date('Y-m-d', strtotime($value['create_time'])); //派单时间
+                $value['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+    /**
+     * @api {get} admin/Foreclosure/ransomDetail 赎楼详情页[admin/Foreclosure/ransomDetail]
+     * @apiVersion 1.0.0
+     * @apiName ransomDetail
+     * @apiGroup Foreclosure
+     * @apiSampleRequest admin/Foreclosure/ransomDetail
+     *
+     * @apiParam {int} id    赎楼派单id
+     *
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} account_status_text    出账状态
+     * @apiSuccess {string} bank_money    银行放款
+     * @apiSuccess {string} guarantee_money    担保金额
+     * @apiSuccess {string} self_financing    自筹金额
+     * @apiSuccess {string} short_loan_interest    短贷利息
+     * @apiSuccess {string} default_interest    罚息
+     * @apiSuccess {string} can_money    可出账金额
+     * @apiSuccess {string} out_money    已出账金额
+     * @apiSuccess {string} use_money    可用余额
+     * 
+     * @apiSuccess {string} item_text    出账项目
+     * @apiSuccess {string} money    出账金额
+     * @apiSuccess {string} ransom_bank    赎楼银行
+     * @apiSuccess {string} ransomer    赎楼员
+     * @apiSuccess {string} way_text    出账方式
+     * @apiSuccess {string} bank    支票银行
+     * @apiSuccess {string} cheque_num    支票号码
+     * @apiSuccess {string} create_time    申请时间
+     */
+    public function ransomDetail() {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            //订单信息
+            $data = $this->orderransomdispatch->where('id', $id)->field('ransom_status,order_sn')->find();
+            if (empty($data)) {
+                return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '派单信息有误！');
+            }
+            $orderinfo = OrderComponents::showDebitorderInfo($data['order_sn'], $data['ransom_status']);
+            //赎楼派单信息
+            $dispatch = OrderComponents::redemptionDispatch($id);
+            //出账申请记录
+            $debitinfolog = OrderComponents::showDebitInfolog($id);
+            return $this->buildSuccess(['orderinfo' => $orderinfo, 'debitinfolog' => $debitinfolog, 'dispatch' => $dispatch]);
+        }
+        return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误');
+    }
+
+}

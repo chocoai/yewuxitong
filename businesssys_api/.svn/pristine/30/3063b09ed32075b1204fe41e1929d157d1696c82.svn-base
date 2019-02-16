@@ -1,0 +1,54 @@
+<?php
+
+/**
+  赎楼出账表
+ * Date: 2018/5/21
+ */
+
+namespace app\model;
+
+class OrderRansomOut extends Base {
+
+    /**
+     * 获取出账状态
+     * @return 出账状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  
+     * @author zhongjiaqi 5.18
+     */
+    public function getAccountstatus($status = '') {
+        $statusList = ['1' => '待财务出账', '2' => '待财务复核', '3' => '财务已出账', '4' => '出账已退回', '5' => '银行已扣款'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 获取账目
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  
+     * @author zhongjiaqi 5.22
+     */
+    public function getItem($status = '') {
+        $statusList = ['1' => '公积金贷款', '2' => '商业贷款', '3' => '装修贷/消费贷', '4' => '银行罚息'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 判断是否可以点击完成赎楼（有未出账流水并且出账没有被退回不能点击完成赎楼）
+     * @return 账目
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 派单id  
+     * @author zhongjiaqi 5.29
+     */
+    public function checkiscomplete($id) {
+        $flag = true;
+        $stage = $this->where('ransom_dispatch_id', $id)->field('cut_status,account_status')->select();
+        foreach ($stage as $value) {
+            if ($value['cut_status'] == 0 && $value['account_status'] != 4) {
+                $flag = false;
+                break;
+            }
+        }
+        return $flag;
+    }
+}

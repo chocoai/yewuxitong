@@ -1,0 +1,18 @@
+<?php
+
+namespace app\workflow\model;
+
+use think\Model;
+
+/**
+ * Class SystemDept 部门
+ * @package app\workflow\model
+ * @author: bordon
+ */
+class SystemDept extends Model
+{
+    public function manager()
+    {
+        return $this->belongsTo('SystemUser', 'superid');
+    }
+}

@@ -1,0 +1,109 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+use think\Db;
+use app\model\TrialFirst;
+
+class Order extends Base{
+
+    /* @author 赵光帅
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {int} $startnum    分页起始条数
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$search_text,$page,$pageSize){
+
+           $res = self::alias('a')
+                //->distinct(true)
+                ->field('a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,b.estate_name,b.estate_ecity,b.estate_district,c.name')
+                ->join('estate b','a.order_sn=b.order_sn','LEFT')
+                ->join('system_user c','a.financing_manager_id = c.id','LEFT')
+                ->where($map)
+                //->where('building_name|unit_name|floorname|roomno_name|order_sn', 'like', "%{$search_text}%")
+                ->where('b.estate_name|a.order_sn', 'like', "%{$search_text}%")
+                ->order('a.create_time desc')
+                ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+                //->fetchSql(true)
+                ->toArray();
+                //->select();
+           $result = unique($res['data']);
+           $res['data'] = $result;
+           //到初审信息表去查询该订单是否是正常单
+           foreach ($res['data'] as $k => $v){
+               $isNormal = TrialFirst::getOne(['order_sn' => $v['order_sn'],'delete_time' => NULL],'is_normal');
+               if(empty($isNormal)){
+                   $res['data'][$k]['is_normal'] = -1;
+               }else{
+                   $res['data'][$k]['is_normal'] = $isNormal['is_normal'];
+               }
+           }
+           return $res;
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单列表查询
+     * @param array $where
+     * @param $page
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderList($where=[],$page)
+    {
+        return self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id')
+            ->join('estate y','x.order_sn=y.order_sn')
+            ->where($where)
+            ->order('x.create_time desc')
+            ->group('x.order_sn')
+            ->paginate(['list_rows'=>config('apiBusiness.ADMIN_LIST_DEFAULT'),'page'=>$page])
+            ->toArray();
+
+    }
+
+    /**
+    /* @author 林桂均
+     * 订单详情
+     * @param $orderSn
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public static function orderDetail($orderSn)
+    {
+        $orderInfo = self::alias('x')
+            ->field('x.order_sn,x.type,x.create_time,x.stage,x.status,x.financing_manager_id,
+            y.notarization,y.guarantee_money,y.self_financing,y.guarantee_per,y.guarantee_rate,y.bussiness_loan,y.accumulation_fund,y.account_per,y.guarantee_fee,fee,info_fee,total_fee')
+            ->join('order_guarantee y', 'x.order_sn=y.order_sn')
+            ->where(['x.order_sn' => $orderSn,'x.status'=>1,'y.status'=>1])->find();
+        if(!$orderInfo) return false;
+
+        //订单按揭信息
+        $orderInfo['mortgageInfo'] = Db::name('order_mortgage')
+            ->field('type,mortgage_type,money,organization_type,organization,interest_balance,create_uid')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        //订单首期款信息
+        $orderInfo['dpInfo'] = Db::name('order_dp')
+            ->field('dp_strike_price,dp_earnest_money,dp_money,dp_supervise_bank,dp_buy_way,dp_now_mortgage,dp_redeem_bank,create_uid')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->find();
+        //订单用户信息
+        $orderInfo['customerInfo'] = Db::name('customer')
+            ->field('ctype,is_seller,is_comborrower,cname,certtype,certcode,certother,mobile')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        //房产信息
+        $orderInfo['estateInfo'] = Db::name('estate')
+            ->field('estate_name,estate_ecity,estate_district,estate_zone,estate_area,estate_certtype,estate_certnum,house_type,building_name,estate_alias,estate_unit,estate_unit_alias,estate_floor,estate_floor_plusminus,estate_house')
+            ->where(['order_sn'=>$orderSn,'status'=>1])->select();
+        return $orderInfo;
+    }
+}

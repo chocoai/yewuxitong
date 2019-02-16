@@ -1,0 +1,334 @@
+<?php
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\FirstTrial;
+use app\model\Order;
+
+/*
+ * @author 赵光帅
+ * 审批列表审批流程类
+ * */
+class Approval extends Base {
+            // @author 赵光帅
+			/**
+			 * @api {post} admin/Approval/show_Approval_List 审批列表[admin/Approval/show_Approval_List]
+			 * @apiVersion 1.0.0
+			 * @apiName show_Approval_List
+			 * @apiGroup Approval
+			 * @apiSampleRequest admin/Approval/show_Approval_List
+			 *
+			 *
+			 * @apiParam {int} inputuid    录入人员id
+			 * @apiParam {int} order_type    订单类型
+			 * @apiParam {int} order_status    订单状态
+			 * @apiParam {int} city    城市
+			 * @apiParam {int} area    城区
+			 * @apiParam {int} search_text    关键字搜索
+			 * @apiParam {int} page    页码
+			 * @apiParam {int} limit    条数
+			 *
+			 * @apiSuccess {int} total    总条数
+			 * @apiSuccess {int} per_page    每页显示的条数
+			 *
+			 */
+	
+	        public function show_Approval_List(){
+	        	$inputuid = input('inputuid');
+	        	$order_type = input('order_type');
+	        	$order_status = input('order_status');
+	        	$city = input('city');
+	        	$area = input('area');
+	        	$search_text = input('search_text');
+	        	$page = input('page') ? input('page') : 1;
+	        	$pageSize = input('limit') ? input('limit') : 20;
+	        	$map = [];
+	        	if (!empty($inputuid)) {
+	        		$map['inputuid'] = $inputuid;
+	        	}
+	        	if (!empty($order_type)) {
+	        		$map['order_type'] = $order_type;
+	        	}
+	        	if (!empty($order_status)) {
+	        		$map['order_status'] = $order_status;
+	        	}
+	        	if (!empty($city)) {
+                    $map['c.city_id'] = $city;
+	        	}
+	        	if (!empty($area)) {
+                    $map['c.district_id'] = $area;
+	        	}
+	        	$map['a.delete_time'] = NULL;
+
+	        	return $this->buildSuccess(Order::approval_list($map,$search_text,$page,$pageSize));
+	        	
+	        	
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/approval_Records 订单审批记录列表[admin/Approval/approval_Records]
+	         * @apiVersion 1.0.0
+	         * @apiName approval_Records
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/approval_Records
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         * @apiSuccess {string} id    时间
+	         * @apiSuccess {string} type    审批节点
+	         * @apiSuccess {string} type    操作人员
+	         * @apiSuccess {string} type    操作
+	         * @apiSuccess {string} type    处理意见
+	         */
+	        
+	        public function approval_Records(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	
+	        
+	        
+	        }
+
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/sub_Approval 提交审批[admin/Approval/sub_Approval]
+	         * @apiVersion 1.0.0
+	         * @apiName sub_Approval
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/sub_Approval
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	        
+	        public function sub_Approval(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	            
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/show_Result 查询初审结果[admin/Approval/show_Result]
+	         * @apiVersion 1.0.0
+	         * @apiName show_Result
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/show_Result
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	        
+	        public function show_Result(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	$res = FirstTrial::show_first_trial($order_sn);
+	        	return $this->buildSuccess($res);
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/add_Result 初审结果提交[admin/Approval/add_Result]
+	         * @apiVersion 1.0.0
+	         * @apiName add_Result
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/add_Result
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         * @apiParam {float}  balance_per   负债成数
+	         * @apiParam {int}  is_normal   是否正常单
+	         * @apiParam {int}  review_rating   审查评级
+	         * @apiParam {risk_rating}  order_sn   风险评级
+	         * @apiParam {array}  question   问题汇总
+	         * @apiParam {array}  material   缺少的资料
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	         
+	        public function add_Result(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/del_Problem 删除问题汇总[admin/Approval/del_Problem]
+	         * @apiVersion 1.0.0
+	         * @apiName del_Problem
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/del_Problem
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	        
+	        public function del_Problem(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/del_Data 删除缺少资料[admin/Approval/del_Data]
+	         * @apiVersion 1.0.0
+	         * @apiName del_Data
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/del_Data
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	         
+	        public function del_Data(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/del_Guarantee 删除房产担保[admin/Approval/del_Guarantee]
+	         * @apiVersion 1.0.0
+	         * @apiName del_Guarantee
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/del_Guarantee
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	         
+	        public function del_Guarantee(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/del_Assets 删除资产证明[admin/Approval/del_Assets]
+	         * @apiVersion 1.0.0
+	         * @apiName del_Assets
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/del_Assets
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	         
+	        public function del_Assets(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+	        // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/data_List 资料列表[admin/Approval/data_List]
+	         * @apiVersion 1.0.0
+	         * @apiName data_List
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/data_List
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	         
+	        public function data_List(){
+	        	$order_sn = input('order_sn');
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+	        // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/add_Data 提交资料[admin/Approval/add_Data]
+	         * @apiVersion 1.0.0
+	         * @apiName add_Data
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/add_Data
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         *
+	         */
+	        
+	        public function add_Data(){
+	        	$order_sn = input('order_sn');
+	        	
+	        	if(empty($order_sn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+	        	 
+	        	 
+	        	 
+	        }
+
+             //@author 赵光帅
+            /**
+             * @api {post} admin/Approval/image_Upload 图片上传[admin/Approval/image_Upload]
+             * @apiVersion 1.0.0
+             * @apiName image_Upload
+             * @apiGroup Approval
+             * @apiSampleRequest admin/Approval/image_Upload
+             *
+             *
+             * @apiParam {file}  image   图片文件
+             *
+             *
+             */
+	        public function image_Upload(){
+	            $file = request()->file('image');
+                if(empty($file)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '文件不能为空!');
+	            $path = ROOT_PATH . 'public' . DS . 'uploads';
+                $info = $file->validate(['size'=>9437184,'ext'=>'jpg,png,gif,jpeg,pdf,doc,xls'])->move($path);
+                if($info){
+                    return $this->buildSuccess('/uploads/'.$info->getSaveName());
+                }else{
+                    // 上传失败获取错误信息
+                    return $this->buildFailed(ReturnCode::FILE_SAVE_ERROR, $file->getError());
+                }
+
+
+            }
+	        
+	        
+}
+
+
+
+

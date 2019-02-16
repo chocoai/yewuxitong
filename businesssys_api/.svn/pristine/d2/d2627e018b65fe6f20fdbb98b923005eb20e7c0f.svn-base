@@ -1,0 +1,83 @@
+<?php
+/**
+赎楼控制器
+ */
+
+namespace app\admin\controller;
+
+use app\model\Order;
+use app\model\Ransomer as modelRansomer;
+use app\model\Estate;
+use app\model\OrderMortgage;
+use app\model\SystemUser;
+use app\util\Tools;
+use app\util\ReturnCode;
+
+class Ransomer extends Base
+{
+    /**
+     * @api {post} admin/Ransomer/index 赎楼派单列表[admin/Ransomer/index]
+     * @apiVersion 1.0.0
+     * @apiName orderList
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Ransomer/orderList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  status   是否指派0默认全部1已指派2待指派
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  is_combined_loan   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     */
+    public function index()
+    {
+        $search = input('search','','trim');
+        $managerId = input('managerId',0,'int');
+        $subordinates = input('subordinates',0,'int');
+        $search && $where['x.order_sn|y.estate_name']=['like', "%{$search}%"];
+        $where['z.status'] =1;
+        $managerId && $where['x.financing_manager_id'] = $subordinates ? ['in',SystemUser::getOrderPowerStr($managerId)]:$managerId;
+        $result= Order::ransomerList($where,1,10);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '派单列表读取失败!');
+        if($result['data']){
+            foreach($result['data'] as &$val){
+                $val['estateInfo'] = Tools::buildArrFromObj(Estate::getAll(['order_sn'=>$val['order_sn'],'status'=>1],'estate_name'));
+                $val['financing_manager_id'] = SystemUser::where(['id'=>$val['financing_manager_id']])->value('name');
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+    /**
+     * @api {post} admin/Ransomer/dispatchList 指派赎楼员列表[admin/Ransomer/dispatchList]
+     * @apiVersion 1.0.0
+     * @apiName dispatchList
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Ransomer/dispatchList
+     * @apiParam {string}  orderSn   订单编号
+     */
+    public function dispatchList()
+    {
+        $orderSn = input('orderSn','');
+        if(empty($orderSn)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+        $result['mortage'] = OrderMortgage::getAll(['order_sn'=>$orderSn,'type'=>'ORIGINAL'],'organization,mortgage_type');
+        $result['ransomer'] = modelRansomer::getAll(['status'=>1],'name');
+        return $this->buildSuccess($result);
+
+    }
+    /**
+     * @api {post} admin/Ransomer/addDispatch 指派赎楼员[admin/Ransomer/addDispatch]
+     * @apiVersion 1.0.0
+     * @apiName addDispatch
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Ransomer/addDispatch
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  status   是否指派0默认全部1已指派2待指派
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  is_combined_loan   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     */
+    public function addDispatch()
+    {
+
+    }
+}

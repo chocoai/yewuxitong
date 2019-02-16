@@ -1,0 +1,164 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/6/11
+ * Time: 10:48
+ */
+
+namespace app\model;
+
+
+use think\Model;
+use think\Db;
+
+class OrderFundChannel extends Base
+{
+    /* @author 赵光帅
+     * 发送指令列表(渠道)
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function instructionList($map,$field, $page, $pageSize) {
+        $resInfo =  self::alias('x')
+            ->field($field)
+            ->join('order o', 'x.order_sn=o.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn')
+            ->join('system_user z', 'o.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($resInfo){
+            foreach($resInfo['data'] as &$val){
+                $val['type_text'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']]:'';
+            }
+        }
+        return $resInfo;
+    }
+
+
+    /* @author 赵光帅
+     * 银行放款入账列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+
+    public static function bankList($map, $page, $pageSize) {
+        $resInfo = self::alias('x')
+            ->field('n.order_sn,n.finance_sn,n.type,z.name,estate_name,y.estate_owner,x.id,x.fund_channel_name,x.loan_money_time,x.money,x.actual_account_money,x.loan_money_status,x.trust_contract_num')
+            ->join('order n', 'x.order_sn=n.order_sn')
+            ->join('estate y', 'x.order_sn=y.order_sn','LEFT')
+            ->join('system_user z', 'n.financing_manager_id=z.id')
+            ->where($map)
+            ->order('x.loan_money_time desc')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        $orderTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($resInfo){
+            foreach($resInfo['data'] as &$val){
+                $val['type_text'] = $val['type'];
+                $val['type'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']]:'';
+            }
+        }
+        return $resInfo;
+    }
+
+    /* @author 赵光帅
+     * 渠道放款入账详情
+     * @apiParam {string}  order_sn   订单编号
+     * @apiParam {int}  $channelId   订单资金渠道表id
+     */
+
+    public static function channelDetail($order_sn,$channelId) {
+        $resInfo = self::alias('x')
+            ->field('n.order_sn,n.type,z.name,z.deptname,n.finance_sn,x.money,x.actual_account_money,x.is_loan_finish,x.loan_money_status,x.fund_channel_name,x.delivery_status,x.trust_contract_num,x.push_order_money,x.loan_day')
+            ->join('order n', 'x.order_sn = n.order_sn', 'LEFT')
+            ->join('system_user z', 'n.financing_manager_id = z.id', 'LEFT')
+            ->where(['x.order_sn' => $order_sn,'x.id' => $channelId])
+            ->find();
+        $orderTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($resInfo){
+            $resInfo['type_text'] =  $resInfo['type'];
+            $resInfo['type'] = $orderTypeArr[$resInfo['type']] ? $orderTypeArr[$resInfo['type']]:'';
+        }
+        return $resInfo;
+    }
+
+    /* @author 赵光帅
+     * 银行放款已入账列表导出
+     * @Param {arr} $map    搜索条件
+     */
+
+    public static function exportHasList($map) {
+        //根据条件查询出所有符合要求的订单
+        $orderSnInfo = self::alias('x')
+            ->join('order n', 'x.order_sn = n.order_sn')
+            ->join('estate y', 'x.order_sn = y.order_sn','LEFT')
+            ->where($map)
+            ->group('x.order_sn')
+            ->column('x.order_sn');
+        //组装房产的数据
+        $estatesInfo = Order::assembleEstate($orderSnInfo);
+        //获取业主姓名
+        $sellerName = Order::customerName($orderSnInfo,1);
+        //获取买方姓名
+        $buyerName = Order::customerName($orderSnInfo,2);
+
+        $field = 'n.finance_sn,n.order_sn,n.type,y.estate_name,
+        y.estate_owner,y.estate_area,og.project_money_date,og.money,
+        x.fund_channel_name,x.trust_contract_num,x.loan_day,
+        x.push_order_money,x.actual_account_money,x.loan_money_time';
+        $resInfo = Db::name('order_fund_channel')->alias('x')
+            ->field($field)
+            ->join('order n', 'x.order_sn = n.order_sn')
+            ->join('estate y', 'x.order_sn = y.order_sn','LEFT')
+            ->join('order_guarantee og', 'x.order_sn = og.order_sn')
+            ->where($map)
+            ->order('x.loan_money_time desc')
+            ->group('x.id')
+            ->select();
+
+        $orderTypeArr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+
+        if($resInfo){
+            $num = 1;
+            foreach($resInfo as &$val){
+                //添加序号
+                array_unshift($val,$num);
+                $num++;
+                $val['type'] = $orderTypeArr[$val['type']] ? $orderTypeArr[$val['type']]:'';
+                //更改房产
+                if(isset($estatesInfo[$val['order_sn']]) && !empty($estatesInfo[$val['order_sn']])){
+                    $val['estate_name'] = join('；',$estatesInfo[$val['order_sn']]);
+                }else{
+                    $val['estate_name'] = '';
+                }
+
+                //更改业主姓名
+                if(isset($sellerName[$val['order_sn']]) && !empty($sellerName[$val['order_sn']])){
+                    $val['estate_owner'] = join('；',$sellerName[$val['order_sn']]);
+                }else{
+                    $val['estate_owner'] = '';
+                }
+
+                //更改买方姓名
+                if(isset($buyerName[$val['order_sn']]) && !empty($buyerName[$val['order_sn']])){
+                    $val['estate_area'] = join('；',$buyerName[$val['order_sn']]);
+                }else{
+                    $val['estate_area'] = '';
+                }
+            }
+        }
+        return $resInfo;
+    }
+
+
+
+}

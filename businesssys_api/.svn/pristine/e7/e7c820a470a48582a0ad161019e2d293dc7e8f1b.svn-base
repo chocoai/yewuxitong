@@ -1,0 +1,121 @@
+<?php
+
+namespace app\task\controller;
+
+use think\Log;
+use think\Cache;
+use think\Controller;
+use think\Db;
+use Workerman\Lib\Timer;
+
+/**
+ * APP定时任务
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/8/24
+ * Time: 11:26
+ */
+class AppTask extends Controller
+{
+    protected $app_push_unit_url = 'umeng/sendUniCast'; //友盟单播推送
+
+    public function addTimer()
+    {
+        Timer::add(10, array($this, 'sendMsgUserBusiness'), array(), true); //推送
+    }
+
+    /************************************************* APP定时任务 START *******************************************************/
+    /**
+     * APP业务消息推送，单推
+     */
+    public function sendMsgUserBusiness()
+    {
+        try {
+            // 从库里找出
+            $field = ['id', 'user_id', 'category', 'type', 'unique_id', 'title', 'content', 'is_send', 'create_time'];
+            $list  = Db::name('Message')->field($field)->where(['is_send' => 1])->order(['create_time' => 'DESC'])->select();
+            if (!empty($list)) {
+                // 逐一推送
+                $redis  = Cache::init();
+                $prefix = config('cache.prefix');
+                $url    = config('app_push_base_url') . $this->app_push_unit_url;
+                foreach ($list as $key => $value) {
+                    $user_id      = $value['user_id'];
+                    $key_name     = $prefix . 'device_info:user_id:' . $user_id;
+                    $device_token = $redis->handler()->hGet($key_name, 'device_token');
+                    $device_type  = $redis->handler()->hGet($key_name, 'device_type');
+                    if (empty($device_type) && empty($device_token)) continue;
+                    $params = [
+                        'platform'     => $device_type,
+                        'title'        => $value['title'],
+                        'after_open'   => 'go_app',
+                        'desc'         => "【{$value['title']}】" . $value['content'],
+                        'device_token' => $device_token,
+                        'msg_type'     => $value['category'],//1.系统通知 2.业务消息
+                        'unique_id'    => $value['unique_id'],
+                    ];
+                    $res    = json_decode(curl_post($url, $params), true);
+                    if ($res['errorCode'] != 1) {
+                        Log::record("APP_PUSH_ERROR:{$res['msg']}", 'error');
+                    } else {
+                        // 成功一条就修改一条的is_send字段
+                        $update_data = ['is_send' => 2, 'send_time' => time()];
+                        Db::name('Message')->where(['id' => $value['id'], 'is_send' => 1])->update($update_data);
+                        echo "PUSH_SUCCESS\r\n";
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::record("APP_PUSH_ERROR_CODE:{$e->getCode()}", 'error');
+            Log::record("APP_PUSH_ERROR_ERROR:{$e->getMessage()}", 'error');
+            echo "PUSH_ERROR_CODE：{$e->getCode()}\r\n";
+            echo "PUSH_ERROR_INFO：{$e->getMessage()}\r\n";
+            return;
+        }
+    }
+    /*public function sendMsgUserBusiness2()
+    {
+        try {
+            // 从库里找出
+            $field = ['id', 'user_id', 'type', 'order_code', 'content', 'is_send', 'create_time'];
+            $list = Db::name('MsgUserBusiness')->field($field)->where(['is_send' => 0])->order(['create_time' => 'DESC'])->select();
+            if (!empty($list)) {
+                // 逐一推送
+                $redis = Cache::init();
+                $prefix = config('cache.prefix');
+                $url = config('app_push_base_url') . $this->app_push_unit_url;
+                foreach ($list as $key => $value) {
+                    $user_id = $value['user_id'];
+                    $key_name = $prefix . 'device_info:user_id:' . $user_id;
+                    $device_token = $redis->handler()->hGet($key_name, 'device_token');
+                    $device_type = $redis->handler()->hGet($key_name, 'device_type');
+                    $content = json_decode($value['content'], true);
+                    $params = [
+                        'platform' => $device_type,
+                        'title' => $content['title'],
+                        'after_open' => 'go_app',
+                        'desc' => $content['desc'],
+                        'device_token' => $device_token,
+                        'msg_type' => $value['type'],
+                        'unique_id' => $content['unique_id'],
+                    ];
+                    $res = json_decode(curl_post($url, $params), true);
+                    if ($res['errorCode'] != 1) {
+                        Log::record("APP_PUSH_ERROR:{$res['msg']}", 'error');
+                    } else {
+                        // 成功一条就修改一条的is_send字段
+                        Db::name('MsgUserBusiness')->where(['id' => $value['id']])->setField('is_send', 1);
+                        echo "PUSH_SUCCESS\r\n";
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            Log::record("APP_PUSH_ERROR_CODE:{$e->getCode()}", 'error');
+            Log::record("APP_PUSH_ERROR_ERROR:{$e->getMessage()}", 'error');
+            echo "PUSH_ERROR_CODE：{$e->getCode()}\r\n";
+            echo "PUSH_ERROR_INFO：{$e->getMessage()}\r\n";
+            exit();
+        }
+    }*/
+    /************************************************* APP定时任务 END *******************************************************/
+}

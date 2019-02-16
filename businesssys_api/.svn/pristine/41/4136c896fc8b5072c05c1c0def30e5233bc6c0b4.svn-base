@@ -1,0 +1,119 @@
+<?php
+/**
+ * 订单
+ */
+namespace app\admin\controller;
+use think\Db;
+use app\model\Order;
+use app\util\ReturnCode;
+use think\Exception;
+
+
+class Orders extends Base{
+    /**
+     * @author 林桂均
+     * 添加订单入口
+     * @param type 业务类型
+     */
+    public function addOrder()
+    {
+        switch($this->request->post('type')){
+            case 'JYDB':
+                return $this->addJYDBOrder();
+                break;
+            default :
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '无效的参数!');
+
+        }
+    }
+
+
+    /**
+     * @author 林桂均
+     * 添加交易担保订单 ---待开发
+     */
+    private function addJYDBOrder()
+    {
+
+        $data = $this->checkJYDBData();
+        if(!is_array($data)) return $data;
+        Db::startTrans();
+        try{
+
+        }catch(Exception $e){
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!');
+        }
+
+    }
+
+
+    /**
+     * @author 林桂均
+     * 校验交易担保信息
+     * @param $data
+     * @return array
+     */
+    private function checkJYDBData($data)
+    {
+        /*订单信息*/
+        $notarydate = $this->request->post('notarydate','');//公证日期
+        $orderSource = $this->request->post('orderSource','');//业务来源 非必须
+        $managerId = $this->request->post('managerId','');//理财经理ID
+        $deptId = $this->request->post('deptId','');//部门ID
+        $mortgageName = $this->request->post('mortgageName','','trim');//按揭姓名
+        $mortgagePhone = $this->request->post('mortgagePhone','','trim');//按揭电话
+        $remark = $this->request->post('remark','','trim');//备注 非必须
+        $orgMortageInfo = $this->request->post('orgMortageInfo','');//原按揭信息
+        $mortageInfo = $this->request->post('mortageInfo','');//现按揭信息
+        $headPayInfo = $this->request->post('headPayInfo','');//首期款信息
+        $inputId = $this->request->post('inputId','');//录入人ID
+        $createId = $this->request->post('createId','');//提交人ID
+        /*房产信息*/
+        $estateName = $this->request->post('estateName','');//房产名称
+        $estateCity = $this->request->post('estateCity','');//所属城市
+        $estateDistrict = $this->request->post('estateDistrict','');//所属城区
+        $estateZone = $this->request->post('estateZone','');//所属片区
+        $estateArea = $this->request->post('estateArea',0,'float');//房产面积
+        $estateCerttype = $this->request->post('estateCerttype','');//产证类型
+        $estateCertnum = $this->request->post('estateCertnum','');//产证编码
+        $houseType = $this->request->post('houseType',0,'int');//房屋类型
+
+        /*订单判断*/
+        if(empty($notarydate)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '公正日期有误!');
+        if(empty($managerId) || $deptId) return $this->buildFailed(ReturnCode::PARAM_INVALID, '部门理财经理不能为空!');
+        if(empty($mortgageName) || $mortgagePhone) return $this->buildFailed(ReturnCode::PARAM_INVALID, '按揭员姓名或电话不能为空!');
+        if(empty($orgMortageInfo)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '原按揭信息不能为空!');
+        if(empty($mortageInfo)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '现按揭信息不能为空!');
+        if(empty($headPayInfo)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '首期款信息不能为空!');
+        if(empty($inputId)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '录入人不能为空!');
+        if(empty($createId)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '提交人不能为空!');
+
+        /*房产信息判断*/
+        if(empty($estateName)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '房产名称不能为空!');
+        if(empty($estateCity) || $deptId) return $this->buildFailed(ReturnCode::PARAM_INVALID, '所属城市不能为空!');
+        if(empty($estateDistrict) || $mortgagePhone) return $this->buildFailed(ReturnCode::PARAM_INVALID, '所属城区不能为空!');
+        if(empty($estateZone)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '所属片区不能为空!');
+        if($estateArea <= 0 ) return $this->buildFailed(ReturnCode::PARAM_INVALID, '房产面积有误!');
+        if(empty($estateCerttype)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '产证类型不能为空!');
+        if(empty($estateCertnum)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '产证编码不能为空!');
+        if(empty($houseType)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '房屋类型不能为空!');
+        $param['order'] = [
+            'notarydate' => $notarydate,'financing_manager_id' => $managerId,'financing_dept_id' => $deptId,
+            'mortgage_name' => $mortgageName,'mortgage_mobile' => $mortgagePhone,'mortgage_primary_info' => $orgMortageInfo,
+            'mortgage_info' => $mortageInfo,'head_pay_info' => $headPayInfo,'inputuid'=>$inputId,
+            'create_uid' => $createId
+        ];
+        $remark && $param['order']['remark'] = $remark;
+        $orderSource && $param['order']['order_source'] = $orderSource;
+        $param['estate'] = [
+            'estate_name' => $estateName,'estate_city' => $estateCity,'estate_district' => $estateDistrict,
+            'estate_zone' => $estateZone,'estate_area' => $estateArea,'estate_certtype' => $estateCerttype,
+            'estate_certnum' => $estateCertnum,'house_type' => $houseType
+        ];
+
+        return $param;
+    }
+
+
+
+}

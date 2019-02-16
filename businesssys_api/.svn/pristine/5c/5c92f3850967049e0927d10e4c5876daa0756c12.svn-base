@@ -1,0 +1,1244 @@
+<?php
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\TrialFirst;
+use app\model\Estate;
+use app\model\TrialData;
+use app\model\TrialProcess;
+use app\model\SystemUser;
+use app\model\WorkflowProc;
+use think\Db;
+use app\model\Attachment;
+use app\model\Order;
+use app\model\TrialProcessAttachment;
+use app\util\OrderComponents;
+use Workflow\Workflow;
+use app\model\WorkflowFlow;
+use app\model\OrderGuarantee;
+use app\model\OrderWarrant;
+
+/*
+ * @author 赵光帅
+ * 审批列表审批流程类
+ * */
+class Approval extends Base {
+            // @author 赵光帅
+			/**
+			 * @api {post} admin/Approval/showApprovalList 审批列表[admin/Approval/showApprovalList]
+			 * @apiVersion 1.0.0
+			 * @apiName showApprovalList
+			 * @apiGroup Approval
+			 * @apiSampleRequest admin/Approval/showApprovalList
+			 *
+			 *
+			 * @apiParam {int} create_uid    人员id
+             * @apiParam {int} subordinates    1含下属 0不含下属
+			 * @apiParam {int} type    订单类型
+			 * @apiParam {int} stage    订单状态
+			 * @apiParam {int} estate_ecity    城市
+			 * @apiParam {int} estate_district    城区
+			 * @apiParam {int} search_text    关键字搜索
+			 * @apiParam {int} page    页码
+			 * @apiParam {int} limit    条数
+			 *
+             * @apiSuccessExample {json} 返回数据示例:
+             * HTTP/1.1 200 OK
+             * "data": {
+             *       "total": 3,
+             *       "per_page": 20,
+             *       "current_page": 1,
+             *       "last_page": 1,
+             *       "data": [
+             *           {
+             *           "proc_id": 5,
+             *           "id": 30,
+             *           "order_sn": "JYDB2018010001",
+             *           "create_time": "2018-04-20 14:23:51",
+             *           "type": "JYDB",
+             *           "money": "200.00",
+             *           "stage": "待业务报单",
+             *           "estate_name": "万达广场",
+             *           "estate_ecity": "440300",
+             *           "estate_district": "440304",
+             *           "name": "管理员",
+             *           "is_normal": -1
+             *           }
+             *       ]
+             *   }
+			 * @apiSuccess {int} total    总条数
+			 * @apiSuccess {int} per_page    每页显示的条数
+             * @apiSuccess {int} current_page    当前页
+             * @apiSuccess {int} last_page    总页数
+             * @apiSuccess {string} order_sn    业务单号
+             * @apiSuccess {int} create_time    报单时间
+             * @apiSuccess {int} type     订单类型
+             * @apiSuccess {int} money    订单金额
+			 * @apiSuccess {string} stage    订单状态
+             * @apiSuccess {string} name    理财经理
+             * @apiSuccess {string} estate_name    房产名称
+             * @apiSuccess {string} estate_ecity     城市
+             * @apiSuccess {string} estate_district    城区
+             * @apiSuccess {int} is_normal    是否正常 -1未知 0正常 1异常
+             * @apiSuccess {int} id    订单表主键id
+             * @apiSuccess {int} proc_id    处理明细表主键id
+			 */
+	
+	        public function showApprovalList(){
+	        	$createUid = input('create_uid')?:0;
+                $subordinates = input('subordinates')?:0;
+	        	$type = input('type');
+	        	$stage = input('stage');
+	        	$estateEcity = input('estate_ecity');
+	        	$estate_district= input('estate_district');
+	        	$searchText = trim(input('search_text'));
+	        	$page = input('page') ? input('page') : 1;
+	        	$pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+                $userId = $this->userInfo['id'];
+	        	$map = [];
+                //用户判断//
+                if(!empty($createUid)){
+                    $userStr = $createUid === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$createUid,$subordinates);
+                    //return json($userStr);
+                    if($userStr !== false)
+                        $map['d.user_id']=['in', $userStr];
+                    else
+                        return $this->buildSuccess([]);
+                }else{
+                    $map['d.user_id']= $this->userInfo['id'];
+                }
+
+	        	$type && $map['a.type'] = $type;
+                $stage && $map['a.stage'] = $stage;
+                $estateEcity && $map['b.estate_ecity'] = $estateEcity;
+                $estate_district && $map['b.estate_district'] = $estate_district;
+                $searchText && $map['b.estate_name|d.order_sn']=['like', "%{$searchText}%"];
+	        	$map['a.delete_time'] = NULL;
+                $map['a.status'] = 1;
+                $map['d.status'] = 0;
+                $map['d.is_deleted'] = 1;
+                try{
+                    return $this->buildSuccess(WorkflowProc::approval_list($map,$page,$pageSize));
+                }catch (\Exception $e){
+                    return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+                }
+
+	        	
+	        	
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/approvalRecords 审批页面信息[admin/Approval/approvalRecords]
+	         * @apiVersion 1.0.0
+	         * @apiName approvalRecords
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/approvalRecords
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         * @apiSuccessExample {json} 返回数据示例:
+             * HTTP/1.1 200 OK
+             * "data": {
+             *  "approval_records": [
+             *      {
+             *       "order_sn": "JYDB2018010001",
+             *       "create_time": "2018-05-08 15:24:57",
+             *       "process_name": "待跟单员补齐资料",
+             *       "auditor_name": "李依华",
+             *       "auditor_dept": "财务部",
+             *       "status": "通过",
+             *       "content": "同意"
+             *       }
+             *   ],
+             *   "other_information": [
+             *     {
+             *       "id": 1,
+             *       "order_sn": "JYDB2018010001",
+             *       "process_name": "收到公司的",
+             *       "item": "啥打法是否",
+             *       "fileinfo": [
+             *           {
+             *           "savename": "e259d9c4f11593187bf07f50418f6a22.jpg",
+             *           "path": "D:\\wamp\\www\\businesssys_api\\public\\",
+             *           "url": "\\uploads\\20180427\\e259d9c4f11593187bf07f50418f6a22.jpg",
+             *           "name": "222.xlsx"
+             *           },
+             *           {
+             *           "savename": "ad4091691f0f3995af2dcdb13bf5f5c6.jpg",
+             *           "path": "D:\\wamp\\www\\businesssys_api\\public\\",
+             *           "url": "\\uploads\\20180427\\ad4091691f0f3995af2dcdb13bf5f5c6.jpg",
+             *            name": "222.xlsx"
+             *           },
+             *           {
+             *           "savename": "515af20f54072b6804f25c1e18d234a4.jpg",
+             *           "path": "D:\\wamp\\www\\businesssys_api\\public\\",
+             *           "url": "\\uploads\\20180427\\515af20f54072b6804f25c1e18d234a4.jpg",
+             *           "name": "222.xlsx"
+             *           }
+             *        ]
+             *      },
+             *    ]
+             *  }
+             *
+	         * @apiSuccess {string} create_time    审批记录的时间
+	         * @apiSuccess {string} process_name    审批节点
+	         * @apiSuccess {string} auditor_name    操作人员名称
+	         * @apiSuccess {string} auditor_dept    操作人员部门
+	         * @apiSuccess {string} status    操作
+             * @apiSuccess {string} content    审批意见
+             *
+             * @apiSuccess {string} proces_name    流程信息(审批信息来源)
+             * @apiSuccess {string} item    注意事项
+             * @apiSuccess {string} savename    文件名称
+             * @apiSuccess {string} path    文件路径
+             * @apiSuccess {string} url    文件链接地址
+             * @apiSuccess {string} name    原始文件名称
+	         */
+	        
+	        public function approvalRecords(){
+	        	$orderSn = input('order_sn');
+	        	if(empty($orderSn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+                try{
+                    //查询出审批记录
+                    $jlField = 'order_sn,create_time,process_name,auditor_name,auditor_dept,status,content';
+                    //查询出审批记录
+                    $appMap['order_sn'] = $orderSn;
+                    $appMap['is_deleted'] = 1;
+                    $appMap['status'] = ['in','-1,9'];
+                    $jlList = WorkflowProc::getAll($appMap,$jlField);
+                    //return $jlList;
+                    //$jlList = Db::name('WorkflowProc')->where(['order_sn' => $orderSn,'is_deleted' => 1])->where('status','in','-1,9')->field('order_sn,create_time,process_name,auditor_name,auditor_dept,status,content')->select();
+                    //查询出其他信息
+                    $qtField = 'id,order_sn,process_name,item';
+                    $qtList =TrialProcess::getAll(['order_sn' => $orderSn],$qtField);
+                    //查询组合好的其他信息
+                    $zhInfo = TrialProcess::show_Other_Information($qtList);
+
+                    $arrsInfo['approval_records'] = $jlList;
+                    $arrsInfo['other_information'] = $zhInfo;
+                    return $this->buildSuccess($arrsInfo);
+                }catch (\Exception $e){
+                    return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+                }
+
+
+	        }
+
+            // @author 赵光帅
+            /**
+             * @api {post} admin/Approval/proceMaterialNode 待处理节点注意事项和附件材料[admin/Approval/proceMaterialNode]
+             * @apiVersion 1.0.0
+             * @apiName proceMaterialNode
+             * @apiGroup Approval
+             * @apiSampleRequest admin/Approval/proceMaterialNode
+             *
+             *
+             * @apiParam {string}  order_sn   订单编号
+             * @apiParam {int}  proc_id   处理明细表主键id
+             *
+             * @apiSuccessExample {json} 返回数据示例:
+             * HTTP/1.1 200 OK
+             * "data": {
+             *       "proc_id":1
+             *       "process_id": 14,
+             *       "id": 1,
+             *       "item": "啥打法是否",
+             *       "process_name": "待部门经理审批",
+             *       "next_process_name": "待审查主管审批",
+             *       "attachInfo": [
+             *         {
+             *         "id": 2,
+             *         "name": "40_2_full_res.jpg",
+             *         "url": "\\uploads\\20180427\\e259d9c4f11593187bf07f50418f6a22.jpg"
+             *         },
+             *         {
+             *         "id": 1,
+             *         "name": "40_4_full_res.jpg",
+             *         "url": "\\uploads\\20180427\\ad4091691f0f3995af2dcdb13bf5f5c6.jpg"
+             *         },
+             *       ]
+             *    "preprocess": [
+             *       {
+             *       "id": 28,
+             *       "entry_id": 1,
+             *       "flow_id": 3,
+             *       "process_id": 20,
+             *       "process_name": "待出保函"
+             *       },
+             *       {
+             *       "id": 24,
+             *       "entry_id": 1,
+             *       "flow_id": 3,
+             *       "process_id": 16,
+             *       "process_name": "待审查经理审批"
+             *       },
+             *     ]
+             *     "nextprocess_user": [
+             *           {
+             *           "id": 345,
+             *           "name": "李辉南1"
+             *           },
+             *          {
+             *           "id": 346,
+             *           "name": "李辉南2"
+             *           },
+             *       ]
+             *       "is_next_user": 1,
+             *       "stage": "1"
+             *  }
+             *
+             * @apiSuccess {int} proc_id    处理明细表主键id
+             * @apiSuccess {int} process_id    流程步骤表主键id
+             * @apiSuccess {string} process_name    节点名称(当前步骤名称,审批节点)
+             * @apiSuccess {string} next_process_name    下一个审批节点名称
+             * @apiSuccess {int} is_next_user    是否需要选择下一步审查人员 0不需要 1需要
+             * @apiSuccess {int} stage    订单状态
+             * @apiSuccess {string} item    注意事项
+             * @apiSuccess {int} id    初审信息 注意事项表主键id
+             * @apiSuccess {array} attachInfo 缺少的资料['id(int)'=>'附件表id','name（string）'=>'附件名称','url{string}'=>'文件链接地址']
+             * @apiSuccess {array} preprocess 退回节点下拉信息['id(int)'=>'退回节点id','entry_id（int）'=>'流程实例id','flow_id（int）'=>'工作流定义表id','process_id（int）'=>'流程步骤id','process_name（string）'=>'返回节点名称']
+             * @apiSuccess {array} nextprocess_user 审查员信息['id(int)'=>'下一步审批人员id','name（string）'=>'下一步审批人员名称']
+             */
+
+            public function proceMaterialNode(){
+                $orderSn = input('order_sn');
+                $proc_id = input('proc_id');
+                if(empty($orderSn) || empty($proc_id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号或处理明细表主键id不能为空!');
+                // 获取当前流程相关信息当前流程信息、可退回节点、下一步审批人员、下一步流程节点、审批记录
+                $config = [
+                    'user_id' => $this->userInfo['id'], // 用户id
+                    'user_name' => $this->userInfo['name'], // 用户姓名
+                    'proc_id' => $proc_id  // 当前步骤id
+                ];
+                $workflow = new Workflow($config);
+                $resInfo = $workflow->workflowInfo();
+                try{
+                    //查询出节点名称和节点id
+                    $resWork = WorkflowProc::getOne(['id' => $proc_id],'process_id,process_name');
+                    //查询出注意事项和主键ID
+                    $resProcess = TrialProcess::getOne(['order_sn' => $orderSn,'workflow_process_id' => $resWork['process_id']],'id,item');
+                    //查询出订单状态
+                    $orderStatus = Order::where(['order_sn' => $orderSn])->value('stage');
+                    if(!empty($resProcess)){
+                        //查询出所有的附件id
+                        $resAttach = TrialProcessAttachment::getAll(['trial_process_id' => $resProcess['id'],'delete_time' => NULL],'attachment_id');
+                        $attachInfo = [];
+                        foreach ($resAttach as $k => $v){
+                            //查询出附件信息
+                            $resMent = Attachment::getOne(['id' => $v['attachment_id'],'delete_time' => NULL],'id,name,url');
+                            $attachInfo[] = $resMent;
+                        }
+                        //return json($resInfo);
+                        //组装数据
+                        $resProcess['proc_id'] = $proc_id;
+                        $resProcess['process_id'] = $resWork['process_id'];
+                        $resProcess['process_name'] = $resWork['process_name'];
+                        $resProcess['next_process_name'] = $resInfo['nextprocess']['process_name'];
+                        $resProcess['attachInfo'] = $attachInfo;
+                        $resProcess['preprocess'] = $resInfo['preprocess'];
+                        $resProcess['nextprocess_user'] = $resInfo['nextprocess_user'];
+                        $resProcess['is_next_user'] = $resInfo['is_next_user'];
+                        $resProcess['stage'] = $orderStatus;
+                        return $this->buildSuccess($resProcess);
+                    }else{
+                        return $this->buildSuccess(['proc_id' => $proc_id,'next_process_name' => $resInfo['nextprocess']['process_name'],
+                            'process_id' => $resWork['process_id'],'process_name' => $resWork['process_name'],'preprocess' => $resInfo['preprocess'],
+                            'nextprocess_user' => $resInfo['nextprocess_user'],'is_next_user' => $resInfo['is_next_user'],'stage' => $orderStatus,'attachInfo' => []]);
+                    }
+                }catch (\Exception $e){
+                    return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+                }
+
+            }
+
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/subApproval 提交审批[admin/Approval/subApproval]
+	         * @apiVersion 1.0.0
+	         * @apiName subApproval
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/subApproval
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+             * @apiParam {int}  stage   订单状态
+	         * @apiParam {int}  proc_id   处理明细表主键id
+             * @apiParam {int}  is_approval   审批结果 1通过 2驳回
+             * @apiParam {string}  content   审批意见
+             * @apiParam {int}  next_user_id   下一步审批人员id
+             * @apiParam {int}  backtoback   是否退回之后直接返回本节点 1 返回 不返回就不需要传值
+             * @apiParam {int}  back_proc_id   退回节点id
+             * @apiParam {string}  courierNumber   运单号
+             * @apiParam {int} process_id    流程步骤表主键id
+             * @apiParam {string} process_name    节点名称(当前步骤名称,审批节点)
+	         * @apiParam {arr}  attachment_id_str   附件材料 [1,2,3]
+             * @apiParam {string}  item   注意事项
+             * @apiParam {string}  next_process_name   流向的审批节点名称
+	         */
+	        
+	        public function subApproval(){
+                $orderSn = input('order_sn');
+                $stage = input('stage');
+                $is_approval = input('is_approval');
+                $proc_id = input('proc_id');
+                $content = input('content');
+                $next_user_id = input('next_user_id');
+                $backtoback = input('backtoback')?:'';
+                $back_proc_id = input('back_proc_id');    //日志表下一步操作节点code
+                $courierNumber = input('courierNumber')?:0; //运单号
+                $process_id = input('process_id');
+                $process_name = input('process_name');
+                $attachment_id_str = input('attachment_id_str/a');
+                $item = input('item');
+                $next_process_name = input('next_process_name');
+                //判断上级只能查看下属的订单，不能审核，每个人只能审核属于自己审核的订单
+                $procUserId = Db::name('workflow_proc')->where(['id' => $proc_id])->value('user_id');
+                if($procUserId != $this->userInfo['id']) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '上级只能够查看属于下级审核的订单，不能够进行审核!');
+                if($is_approval == 1 && empty($next_process_name)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '流向的节点名称不能为空!');
+                if($is_approval == 2 && empty($back_proc_id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '驳回的节点id不能为空!');
+                if($is_approval == 1 && $stage == 1010 && empty($courierNumber)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '运单号不能为空!');
+                if($is_approval == 1 && $stage == 1003 && empty($next_user_id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '请选择审查员!');
+                //跟单员补齐资料提交审核时判断资料是否补齐
+                if($is_approval == 1 && $stage == 1011){
+                    $is_material = Db::name('trial_first')->where(['order_sn' => $orderSn])->value('is_material');
+                    if($is_material == 1) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '有资料没有收齐,不能提交审核!');
+                }
+                //验证器验证参数
+                $valiDate = validate('SubmitExamination');
+                $data=['order_sn'=>$orderSn,'is_approval'=>$is_approval,'proc_id'=>$proc_id,'content'=>$content,'next_user_id'=>$next_user_id,'backtoback'=>$backtoback,
+                    'back_proc_id'=>$back_proc_id,'process_id'=>$process_id,'process_name'=>$process_name,'stage'=>$stage,'next_process_name'=>$next_process_name];
+                if(!$valiDate->check($data)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+                }
+
+                if(!empty($courierNumber) && isset($courierNumber)) $content = $content."快递单号".$courierNumber;
+                $config = [
+                    'user_id' => $this->userInfo['id'], // 用户id
+                    'user_name' => $this->userInfo['name'], // 用户姓名
+                    'proc_id' => $proc_id,  // 当前步骤id
+                    'content' => $content,  // 审批意见
+                    'next_user_id' => $next_user_id,  // 下一步审批人员
+                    'backtoback' => $backtoback,  //是否退回之后直接返回本节点
+                    'back_proc_id' => $back_proc_id,  // 退回节点id
+                    'order_sn' => $orderSn
+                ];
+                $operate = show_status_name($stage,'ORDER_JYDB_STATUS');   //上一步的操作节点名称
+                $workflow = new Workflow($config);
+                // 启动事务
+                Db::startTrans();
+                try{
+                    if($is_approval == 1){
+                        // 审批通过 走审批流
+                        $workflow->pass();
+                        //更改资料入架，添加权证
+                        self::addAuthority($orderSn);
+                        $operate_reason = '';  //原因 如驳回原因
+                        $msg = $this->userInfo['deptname'].'=>'.$this->userInfo['name'].":审批通过,".$operate."=>".$next_process_name;
+                        //根据流向的下一步节点名称查询出对应的code
+                        $back_proc_id = Db::name('order')->where(['order_sn' => $orderSn])->value('stage');
+                    }else{
+                        // 审批拒绝
+                        $workflow->unpass();
+                        $msg = $this->userInfo['deptname'].'=>'.$this->userInfo['name'].":审批驳回,".$operate."=>".$next_process_name;
+                        $operate_reason = $content;  //原因 如驳回原因
+                    }
+
+                    //添加注意事项
+                    self::addResultOf($orderSn,$process_id,$process_name,$item,$attachment_id_str);
+                    /*添加订单操作记录*/
+                    $stagestr = $next_process_name; //流向的下一步操作节点名称
+                    $operate_node = "风控部门相关人员审批订单";  //当前操作描述
+                    $operate_det = $msg;   //操作详情
+                    $operate_table = 'order';  //操作表
+                    $operate_table_id = ''; //操作表id
+                    OrderComponents::addOrderLog($this->userInfo,$orderSn, $stagestr, $operate,$operate_node,$operate_det,$operate_reason,$back_proc_id,$operate_table,$operate_table_id);
+                    // 提交事务
+                    Db::commit();
+                    return $this->buildSuccess('审批成功');
+                }catch (\Exception $e){
+                    // 回滚事务
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::ADD_FAILED, $e->getMessage());
+                }
+	        }
+
+    /*
+     * 是否添加权证
+     * @Param {string}  $orderSn   订单编号
+     * */
+    private function addAuthority($orderSn){
+        //查询该订单当前审核状态 更改资料是否入架状态和当该订单不需要派单则添加权证
+        $flow_id = WorkflowFlow::where(['type' => 'JYDB_RISK','status' => 1])->value('id');
+        $reviewStatus = Db::name('workflow_entry')->where(['order_sn' => $orderSn,'flow_id' => $flow_id])->value('status');
+        if($reviewStatus == 9){
+            //改订单资料入架状态 为以入架
+            OrderGuarantee::where('order_sn',$orderSn)->update(['is_data_entry' => 1]);
+            //批量添加权证操作表
+            $OrderWarrant = new OrderWarrant;
+            $list = [
+                ['order_sn'=>$orderSn,'warrant_stage'=>1,'create_time' => time(),'update_time' => time()],
+                ['order_sn'=>$orderSn,'warrant_stage'=>2,'create_time' => time(),'update_time' => time()],
+                ['order_sn'=>$orderSn,'warrant_stage'=>3,'create_time' => time(),'update_time' => time()],
+                ['order_sn'=>$orderSn,'warrant_stage'=>4,'create_time' => time(),'update_time' => time()],
+                ['order_sn'=>$orderSn,'warrant_stage'=>5,'create_time' => time(),'update_time' => time()]
+            ];
+            $OrderWarrant->saveAll($list);
+        }
+    }
+
+	        /*
+	         * 添加初审结果注意事项和附件
+	         * @Param {string}  $orderSn   订单编号
+	         * @Param {int} process_id    流程步骤表主键id
+             * @Param {string} process_name    节点名称(当前步骤名称,审批节点)
+	         * @Param {string}  attachment_id_str   附件材料,用英文逗号分隔如[1,2,3]
+             * @Param {string}  item   注意事项
+	         * */
+	        private function addResultOf($orderSn,$process_id,$process_name,$item,$attachment_id_str){
+                //根据订单号查询出初审id
+                $processInfo = [];
+                $processInfo['order_sn'] = $orderSn;
+                $csId = TrialFirst::where(['order_sn' => $orderSn])->value('id')?:0;
+                $processInfo['trial_first_id'] = $csId;
+                $processInfo['workflow_process_id'] = $process_id;
+                $processInfo['process_name'] = $process_name;
+                $processInfo['item'] = $item;
+                $processInfo['create_uid'] = $this->userInfo['id'];
+                $processInfo['create_time'] = time();
+                $processInfo['update_time'] = time();
+                $resInfo = TrialProcess::create($processInfo);
+                $trial_process_id = $resInfo->id;
+                //添加注意事项附件表
+                //$attachment_id_arr = explode(',',$attachment_id_str);
+                if($attachment_id_str) {
+                    foreach ($attachment_id_str as $k => $v) {
+                        //判断该附件是否已经存在
+                        $processInfo = TrialProcessAttachment::get(['attachment_id' => $v]);
+                        if (empty($processInfo) && !isset($processInfo)) {  //不存在就添加
+                            $processAttachmentInfo['order_sn'] = $orderSn;
+                            $processAttachmentInfo['trial_first_id'] = $csId;
+                            $processAttachmentInfo['trial_process_id'] = $trial_process_id;
+                            $processAttachmentInfo['workflow_process_id'] = $process_id;
+                            $processAttachmentInfo['attachment_id'] = $v;
+                            $processAttachmentInfo['status'] = 1;
+                            $processAttachmentInfo['create_time'] = time();
+                            $processAttachmentInfo['update_time'] = time();
+                            TrialProcessAttachment::create($processAttachmentInfo);
+                        }
+                    }
+                }
+            }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/showResult 查询初审结果[admin/Approval/showResult]
+	         * @apiVersion 1.0.0
+	         * @apiName showResult
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/showResult
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+             * @apiSuccessExample {json} 返回数据示例:
+             * HTTP/1.1 200 OK
+             * {
+             *   "code": 1,
+             *   "msg": "操作成功",
+             *   "data": {
+             *   "order_sn": "666666666",
+             *   "balance_per": 66,
+             *   "is_normal": 66,
+             *   "review_rating": 66,
+             *   "risk_rating": 66,
+             *   "is_material": 1,
+             *   "is_guarantee": 1,
+             *   "is_asset_prove": 0,
+             *   "is_guarantee_estate": 0,
+             *   "is_guarantee_money": 1,
+             *   "is_guarantee_other": 1,
+             *   "guarantee_money": "654.11",
+             *   "other_way": "我是谁",
+             *   "express_no": null,
+             *   "problem": [
+             *       {
+             *      "id": 25,
+             *       "describe": "呵呵1213",
+             *       "status": 1
+             *       },
+             *       {
+             *      "id": 26,
+             *       "describe": "呵呵456",
+             *       "status": 0
+             *       },
+             *       {
+             *       "id": 27,
+             *       "describe": "呵呵帅那个帅789",
+             *       "status": 0
+             *       }
+             *   ],
+             *   "data": [
+             *       {
+             *       "id": 28,
+             *       "describe": "初审1213",
+             *       "status": 1
+             *       },
+             *       {
+             *       "id": 29,
+             *       "describe": "别别别456",
+             *       "status": 0
+             *       },
+             *       {
+             *       "id": 30,
+             *       "describe": "呵呵帅那个帅789",
+             *       "status": 0
+             *       }
+             *     ]
+             *     "houseinfo": [
+             *           {
+             *            "id": 26,
+             *            "estate_owner": null,
+             *            "estate_owner_type": null,
+             *            "estate_name": "国际新城",
+             *            "estate_certtype": 1,
+             *            "estate_certnum": 123456789,
+             *            "house_type": 1111,
+             *            "estate_district": "440304"
+             *           },
+             *          {
+             *           "id": 28,
+             *           "estate_owner": null,
+             *           "estate_owner_type": null,
+             *           "estate_name": "万达广场",
+             *           "estate_certtype": 1,
+             *           "estate_certnum": 123456789,
+             *           "house_type": 1111,
+             *           "estate_district": "440304"
+             *           }
+             *        ],
+             *       "assetproof": [
+             *           {
+             *           "id": 29,
+             *           "estate_owner": null,
+             *           "estate_owner_type": null,
+             *           "estate_name": "万科",
+             *           "estate_certtype": 1,
+             *           "estate_certnum": 123456789,
+             *           "house_type": 1111,
+             *           "estate_district": "440304"
+             *           },
+             *           {
+             *           "id": 30,
+             *           "estate_owner": null,
+             *           "estate_owner_type": null,
+             *           "estate_name": "绿地",
+             *           "estate_certtype": 1,
+             *           "estate_certnum": 123456789,
+             *           "house_type": 1111,
+             *           "estate_district": "440304"
+             *           }
+             *        ]
+             *     }
+             *   }
+	         * @apiSuccess {string}  order_sn   订单编号
+             * @apiSuccess {float}  balance_per   负债成数
+             * @apiSuccess {int}  is_normal   是否正常单 0正常 1异常
+             * @apiSuccess {int}  review_rating   审查评级
+             * @apiSuccess {int}  risk_rating   风险评级
+             * @apiSuccess {int}  is_material   是否缺资料通过 0未选中,不缺资料   1选中,缺资料
+             * @apiSuccess {int}  is_guarantee   是否提供反担保 0未选中,否   1选中,是
+             * @apiSuccess {int}  is_asset_prove   是否提供资产证明 0未选中,否   1选中,是
+             * @apiSuccess {int}  is_guarantee_estate   是否房产反担保 0未选中,否   1选中,是
+             * @apiSuccess {int}  is_guarantee_money   是否保证金反担保 0未选中,否   1选中,是
+             * @apiSuccess {int}  is_guarantee_other   是否其它方式反担保 0未选中,否   1选中,是
+             * @apiSuccess {float}  guarantee_money   反担保 （保证金）
+             * @apiSuccess {string}  other_way   其它方式
+             * @apiSuccess {string}  express_no     订单号
+             * @apiSuccess {array} problem  问题汇总['id(int)'=>'问题汇总id','describe（string）'=>'问题描述','status{int}'=>'问题状态 0未解决 1已解决']
+             * @apiSuccess {array} data  缺少的资料['id(int)'=>'缺少资料id','describe（string）'=>'资料描述','status{int}'=>'资料状态 0未收 1已收']
+             * @apiSuccess {array} houseifo 反担保房产信息['id(int)'=>'房产id','estate_owner(string)'=>'产权人姓名','estate_owner_type（int）'=>'产权人类型  1个人 2企业','estate_name{string}'=>'房产名称','estate_district（string）'=>所属城区,'estate_certtype（int）'=>'产证类型','estate_certnum{int}'=>'产证编码','house_type（int）'=>房屋类型 1分户 2分栋]
+             * @apiSuccess {array} assetproof 资产证明房产信息['id(int)'=>'房产id','estate_owner(string)'=>'产权人姓名','estate_owner_type（int）'=>'产权人类型  1个人 2企业','estate_name{string}'=>'房产名称','estate_district（string）'=>所属城区,'estate_certtype（int）'=>'产证类型','estate_certnum{int}'=>'产证编码','house_type（int）'=>房屋类型 1分户 2分栋]
+	         */
+	        
+	        public function showResult(){
+	        	$orderSn = input('order_sn');
+	        	if(empty($orderSn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+                try{
+                    $mapFirs['order_sn'] = $orderSn;
+                    $mapFirs['delete_time'] = NULL;
+                    $firsField = 'order_sn,balance_per,is_normal,review_rating,risk_rating,is_material,is_guarantee,is_asset_prove,is_guarantee_estate,is_guarantee_money,is_guarantee_other,guarantee_money,other_way,express_no';
+                    $resTrial = TrialFirst::getOne($mapFirs,$firsField);
+                    //查询出问题汇总
+                    if(!empty($resTrial)){
+                        $problemMap['order_sn'] = $orderSn;
+                        $problemMap['type'] = 'QUESTION';
+                        $problemMap['delete_time'] = NULL;
+                        $resProblem = TrialData::getAll($problemMap,'id,describe,status');
+                        if(!empty($resProblem)) $resTrial['problem'] = $resProblem;
+                        //判断是否缺资料通过
+                        if($resTrial['is_material'] === 1){
+                            $dataMap['order_sn'] = $orderSn;
+                            $dataMap['type'] = 'NODATA';
+                            $dataMap['delete_time'] = NULL;
+                            $resData = TrialData::getAll($dataMap,'id,describe,status');
+                            if(!empty($resData)) $resTrial['data'] = $resData;
+                        }
+                        //判断是否提供房产反担保
+                        if($resTrial['is_guarantee'] === 1 && $resTrial['is_guarantee_estate'] === 1){
+                            $houseMap['delete_time'] = NULL;
+                            $houseMap['status'] = 1;
+                            $houseMap['estate_usage'] = 'FDB';
+                            $houseMap['order_sn'] = $orderSn;
+                            $houseField = 'id,estate_owner,estate_owner_type,estate_name,estate_certtype,estate_certnum,house_type,estate_district';
+                            $houseInfo = Estate::getAll($houseMap,$houseField);
+                            if(!empty($houseInfo)) $resTrial['houseinfo'] = $houseInfo;
+                        }
+                        //判断是否提供资产证明
+                        if($resTrial['is_asset_prove'] === 1){
+                            $assetMap['delete_time'] = NULL;
+                            $assetMap['status'] = 1;
+                            $assetMap['estate_usage'] = 'ZCZM';
+                            $assetMap['order_sn'] = $orderSn;
+                            $houseField = 'id,estate_owner,estate_owner_type,estate_name,estate_certtype,estate_certnum,house_type,estate_district';
+                            $assetProof = Estate::getAll($assetMap,$houseField);
+                            if(!empty($assetProof)) $resTrial['assetproof'] = $assetProof;
+                        }
+                    }
+                    return $this->buildSuccess($resTrial);
+                }catch (\Exception $e){
+                    return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+                }
+       }
+
+        // @author 赵光帅
+       /**
+        * @api {post} admin/Approval/addResult 初审结果提交[admin/Approval/addResult]
+        * @apiVersion 1.0.0
+        * @apiName addResult
+        * @apiGroup Approval
+        * @apiSampleRequest admin/Approval/addResult
+        *
+        * @apiParam {string}  order_sn   订单编号
+        * @apiParam {float}  balance_per   负债成数
+        * @apiParam {int}  is_normal   是否正常单 0正常 1异常单
+        * @apiParam {int}  review_rating   审查评级
+        * @apiParam {int}  risk_rating   风险评级
+        * @apiParam {int}  is_material   是否缺资料通过 0未选中,不缺资料   1选中,缺资料
+        * @apiParam {int}  is_guarantee   是否提供反担保 0未选中,否   1选中,是
+        * @apiParam {int}  is_asset_prove   是否提供资产证明 0未选中,否   1选中,是
+        * @apiParam {int}  is_guarantee_estate   是否房产反担保 0未选中,否   1选中,是
+        * @apiParam {int}  is_guarantee_money   是否保证金反担保 0未选中,否   1选中,是
+        * @apiParam {int}  is_guarantee_other   是否其它方式反担保 0未选中,否   1选中,是
+        * @apiParam {float}  guarantee_money   反担保 （保证金）
+        * @apiParam {string}  other_way   其它方式
+        * @apiParam {array} problem  问题汇总['problem_id(int)'=>'问题汇总信息id,新增问题,则这个id可以为空','problem_describe（string）'=>'问题描述','problem_status{int}'=>'问题状态 0未解决 1已解决']
+        * @apiParam {array} data  缺少的资料['problem_id(int)'=>'缺少的资料id,新增资料,则这个id为空','problem_describe（string）'=>'资料描述','problem_status{int}'=>'资料状态 0未收 1已收']
+        * @apiParam {array} houseinfo  反担保房产信息['estate_id(int)'=>'房产id,新增房产,则这个id为空','estate_owner(string)'=>'产权人姓名','estate_owner_type（int）'=>'产权人类型  1个人 2企业','estate_name{string}'=>'房产名称','estate_district（string）'=>所属城区,'estate_certtype（int）'=>'产证类型','estate_certnum{int}'=>'产证编码','house_type（int）'=>房屋类型 1分户 2分栋]
+        * @apiParam {array} assetproof 资产证明房产信息['estate_id(int)'=>'房产id,新增房产,则这个id为空','estate_owner(string)'=>'产权人姓名','estate_owner_type（int）'=>'产权人类型  1个人 2企业','estate_name{string}'=>'房产名称','estate_district（string）'=>所属城区,'estate_certtype（int）'=>'产证类型','estate_certnum{int}'=>'产证编码','house_type（int）'=>房屋类型 1分户 2分栋]
+        *
+        */
+	         
+	        public function addResult(){
+	        	$orderSn = input('order_sn');
+                $balancePer = input('balance_per');
+                $isNormal = input('is_normal')?:0;
+                $reviewRating = input('review_rating');
+                $riskRating = input('risk_rating');
+                $isMaterial = input('is_material')?:0;
+                $isGuarantee = input('is_guarantee')?:0;
+                $isassetProve = input('is_asset_prove')?:0;
+                $isguaranteeEstate = input('is_guarantee_estate')?:0;
+                $isGuaranteemoney = input('is_guarantee_money')?:0;
+                $isGuaranteeother = input('is_guarantee_other')?:0;
+                $guaranteeMoney = input('guarantee_money');
+                $otherWay = input('other_way');
+                $proBlem = input('problem/a');
+                $daTa = input('data/a');
+                $houId = input('houseinfo/a');
+                $assetProof = input('assetproof/a');
+                if($isMaterial == 1 && empty($daTa)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '资料描述不能为空');
+                }
+                if($isGuarantee == 1 && $isguaranteeEstate == 1 && empty($houId)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '反担保房产选择不能为空');
+                }
+                if($isGuarantee == 1 && $isGuaranteemoney == 1 && empty($guaranteeMoney)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '反担保保证金不能为空');
+                }
+                if($isGuarantee == 1 && $isGuaranteeother == 1 && empty($otherWay)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '反担保其他方式不能为空');
+                }
+                if($isassetProve == 1 && empty($assetProof)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '资产证明不能为空');
+                }
+
+                //验证器验证参数
+                $valiDate = validate('TrialPrel');
+                $data=['order_sn'=>$orderSn,'balance_per'=>$balancePer,'is_normal'=>$isNormal,'review_rating'=>$reviewRating,'risk_rating'=>$riskRating,
+                    'is_material'=>$isMaterial,'is_guarantee'=>$isGuarantee,'is_asset_prove'=>$isassetProve,'is_guarantee_estate'=>$isguaranteeEstate,
+                    'is_guarantee_money'=>$isGuaranteemoney,'is_guarantee_other'=>$isGuaranteeother,
+                    'guarantee_money'=>$guaranteeMoney,'other_way'=>$otherWay];
+                if(!$valiDate->check($data)){
+                    return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+                }
+
+                // 启动事务
+                Db::startTrans();
+                //try{
+                    $firstInfo = TrialFirst::get(['order_sn' => $orderSn]);
+                    //判断该订单号对应的初审信息是否已经存在
+                    if(!empty($firstInfo)){   //已经存在 编辑记录
+                        $firstInfo->balance_per = $balancePer;
+                        $firstInfo->is_normal = $isNormal;
+                        $firstInfo->review_rating = $reviewRating;
+                        $firstInfo->risk_rating = $riskRating;
+                        $firstInfo->is_material = $isMaterial;
+                        $firstInfo->is_guarantee = $isGuarantee;
+                        $firstInfo->is_asset_prove = $isassetProve;
+                        $firstInfo->is_guarantee_estate = $isguaranteeEstate;
+                        $firstInfo->is_guarantee_money = $isGuaranteemoney;
+                        $firstInfo->is_guarantee_other = $isGuaranteeother;
+                        $firstInfo->update_time = time();
+                        if($isGuaranteemoney == 1){
+                            $firstInfo->guarantee_money = $guaranteeMoney;
+                        }
+                        if($isGuaranteeother == 1){
+                            $firstInfo->other_way = $otherWay;
+                        }
+
+                        //更新初审信息表数据
+                        $firstInfo->save();
+                        /*$proBlem = array('1'=>array('problem_id' => 17,'problem_describe'=>'1213','problem_status'=>'1'),
+                            '2'=>array('problem_id' => 18,'problem_describe'=>'456','problem_status'=>'0'),
+                            '3'=>array('problem_describe'=>'帅那个帅789','problem_status'=>'0')
+                        );*/
+                        //添加或更新问题记录
+                        if(!empty($proBlem)){
+                            self::updateProblemData($proBlem,1,$orderSn,$firstInfo->id);
+                        }
+                        /*$daTa = array('1'=>array('data_id' => 20,'data_describe'=>'777','data_status'=>'1'),
+                            '2'=>array('data_id' => 21,'data_describe'=>'888','data_status'=>'0'),
+                            '3'=>array('data_describe'=>'帅那个帅789','data_status'=>'1')
+                        );*/
+                        //添加或更新缺少的资料
+                        if(!empty($daTa) && $isMaterial == 1){
+                            self::updateProblemData($daTa,2,$orderSn,$firstInfo->id);
+                        }
+                    }else{ //不存在，添加记录
+                        $chuShen = [];
+                        $chuShen['order_sn'] = $orderSn;
+                        $chuShen['balance_per'] = $balancePer;
+                        $chuShen['is_normal'] = $isNormal;
+                        $chuShen['review_rating'] = $reviewRating;
+                        $chuShen['risk_rating'] = $riskRating;
+                        $chuShen['is_material'] = $isMaterial;
+                        $chuShen['is_guarantee'] = $isGuarantee;
+                        $chuShen['is_asset_prove'] = $isassetProve;
+                        $chuShen['is_guarantee_estate'] = $isguaranteeEstate;
+                        $chuShen['is_guarantee_money'] = $isGuaranteemoney;
+                        $chuShen['is_guarantee_other'] = $isGuaranteeother;
+                        $chuShen['create_uid'] = $this->userInfo['id'];
+                        $chuShen['create_time'] = time();
+                        if($isGuaranteemoney == 1){
+                            $chuShen['guarantee_money'] = $guaranteeMoney;
+                        }
+                        if($isGuaranteeother == 1){
+                            $chuShen['other_way'] = $otherWay;
+                        }
+                        //添加初审信息
+                        $addChus = TrialFirst::create($chuShen);
+
+                        //添加问题记录
+                        /*$proBlem = array('1'=>array('describe'=>'呵呵1213','status'=>'1'),
+                            '2'=>array('describe'=>'呵呵456','status'=>'0'),
+                            '3'=>array('describe'=>'呵呵帅那个帅789','status'=>'0')
+                        );*/
+                        if(!empty($proBlem)){
+                              self::addProblemData($proBlem,'QUESTION',$orderSn,$addChus->id);
+                        }
+                        /*$daTa = array('1'=>array('describe'=>'初审1213','status'=>'1'),
+                            '2'=>array('describe'=>'别别别456','status'=>'0'),
+                            '3'=>array('describe'=>'呵呵帅那个帅789','status'=>'0')
+                        );*/
+                        //添加缺少的资料
+                        if(!empty($daTa) && $isMaterial == 1){
+                              self::addProblemData($daTa,'NODATA',$orderSn,$addChus->id);
+                        }
+                    }
+                    //添加反担保
+                    /*$houId = array('1'=>array('estate_id' => 1109912279,'estate_owner'=>'赵六','estate_owner_type'=>'1','estate_name'=>'恒大33华府','estate_district'=>'北京朝阳','estate_certtype'=>'11111','estate_certnum'=>'22222','house_type'=>'123456'),
+                        '2'=>array('estate_owner'=>'赵六11','estate_owner_type'=>'1','estate_name'=>'万11科','estate_district'=>'北京东城','estate_certtype'=>'4444','estate_certnum'=>'5555','house_type'=>'9856'),
+                        '3'=>array('estate_owner'=>'王五22','estate_owner_type'=>'1','estate_name'=>'绿22地','estate_district'=>'武汉洪山','estate_certtype'=>'6666','estate_certnum'=>'5555','house_type'=>'7459'));*/
+                    if(!empty($houId) && $isGuarantee == 1 && $isguaranteeEstate == 1){
+                        self::addFansDanbao($houId,$orderSn,'FDB');
+                    }
+                    /*$assetProof = array('1'=>array('estate_id' => 1109912282,'estate_owner'=>'涂九','estate_owner_type'=>'1','estate_name'=>'恒大44华府','estate_district'=>'北京朝阳','estate_certtype'=>'11111','estate_certnum'=>'22222','house_type'=>'123456'),
+                        '2'=>array('estate_owner'=>'涂九33','estate_owner_type'=>'1','estate_name'=>'万33科','estate_district'=>'北京东城','estate_certtype'=>'4444','estate_certnum'=>'5555','house_type'=>'9856'),
+                        '3'=>array('estate_owner'=>'王五44','estate_owner_type'=>'1','estate_name'=>'绿44地','estate_district'=>'武汉洪山','estate_certtype'=>'6666','estate_certnum'=>'5555','house_type'=>'7459'));*/
+                    //添加资产证明
+                    if(!empty($assetProof) && $isassetProve == 1){
+                        self::addFansDanbao($assetProof,$orderSn,'ZCZM');
+                    }
+                    /*添加订单操作记录*/
+                    $stage = "待审查员审批";
+                    $operate = "待审查员审批";
+                    $operate_node = $this->userInfo['name']."提交初审结果";
+                    $operate_det = $this->userInfo['deptname'].'=>'.$this->userInfo['name']."提交初审结果";
+                    $operate_reason = '';
+                    $stage_code = 1004;
+                    $operate_table = 'order';
+                    OrderComponents::addOrderLog($this->userInfo,$orderSn, $stage, $operate,$operate_node,$operate_det,$operate_reason,$stage_code,$operate_table);
+                    // 提交事务
+                    Db::commit();
+                    return $this->buildSuccess('编辑成功');
+
+                //}catch (\Exception $e){
+                    // 回滚事务
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::ADD_FAILED, '编辑失败');
+                //}
+	        	 
+	        }
+
+            /*
+             * @author 赵光帅
+             * 更新初审信息时,添加或更新反担保和资产证明的方法
+             * @Param {array}  $dataInfo   数据
+             * @Param {string}  $orderSn   订单号
+             * @Param {string}  $type   FDB 添加反担保房产信息 ZCZM 添加资产证明房产信息
+             * */
+            protected function addFansDanbao($dataInfo,$orderSn,$type){
+                foreach ($dataInfo as $k => $v){
+                    //判断该订单的该条反担保是否存在
+                    if(empty($v['estate_id']) && !isset($v['estate_id'])){
+                            $addDatapross['estate_owner'] = $v['estate_owner'];
+                            $addDatapross['estate_owner_type'] = $v['estate_owner_type'];
+                            $addDatapross['estate_name'] = $v['estate_name'];
+                            $addDatapross['estate_district'] = $v['estate_district'];
+                            $addDatapross['estate_certtype'] = $v['estate_certtype'];
+                            $addDatapross['estate_certnum'] = $v['estate_certnum'];
+                            $addDatapross['house_type'] = $v['house_type'];
+                            $addDatapross['estate_usage'] = $type;
+                            $addDatapross['order_sn'] = $orderSn;
+                            $addDatapross['create_time'] = time();
+                            //添加
+                            Estate::create($addDatapross);
+                    }else{ //更新
+                        var_dump($v);
+                        $estateInfos = Estate::get(['id' => $v['estate_id']]);
+                        $estateInfos->estate_owner = $v['estate_owner'];
+                        $estateInfos->estate_owner_type = $v['estate_owner_type'];
+                        $estateInfos->estate_name = $v['estate_name'];
+                        $estateInfos->estate_district = $v['estate_district'];
+                        $estateInfos->estate_certtype = $v['estate_certtype'];
+                        $estateInfos->estate_certnum = $v['estate_certnum'];
+                        $estateInfos->house_type = $v['house_type'];
+                        $estateInfos->estate_usage = $type;
+                        $estateInfos->update_time = time();
+                        //更新反担保和资产证明
+                        $estateInfos->save();
+                    }
+                }
+            }
+
+            /*
+             * @author 赵光帅
+             * 更新订单问题和缺少资料的方法
+             * @Param {array}  $dataInfo   数据
+             * @Param {int}  $type   ；1 更新问题 2 更新缺少资料
+             * @Param {string}  $orderSn   订单号
+             * @Param {int}  $id   订单初审表主键id
+             * */
+            protected function updateProblemData($datasInfo,$type,$orderSn,$id){
+                if($type === 1){
+                    foreach ($datasInfo as $k => $v){
+                        if(!empty($v['problem_id'])){  //更新问题
+                            $firstsInfos = TrialData::get(['id' => $v['problem_id']]);
+                            $firstsInfos->status = $v['problem_status'];
+                            $firstsInfos->describe = $v['problem_describe'];
+                            $firstsInfos->update_time = time();
+                            //更新问题
+                            $firstsInfos->save();
+                        }else{  //添加问题
+                            $addDatapross['describe'] = $v['problem_describe'];
+                            $addDatapross['status'] = $v['problem_status'];
+                            $addDatapross['order_sn'] = $orderSn;
+                            $addDatapross['type'] = 'QUESTION';
+                            $addDatapross['create_time'] = time();
+                            $addDatapross['trial_first_id'] = $id;
+                            //添加
+                            TrialData::create($addDatapross);
+                        }
+
+                    }
+                }else{
+                    foreach ($datasInfo as $k => $v){
+                        if(!empty($v['data_id'])){ //更新资料
+                            $firstsInfos = TrialData::get(['id' => $v['problem_id']]);
+                            $firstsInfos->status = $v['problem_status'];
+                            $firstsInfos->describe = $v['problem_describe'];
+                            $firstsInfos->update_time = time();
+                            //更新缺少资料
+                            $firstsInfos->save();
+                        }else{ //添加资料
+                            $addDatapross['describe'] = $v['problem_describe'];
+                            $addDatapross['status'] = $v['problem_status'];
+                            $addDatapross['order_sn'] = $orderSn;
+                            $addDatapross['type'] = 'NODATA';
+                            $addDatapross['create_time'] = time();
+                            $addDatapross['trial_first_id'] = $id;
+                            //添加
+                            TrialData::create($addDatapross);
+                        }
+
+                    }
+                }
+
+            }
+
+	        /*
+	         * @author 赵光帅
+	         * 添加问题和缺少资料的方法
+	         * @Param {array}  $dataInfo   数据
+	         * @Param {string}  $type   QUESTION 添加问题 NODATA 添加缺少资料
+	         * @Param {string}  $orderSn   订单号
+	         * @Param {int}  $id   订单初审表主键id
+	         * */
+	         protected function addProblemData($dataInfo,$type,$orderSn,$id){
+                 foreach ($dataInfo as $k => $v){
+                     $addDatapross['describe'] = $v['problem_describe'];
+                     $addDatapross['status'] = $v['problem_status'];
+                     $addDatapross['order_sn'] = $orderSn;
+                     $addDatapross['type'] = $type;
+                     $addDatapross['create_time'] = time();
+                     $addDatapross['trial_first_id'] = $id;
+                     //添加
+                     TrialData::create($addDatapross);
+                 }
+             }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/delProblem 删除问题汇总与缺少资料[admin/Approval/delProblem]
+	         * @apiVersion 1.0.0
+	         * @apiName delProblem
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/delProblem
+	         *
+	         *
+	         * @apiParam {int}  id   数据的id
+	         *
+	         */
+	        
+	        public function delProblem(){
+	        	$id = input('id');
+                if(empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, 'id不能为空!');
+                $user = TrialData::get($id);
+                $user->status = -1;
+                $user->delete_time =time();
+                $orderSn = $user->order_sn;
+                $res = $user->save();
+                if($res){
+                    /*添加订单操作记录*/
+                    $stage = "待审查员审批";
+                    $operate = "待审查员审批";
+                    $operate_node = $this->userInfo['name']."删除问题汇总或者缺少资料";
+                    $operate_det = $this->userInfo['deptname'].'=>'.$this->userInfo['name']."删除问题汇总或者缺少资料，对应trial_data表主键ID=> ".$id;
+                    $operate_reason = '';
+                    $stage_code = 1004;
+                    $operate_table = 'order';
+                    OrderComponents::addOrderLog($this->userInfo,$orderSn, $stage, $operate,$operate_node,$operate_det,$operate_reason,$stage_code,$operate_table);
+                    return $this->buildSuccess("删除成功");
+                }else{
+                    return $this->buildFailed(ReturnCode::DELETE_FAILED, '删除失败');
+                }
+
+	        
+	        	 
+	        	 
+	        }
+
+             // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/delGuarantee 删除房产担保与资产证明[admin/Approval/delGuarantee]
+	         * @apiVersion 1.0.0
+	         * @apiName delGuarantee
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/delGuarantee
+	         *
+	         *
+	         * @apiParam {int}  id   房产表id
+	         *
+	         *
+	         */
+	         
+	        public function delGuarantee(){
+                $id = input('id');
+                if(empty($id)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, 'id不能为空!');
+                $user = Estate::get($id);
+                $user->status = -1;
+                $user->delete_time =time();
+                $orderSn = $user->order_sn;
+                $res = $user->save();
+                if($res){
+                    /*添加订单操作记录*/
+                    $stage = "待审查员审批";
+                    $operate = "待审查员审批";
+                    $operate_node = $this->userInfo['name']."删除房产担保与资产证明";
+                    $operate_det = $this->userInfo['deptname'].'=>'.$this->userInfo['name']."删除房产担保与资产证明，对应estate表主键ID=> ".$id;
+                    $operate_reason = '';
+                    $stage_code = 1004;
+                    $operate_table = 'order';
+                    OrderComponents::addOrderLog($this->userInfo,$orderSn, $stage, $operate,$operate_node,$operate_det,$operate_reason,$stage_code,$operate_table);
+                    return $this->buildSuccess("删除成功");
+                }else{
+                    return $this->buildFailed(ReturnCode::DELETE_FAILED, '删除失败');
+                }
+	        	 
+	        	 
+	        }
+
+	        // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/dataList 缺少的资料列表[admin/Approval/dataList]
+	         * @apiVersion 1.0.0
+	         * @apiName dataList
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/dataList
+	         *
+	         *
+	         * @apiParam {string}  order_sn   订单编号
+	         *
+	         * @apiSuccess {string}  describe    资料描述
+             * @apiSuccess {int}  status    0未收 1已收
+	         */
+	         
+	        public function dataList(){
+	        	$orderSn = input('order_sn');
+	        	if(empty($orderSn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+                $trialField = 'id,describe,status';
+                $trMap['order_sn'] = $orderSn;
+                $trMap['type'] = 'NODATA';
+                $trMap['delete_time'] = NULL;
+                try{
+                    $trialInfo = TrialData::getAll($trMap,$trialField);
+                    return $this->buildSuccess($trialInfo);
+                }catch (\Exception $e){
+                    return $this->buildFailed(ReturnCode::DATA_EXISTS, '查询资料列表失败');
+                }
+
+	        	 
+	        }
+
+	        // @author 赵光帅
+	        /**
+	         * @api {post} admin/Approval/addData 提交资料[admin/Approval/addData]
+	         * @apiVersion 1.0.0
+	         * @apiName addData
+	         * @apiGroup Approval
+	         * @apiSampleRequest admin/Approval/addData
+	         *
+	         * @apiParam {array}  datainfo    缺少的资料['id(int)'=>'缺少的资料id','describe（string）'=>'资料描述','status{int}'=>'资料状态 0未收 1已收']
+	         *
+	         */
+	        
+	        public function addData(){
+	        	$zlInfo = input('datainfo/a');
+                /*$zlInfo = array('1'=>array('id' => 20,'describe'=>'缺少房产证','status'=>'0'),
+                    '2'=>array('id' => 22,'describe'=>'缺少国土证','status'=>'0')
+                );*/
+	        	if(empty($zlInfo)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '提交信息不能为空!');
+	        	try{
+	        	    $arrStatus = [];
+                    foreach ($zlInfo as $k => $v){
+                        $trialData = TrialData::get($v['id']);
+                        $trialData ->describe = $v['describe'];
+                        $trialData ->status = $v['status'];
+                        $trialData->save();
+                        $order_sn = $trialData['order_sn'];
+                        $arrStatus[] = $v['status'];
+                    }
+                    $uniqueStatus = array_unique($arrStatus);
+                    if(count($uniqueStatus) == 1 && $uniqueStatus[0] == 1){
+                        //表明已经补全了资料
+                        $resinfo = Db::name('trial_first')->where(['order_sn' => $order_sn])->update(['is_material' => 0]);
+                        if(!$resinfo) return $this->buildFailed(ReturnCode::UPDATE_FAILED, '修改已经收齐资料失败');
+                    }
+                    /*添加订单操作记录*/
+                    $stage = "待跟单员补齐资料";
+                    $operate = "待跟单员补齐资料";
+                    $operate_node = $this->userInfo['name']."补齐缺少的资料";
+                    $operate_det = $this->userInfo['deptname'].'=>'.$this->userInfo['name']."补齐缺少的资料";
+                    $operate_reason = '';
+                    $stage_code = 1011;
+                    $operate_table = 'order';
+                    OrderComponents::addOrderLog($this->userInfo,$order_sn, $stage, $operate,$operate_node,$operate_det,$operate_reason,$stage_code,$operate_table);
+                    return $this->buildSuccess('修改成功');
+                }catch (\Exception $e){
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '修改资料列表失败');
+                }
+
+	        	 
+	        	 
+	        }
+
+            // @author 赵光帅
+            /**
+             * @api {post} admin/Approval/delAttachment 删除附件[admin/Approval/delAttachment]
+             * @apiVersion 1.0.0
+             * @apiName delAttachment
+             * @apiGroup Approval
+             * @apiSampleRequest admin/Approval/delAttachment
+             *
+             * @apiParam {int}   attachment_id   附件表主键id
+             * @apiParam {string}  order_sn   订单编号
+             *
+             *
+             */
+
+            public function delAttachment(){
+                $attachmentId = input('attachment_id');
+                $ordersn = input('order_sn');
+                if(empty($attachmentId) || empty($ordersn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '附件id或订单编号不能为空!');
+                try{
+                    //启动事务
+                    Db::startTrans();
+                    $mentInfo = Attachment::get($attachmentId);
+                    $mentInfo->delete_time = time();
+                    //在附件表删除该附件
+                    $mentInfo->save();
+
+                    //判断该附件是否已经添加到审批信息附件表中
+                    $processInfo = TrialProcessAttachment::get(['attachment_id' => $attachmentId]);
+                    if(!empty($processInfo)){  //存在就删除
+                        $processInfo->delete_time = time();
+                        $processInfo->save();
+                    }
+                    $orderStatus = Db::name('order')->where(['order_sn' => $ordersn])->value('stage');
+                    $statusStr = show_status_name($orderStatus,'ORDER_JYDB_STATUS');
+                    /*添加订单操作记录*/
+                    $stage = $statusStr;
+                    $operate = $statusStr;
+                    $operate_node = $this->userInfo['name']."删除附件";
+                    $operate_det = $this->userInfo['deptname'].'=>'.$this->userInfo['name']."删除附件，对应attachment表主键ID=> ".$attachmentId;
+                    $operate_reason = '';
+                    $stage_code = $orderStatus;
+                    $operate_table = 'order';
+                    OrderComponents::addOrderLog($this->userInfo,$ordersn, $stage, $operate,$operate_node,$operate_det,$operate_reason,$stage_code,$operate_table);
+                    //提交事务
+                    Db::commit();
+                    return $this->buildSuccess('删除附件成功');
+                }catch (\Exception $e){
+                    //回滚事务
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '删除附件失败');
+                }
+            }
+	        
+	        
+}
+
+
+
+

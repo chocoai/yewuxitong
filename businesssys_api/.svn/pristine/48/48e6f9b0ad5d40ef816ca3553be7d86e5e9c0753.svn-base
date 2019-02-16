@@ -1,0 +1,832 @@
+<?php
+
+namespace Workflow;
+
+use think\Db;
+use think\Log;
+use app\workflow\model\WorkflowFlowlink;
+use app\workflow\model\WorkflowEntry;
+use app\workflow\model\WorkflowProcess;
+use app\workflow\model\WorkflowProc;
+use app\workflow\model\SystemUser;
+use app\workflow\model\WorkflowProcessVar;
+use app\workflow\model\WorkflowFlow as FlowModel;
+use Workflow\Traits\WorkflowTrait;
+use app\util\Tools;
+use Workflow\Util;
+use Workflow\behavior;
+
+
+/**
+ * 处理工作流
+ * Class Workflow
+ * @package Workflow
+ * @author: bordon
+ */
+class Workflow implements WorkflowInterface
+{
+    use WorkflowTrait;
+
+    protected $option = [
+        'user_id' => '', // 用户id
+        'user_name' => '', // 用户姓名
+        'proc_id' => '',  // 当前步骤id
+        'content' => '',  // 审批意见
+        'next_user_id' => '',  // 下一步审批人员
+        'backtoback' => '',  //是否退回之后直接返回本节点
+        'back_proc_id' => '',  // 退回节点id
+//        'next_process_id' => '',  //退回之后直接返回节点id
+        'order_sn' => ''  //订单编号
+    ];
+
+    /**
+     * 实例化传参
+     * @param array $option
+     */
+    public function __construct($option = [])
+    {
+        $this->option = array_merge($this->option, $option);
+    }
+
+
+    /**发起流程
+     * @param $params ['flow_id'] 流程id
+     * @param $params ['user_id'] 用户id
+     * @param $params ['order_sn'] 订单编号
+     * @param $mid $params['mid'] 如订单表id
+     * @throws \Exception
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public function init($params)
+    {
+        $flow = FlowModel::where(['is_publish' => 1, 'status' => 1])->findOrFail($params['flow_id']);
+        $run_entry = WorkflowEntry::where(['order_sn' => $params['order_sn'], 'flow_id' => $flow->id, 'mid' => $params['mid'], 'status' => 0])->find();
+        if ($run_entry) {
+            Log::error('请勿重复发起工作流');
+            throw new \Exception('请勿重复发起工作流！');
+        }
+        $flowlink = WorkflowFlowlink::alias('fl')->join('__WORKFLOW_PROCESS__ po', 'po.id=fl.process_id')
+            ->where(['fl.flow_id' => $flow['id'], 'fl.type' => 'Condition', 'po.position' => 0])->find();
+        $entry = WorkflowEntry::create([
+            'title' => $flow->flow_name,
+            'flow_id' => $flow->id,
+            'user_id' => $params['user_id'],
+            'order_sn' => $params['order_sn'],
+            'circle' => 1,
+            'mid' => $params['mid'],
+            'status' => 0,
+            'wf_status' => $flowlink->wf_status
+        ]);
+        $this->setFirstProcessAuditor($entry, $flowlink);
+    }
+
+    /**流程初始流转
+     * @param WorkflowEntry $entry 流程实例
+     * @param WorkflowFlowlink $flowlink 当前流程步骤实例
+     */
+    public function setFirstProcessAuditor(WorkflowEntry $entry, WorkflowFlowlink $flowlink)
+    {
+        $process_id = $process_name = null;
+        if (!WorkflowFlowlink::where('type', 'neq', 'Condition')->where('process_id', $flowlink->process_id)->find()) {
+            //第一步未指定审核人 自动进入下一步操作
+            WorkflowProc::create([
+                'flow_id' => $entry->flow_id,
+                'entry_id' => $entry->id,
+                'order_sn' => $entry->order_sn,
+                'process_id' => $flowlink->process_id,
+                'process_name' => $flowlink->process->process_name,
+                'user_id' => $entry->user_id,
+                'user_name' => $entry->user->name,
+                'dept_name' => $entry->user->department->name,
+                'auditor_id' => $entry->user_id,
+                'auditor_name' => $entry->user->name,
+                'auditor_dept' => $entry->user->department->name,
+                'status' => 9,
+                'circle' => $entry->circle,
+                'concurrence' => 1
+            ]);
+            //下一步审批人员
+            $auditor_ids = $this->getProcessAuditorIds($entry, $flowlink->next_process_id);
+            //下一流程id
+            $process_id = $flowlink->next_process_id;
+            $process_name = $flowlink->nextProcess->process_name;
+            $entry->process_id = $flowlink->next_process_id;
+        } else {
+            //下一步审批人员
+            $auditor_ids = $this->getProcessAuditorIds($entry, $flowlink->process_id);
+            $process_id = $flowlink->process_id;
+            $process_name = $flowlink->process->process_name;
+            $entry->process_id = $flowlink->process_id;
+        }
+        //步骤流转
+        //步骤审核人
+        $auditors = SystemUser::whereIn('id', $auditor_ids)->field('id,name,deptid')->select();
+        if (count($auditors) < 1) {
+            Log::error('下一步骤未找到审核人--122');
+            throw new \Exception("下一步骤未找到审核人");
+        }
+        foreach ($auditors as $v) {
+            WorkflowProc::create([
+                'flow_id' => $entry->flow_id,
+                'entry_id' => $entry->id,
+                'order_sn' => $entry->order_sn,
+                'process_id' => $process_id,
+                'process_name' => $process_name,
+                'user_id' => $v->id,
+                'user_name' => $v->name,
+                'dept_name' => $entry->user->department->name,
+                'status' => 0,
+                'circle' => $entry->circle,
+                'concurrence' => 1
+            ]);
+        }
+        $wf_status = $entry->process->wf_status;
+        $entry->wf_status = $wf_status;
+        if (!empty($wf_status)) {
+            //  更新订单状态
+            Db::name($entry->flow->table_name)->where('id', $entry->mid)->setField($entry->flow->field, $wf_status);
+            Log::write('更新订单状态...流程初始化');
+        }
+        return $entry->save();
+    }
+
+
+    /**流程流转
+     * @param $process_id 流程步骤id
+     */
+    public function flowlink($proc_id)
+    {
+        $proc = WorkflowProc::with('entry.user.department')->where(['user_id' => $this->option['user_id'], 'status' => 0, 'is_deleted' => 1, 'id' => $proc_id])->find();
+        if (!$proc) {
+            throw new \Exception('该订单已经被别人审批了~');
+        }
+        //特殊处理
+        $approval_type = $proc->process->approval_type;
+        $isAllPass = true;
+//        $approval_user_ids = $this->getProcessAuditorIds($proc->entry, $proc->process->id);
+//        if ((count($approval_user_ids) > 1) && in_array($approval_type, ['1', '3'])) {
+//            array_splice($approval_user_ids, array_search($this->option['user_id'], $approval_user_ids), 1);
+//            $isAllPass = $this->counterSign($approval_user_ids, $proc);
+//        } else {
+//            $isAllPass = true;
+//        }
+        /**************退回直接跳转begin********************/
+        if (!empty($proc->next_process_id) && ((in_array($approval_type, ['1', '3']) && $isAllPass) || !in_array($approval_type, ['1', '3']))) {
+            $this->goToProcess($proc->entry, $proc->next_process_id);
+            $this->updateProcInfo($proc, $approval_type, $isAllPass); //更新流程审批信息
+            $this->updateBackEntryInfo($proc, $proc->next_process_id);//更新entry
+            $this->restIsBack($proc);
+            return true;
+        }
+        /**************退回直接跳转end********************/
+        //有条件
+        if (WorkflowFlowlink::where(['process_id' => $proc->process_id, "type" => "Condition"])->count() > 1) {
+            $var = WorkflowProcessVar::where(['process_id' => $proc->process_id])->group('expression_field')->select();
+            //当前步骤判断的变量 需要根据 $var->expression_field（如请假 day） 去查当前工作流对应表数据里的值
+            if ($var) {
+                $field_arr = array_column(Tools::buildArrFromObj($var), 'expression_field');
+            } else {
+                Log::error('步骤判断的变量不存在183');
+                throw new \Exception('流转条件设置错误，无法流转，请联系流程设置人员');
+            }
+            $value = Db::name($var[0]->table_name)->where('order_sn', $proc->entry->order_sn)->field($field_arr)->find();
+            if (!$value) {
+                Log::error('未设置流转条件，无法流转，请联系流程设置人员--172');
+                throw new \Exception('流转条件设置错误，无法流转，请联系流程设置人员');
+            }
+            $flowlinks = WorkflowFlowlink::where(['process_id' => $proc->process_id, "type" => "Condition"])->select();
+            $flowlink = null;
+            foreach ($flowlinks as $v) {
+                if ($v->condition_type == 'beanshell') {
+                    if (empty($v->path)) {
+                        Log::error('未设置流转条件，无法流转，请联系流程设置人员--180');
+                        throw new \Exception('未设置流转条件，无法流转，请联系流程设置人员');
+                    }
+                    //根据脚本判断
+                    $util = new Util();
+                    if ($util->load_wf_class($v->path, $proc)) {
+                        $flowlink = $v;
+                        break;
+                    }
+                    continue;
+                }
+                if (empty($v->expression)) {
+                    Log::error('未设置流转条件，无法流转，请联系流程设置人员--210');
+                    throw new \Exception('未设置流转条件，无法流转，请联系流程设置人员');
+                }
+                //条件判断表达式为1表示true，通过的话直接进入下一步骤
+                if ($v->expression == '1') {
+                    $flowlink = $v;
+                    break;
+                } else {
+                    $res = $this->expression_check($v->expression, $field_arr, $value);
+                    if ($res) {
+                        $flowlink = $v;
+                        break;
+                    }
+                }
+            }
+            if (empty($flowlink)) {
+                throw new \Exception('未满足流转条件，无法流转到下一步骤，请联系流程设置人员');
+            }
+            $auditor_ids = $this->getProcessAuditorIds($proc->entry, $flowlink->next_process_id);
+            if (empty($auditor_ids)) {
+                Log::error('下一步骤未找到审核人--210');
+                throw new \Exception("下一步骤未找到审核人");
+            }
+            $auditors = SystemUser::whereIn('id', $auditor_ids)->field('id,name,deptid')->select();
+            if (count($auditors) < 1) {
+                Log::error('下一步骤未找到审核人--215');
+                throw new \Exception("下一步骤未找到审核人");
+            }
+            $this->addProc($flowlink, $proc, $auditors, $approval_type, $isAllPass);  //添加处理明细
+            $this->updateEntryInfo($flowlink, $proc, $approval_type, $isAllPass);
+        } else {
+            $flowlink = WorkflowFlowlink::where(['process_id' => $proc->process_id, "type" => "Condition"])->find();
+            // 创建子流程
+            if ($flowlink->process->child_flow_id > 0) {
+                if (!$child_entry = WorkflowEntry::where(['pid' => $proc->entry->id, 'circle' => $proc->entry->circle])->find()) {
+                    $child_entry = WorkflowEntry::create([
+                        'title' => $proc->entry->title,
+                        'flow_id' => $flowlink->process->child_flow_id,
+                        'user_id' => $proc->entry->user_id,
+                        'status' => 0,
+                        'pid' => $proc->entry->id,
+                        'circle' => $proc->entry->circle,
+                        'enter_process_id' => $flowlink->process_id,
+                        'enter_proc_id' => $proc->id,
+                    ]);
+                }
+                $child_flowlink = WorkflowFlowlink::alias('fl')
+                    ->join('__WORKFLOW_PROCESS__ p', 'p.id=fl.process_id')
+                    ->where(['fl.flow_id' => $flowlink->process->child_flow_id, 'fl.type' => 'Condition', 'p.position' => 0])
+                    ->order('sort asc')
+                    ->field('fl.id,fl.flow_id,fl.type,fl.process_id,fl.next_process_id,fl.auditor,fl.expression,fl.sort,p.process_name')
+                    ->findOrFail();
+                $this->setFirstProcessAuditor($child_entry, $child_flowlink);  //初始化子流程
+                $child_entry->parentEntry->update([
+                    'id' => $child_entry->pid,
+                    'child' => $child_entry->process_id
+                ]);
+            } else {
+                //最后一步
+//                if ($flowlink->next_process_id == -1) {
+//                下一步是最后一个节点 则结束
+                if ($flowlink->nextProcess->position == 9) {
+                    $wf_status = $flowlink->nextProcess->wf_status;
+                    $proc->entry->update([
+                        'id' => $proc->entry->id,
+                        'status' => 9,
+                        'wf_status' => $wf_status,
+                        'process_id' => $flowlink->nextProcess->id
+//                        'process_id' => $flowlink->process_id
+                    ]);
+                    $entry = $proc->entry;
+                    /******************添加最后一步记录 无需审批*********************/
+                    WorkflowProc::create([
+                        'flow_id' => $entry->flow_id,
+                        'entry_id' => $entry->id,
+                        'order_sn' => $entry->order_sn,
+                        'process_id' => $flowlink->nextProcess->id,
+                        'process_name' => $flowlink->nextProcess->process_name,
+                        'user_id' => $entry->user_id,
+                        'user_name' => $entry->user->name,
+                        'dept_name' => $entry->user->department->name,
+                        'auditor_id' => $entry->user_id,
+                        'auditor_name' => $entry->user->name,
+                        'auditor_dept' => $entry->user->department->name,
+                        'status' => 9,
+                        'circle' => $entry->circle,
+                        'concurrence' => 1
+                    ]);
+                    /******************添加最后一步记录*********************/
+                    if (!empty($wf_status) && !$this->afterAction($proc)) {
+                        //  更新订单状态
+                        Db::name($entry->flow->table_name)->where('id', $entry->mid)->setField($entry->flow->field, $wf_status);
+                        Log::write('更新订单状态...最后一步');
+                    }
+                    //子流程结束 暂未使用
+                    if ($proc->entry->pid > 0) {
+                        if ($proc->entry->enter_process->child_after == 1) {
+                            //同时结束父流程
+                            $proc->entry->parentEntry->update([
+                                'id' => $proc->entry->pid,
+                                'status' => 9,
+                                'child' => 0
+                            ]);
+                        } else {
+                            //进入设置的父流程步骤
+                            if ($proc->entry->enter_process->child_back_process > 0) {
+                                $this->goToProcess($proc->entry->parentEntry, $proc->entry->enterProcess->child_back_process);
+                                $proc->entry->parentEntry->process_id = $proc->entry->enterProcess->child_back_process;
+                            } else {
+                                //默认进入父流程步骤下一步
+                                $parent_flowlink = WorkflowFlowlink::where(['process_id' => $proc->entry->enterProcess->id, "type" => "Condition"])->find();
+                                //判断是否为最后一步
+                                if ($parent_flowlink->next_process_id == -1) {
+                                    $proc->entry->parentEntry->update([
+                                        'status' => 9,
+                                        'child' => 0,
+                                        'process_id' => $proc->entry->enterProcess->child_back_process
+                                    ]);
+                                    //流程结束通知
+
+                                } else {
+                                    $this->goToProcess($proc->entry->parentEntry, $parent_flowlink->next_process_id);
+                                    $proc->entry->parentEntry->process_id = $parent_flowlink->next_process_id;
+                                    $proc->entry->parentEntry->status = 0;
+                                }
+                            }
+                            $proc->entry->parentEntry->child = 0;
+                            $proc->entry->parentEntry->save();
+                        }
+                    } else {
+                        //流程结束通知
+
+                    }
+                } else {
+                    $auditor_ids = $this->getProcessAuditorIds($proc->entry, $flowlink->next_process_id);
+                    $auditors = SystemUser::whereIn('id', $auditor_ids)->field('id,name,deptid')->select();
+                    if (count($auditors) < 1) {
+                        throw new \Exception("下一步骤未找到审核人");
+                    }
+                    $this->addProc($flowlink, $proc, $auditors, $approval_type, $isAllPass);
+                    $this->updateEntryInfo($flowlink, $proc, $approval_type, $isAllPass); //更新流程状态
+                }
+            }
+        }
+        //更新审批信息
+        $this->updateProcInfo($proc, $approval_type, $isAllPass);
+    }
+
+    /**添加处理明细
+     * 依次审批|会签  有添加过则不添加，全部通过 添加下一步骤待处理明细
+     * 正常\或签 直接添加下一步骤待处理明细
+     * @param WorkflowFlowlink $flowlink
+     * @param WorkflowProc $proc
+     * @param $auditors
+     * @param $approval_type
+     * @param $isAllPass
+     */
+    public function addProc(WorkflowFlowlink $flowlink, WorkflowProc $proc, $auditors, $approval_type, $isAllPass)
+    {
+        if ((in_array($approval_type, ['1', '3']) && $isAllPass) || !in_array($approval_type, ['1', '3'])) {
+            $data = [
+                'entry_id' => $proc->entry_id,
+                'flow_id' => $proc->flow_id,
+                'order_sn' => $proc->order_sn,
+                'process_id' => $flowlink->next_process_id,
+                'process_name' => $flowlink->next_process->process_name,
+                'circle' => $proc->entry->circle,
+                'status' => 0,
+                'is_read' => 0,
+                'concurrence' => 1,
+            ];
+            foreach ($auditors as $key => $v) {
+                if ($approval_type == '3') {
+                    $data['current'] = $key + 1;
+                }
+                $data['user_id'] = $v->id;
+                $data['user_name'] = $v->name;
+                $data['dept_name'] = $v->department->name;
+                $data['step'] = $key + 1;
+                WorkflowProc::create($data);
+            }
+        }
+    }
+
+    /**更新流程状态
+     * @param WorkflowFlowlink $flowlink
+     * @param WorkflowProc $proc
+     * @param $approval_type
+     * @param $isAllPass
+     */
+    public function updateEntryInfo(WorkflowFlowlink $flowlink, WorkflowProc $proc, $approval_type, $isAllPass)
+    {
+        //依次签或者全签
+        if ((in_array($approval_type, ['1', '3']) && $isAllPass) || !in_array($approval_type, ['1', '3'])) {
+            $wf_status = $flowlink->nextProcess->wf_status;
+            $proc->entry->update([
+                'id' => $proc->entry->id,
+                'wf_status' => $wf_status,
+                'process_id' => $flowlink->next_process_id
+            ]);
+            $entry = $proc->entry;
+            if (!empty($wf_status)) {
+//            更新订单状态
+                Db::name($entry->flow->table_name)->where('id', $entry->mid)->setField($entry->flow->field, $wf_status);
+                Log::write('审批更新订单状态...');
+            }
+            //判断是否存在父进程
+            if ($proc->entry->pid > 0) {
+                $proc->entry->parentEntry->update([
+                    'id' => $proc->entry->pid,
+                    'child' => $flowlink->next_process_id
+                ]);
+            }
+        }
+    }
+
+
+    /**更新流程状态(直接返回退回之前节点)
+     * @param WorkflowProc $proc
+     * @param $next_process_id
+     */
+    public function updateBackEntryInfo(WorkflowProc $proc, $next_process_id)
+    {
+        $wf_status = WorkflowProcess::where('id', $next_process_id)->value('wf_status');
+        $proc->entry->update([
+            'id' => $proc->entry->id,
+            'wf_status' => $wf_status,
+            'process_id' => $next_process_id,
+            'status' => 0
+        ]);
+        $entry = $proc->entry;
+        if (!empty($wf_status)) {
+//            更新订单状态
+            Db::name($entry->flow->table_name)->where('id', $entry->mid)->setField($entry->flow->field, $wf_status);
+            Log::write('直接返回退回之前节点');
+        }
+    }
+
+    /**更新审批信息
+     * @param WorkflowProc $proc
+     */
+    public function updateProcInfo(WorkflowProc $proc, $approval_type)
+    {
+        $data = [
+            'status' => 9, //通过
+            'auditor_id' => $this->option['user_id'],
+            'auditor_name' => $this->option['user_name'],
+            'auditor_dept' => SystemUser::find($this->option['user_id'])->department->name,
+            'content' => $this->option['content'], // 审批意见
+            'finish_time' => time()
+        ];
+        $where = [
+            'entry_id' => $proc->entry_id,
+            'process_id' => $proc->process_id,
+            'circle' => $proc->entry->circle,
+            'status' => 0,
+            'id' => $proc->id
+        ];
+        if (in_array($approval_type, ['1', '3'])) {
+            if ($approval_type == '3') {
+                //依次审批
+                WorkflowProc::where([
+                    'entry_id' => $proc->entry_id,
+                    'flow_id' => $proc->flow_id,
+                    'circle' => $proc->entry->circle,
+                    'status' => 0,
+                    'step' => $proc->step + 1
+                ])->setField('current', '1');
+            }
+        } else { //普通审批 未审批内容设置为删除
+            $map = [
+                'id' => ['neq', $proc->id],
+                'entry_id' => $proc->entry_id,
+                'process_id' => $proc->process_id,
+                'circle' => $proc->entry->circle,
+                'is_deleted' => 1,
+                'status' => 0,
+            ];
+            WorkflowProc::where($map)->setField('is_deleted', '-1');
+        }
+        WorkflowProc::where($where)->update($data);
+    }
+
+    /**
+     * 会签审批 所有审批人员审批通过，流程流转到下一节点
+     */
+    public static function counterSign($approval_user_ids, WorkflowProc $proc)
+    {
+        $isAllPass = true;
+        foreach ($approval_user_ids as $key => $item) {
+            $result = WorkflowProc::where(['entry_id' => $proc->entry_id, 'flow_id' => $proc->flow_id, 'status' => 9, 'auditor_id' => $item])->value('id');
+            if (!$result) {
+                $isAllPass = false;
+                break;
+            }
+        }
+        return $isAllPass;
+    }
+
+    /**前往指定流程步骤
+     * @param WorkflowEntry $entry
+     * @param $process_id 当前步骤process_id
+     * @param string $backtoback 退回之后直接返回本节点
+     * @param string $next_process_id 退回之后返回节点的id
+     */
+    protected function goToProcess(WorkflowEntry $entry, $process_id, $backtoback = '')
+    {
+        $auditor_ids = $this->getProcessAuditorIds($entry, $process_id);
+        $auditors = SystemUser::whereIn('id', $auditor_ids)->field('id,name,deptid')->select();
+        if (!$auditors) {
+            Log::error('前往指定流程-未找到下一步骤审核人');
+            throw new \Exception("下一步骤未找到审核人");
+        }
+        $process = WorkflowProcess::find($process_id);
+        $approval_type = $process->approval_type;
+        $process_name = $process->process_name;
+        foreach ($auditors as $key => $v) {
+            $data = [
+                'entry_id' => $entry->id,
+                'order_sn' => $entry->order_sn,
+                'flow_id' => $entry->flow_id,
+                'process_id' => $process_id,
+                'process_name' => $process_name,
+                'user_id' => $v->id,
+                'user_name' => $v->name,
+                'dept_name' => $v->department->name,
+                'circle' => $entry->circle,
+                'status' => 0,
+                'is_read' => 0,
+                'concurrence' => 1,
+                'step' => $key + 1
+            ];
+            //退回流程之后审批通过直接返回该节点
+            if (!empty($backtoback)) {
+                $data['next_process_id'] = $this->option['next_process_id'];
+            }
+            if (isset($this->option['is_back_ids']) && !empty($this->option['is_back_ids'])) {
+                $data['is_back_ids'] = implode(',', $this->option['is_back_ids']);
+            }
+            if ($approval_type == '3') { //按顺序依次审批
+                $data['current'] = $key + 1;
+            }
+            WorkflowProc::create($data);
+            $wf_status = $process->wf_status;
+            if (!empty($wf_status)) {
+//            更新订单状态
+                Db::name($entry->flow->table_name)->where('id', $entry->mid)->setField($entry->flow->field, $wf_status);
+                Log::write('前往指定流程更新订单状态...');
+            }
+        }
+    }
+
+    /**获得下一步审批人员id
+     * @param WorkflowEntry $entry 当前流程实例
+     * @param $process_id  下一步流程id
+     * @return array
+     */
+    protected function getProcessAuditorIds(WorkflowEntry $entry, $process_id)
+    {
+        $auditor_ids = [];
+        // 设置下一步审批人
+        if (!empty($this->option['next_user_id'])) {
+            array_push($auditor_ids, $this->option['next_user_id']);
+            return $auditor_ids;
+        }
+        //查看是否自动选人
+        if ($flowlink = WorkflowFlowlink::where('type', 'Sys')->where('process_id', $process_id)->find()) {
+            if ($flowlink->auditor == '-1000') {
+                //发起人
+                $auditor_ids[] = $entry->user_id;
+            }
+
+            if ($flowlink->auditor == '-1001') {
+                //发起人部门主管
+                if (empty($entry->user->department)) {
+                    return $auditor_ids;
+                }
+                $auditor_ids[] = $entry->user->department->director_id;
+            }
+
+            if ($flowlink->auditor == '-1002') {
+                //发起人部门经理
+                if (empty($entry->user->department)) {
+                    return $auditor_ids;
+                }
+                $auditor_ids[] = $entry->user->department->manager_id;
+            }
+        } else {
+            $to_process = WorkflowProcess::find($process_id);
+            $inspector_status = 1004; // 退回审查员审批，审查员不改变
+            $next_user_id = $this->getInspector(['entry_id' => $entry->id, 'flow_id' => $entry->flow_id, 'order_sn' => $entry->order_sn], $inspector_status);
+            if ($to_process->wf_status == $inspector_status && $next_user_id !== false) {
+                $this->option['next_user_id'] = $next_user_id;
+                array_push($auditor_ids, $this->option['next_user_id']);
+                return $auditor_ids;
+            }
+            //并行
+            if ($flowlink = WorkflowFlowlink::where('type', 'Emp')->where('process_id', $process_id)->find()) {
+                //指定员工
+                $auditor_ids = array_merge($auditor_ids, explode(',', $flowlink->auditor));
+            }
+            if ($flowlink = WorkflowFlowlink::where('type', 'Dept')->where('process_id', $process_id)->find()) {
+                //指定部门
+                $dept_ids = explode(',', $flowlink->auditor);
+                $employee_ids = SystemUser::whereIn('deptid', $dept_ids)->column('id');
+                $auditor_ids = array_merge($auditor_ids, $employee_ids);
+            }
+            if ($flowlink = WorkflowFlowlink::where('type', 'Role')->where('process_id', $process_id)->find()) {
+                //指定角色人员
+                $role_ids = explode(',', $flowlink->auditor);
+                $auth_group = model('app\model\SystemAuthGroup')->getAuthGroup();
+                $dept_manage = $auth_group['branch_manager'];
+                if (check_auth($dept_manage, $role_ids)) {
+                    // 是部门经理，则取订单部门经理
+                    $employee_ids = Db::name('order')->where('order_sn', $entry->order_sn)->column('dept_manager_id');
+                    if (!$employee_ids) {
+                        throw new \Exception('数据异常！');
+                    }
+                } else {
+                    $employee_ids = Db::name('SystemAuthGroupAccess')->where(['groupid' => ['in', $role_ids]])->column('uid');
+                }
+//                $employee_ids = SystemUser::where(['position_id' => ['in', $role_ids]])->column('id');
+//                $employee_ids = SystemUser::where('', 'exp', "status=1 and FIND_IN_SET(authorize,{$role_ids})")->column('id');
+                $auditor_ids = array_merge($auditor_ids, $employee_ids);
+            }
+        }
+        return array_unique($auditor_ids);
+    }
+
+    /**下一步骤信息
+     * @param WorkflowEntry $entry
+     * @param $process_id
+     * @return string
+     */
+    protected function getNextProcess($proc)
+    {
+        if (WorkflowFlowlink::where(['process_id' => $proc->process_id, "type" => "Condition"])->count() > 1) {
+            $var = WorkflowProcessVar::where(['process_id' => $proc->process_id])->group('expression_field')->select();
+            //当前步骤判断的变量 需要根据 $var->expression_field（如请假 day） 去查当前工作流对应表数据里的值
+            if ($var) {
+                $field_arr = array_column(Tools::buildArrFromObj($var), 'expression_field');
+            } else {
+                Log::error('步骤判断的变量不存在624');
+                throw new \Exception('流转条件设置错误，无法流转，请联系流程设置人员');
+            }
+            $value = Db::name($var[0]->table_name)->where('order_sn', $proc->entry->order_sn)->field($field_arr)->find();
+            if (!$value) {
+                Log::error('步骤判断的变量不存在');
+                throw new \Exception('流转条件设置错误，无法流转，请联系流程设置人员');
+            }
+            $flowlinks = WorkflowFlowlink::where(['process_id' => $proc->process_id, "type" => "Condition"])->select();
+            $flowlink = null;
+            foreach ($flowlinks as $v) {
+                if ($v->condition_type == 'beanshell') {
+                    if (empty($v->path)) {
+                        Log::error('未设置流转条件，无法流转，请联系流程设置人员--180');
+                        throw new \Exception('未设置流转条件，无法流转，请联系流程设置人员');
+                    }
+                    //根据脚本判断
+                    $util = new Util();
+                    if ($util->load_wf_class($v->path, $proc)) {
+                        $flowlink = $v;
+                        break;
+                    }
+                    continue;
+                }
+                if (empty($v->expression)) {
+                    Log::error('条件表达式不存在');
+                    throw new \Exception('未设置流转条件，无法流转，请联系流程设置人员');
+                }
+                //条件判断表达式为1表示true，通过的话直接进入下一步骤
+                if ($v->expression == '1') {
+                    $flowlink = $v;
+                    break;
+                } else {
+                    $res = $this->expression_check($v->expression, $field_arr, $value);
+                    if ($res) {
+                        $flowlink = $v;
+                        break;
+                    }
+                }
+            }
+        } else {
+            $flowlink = WorkflowFlowlink::where('type', 'Condition')->where('process_id', $proc->process_id)->find();
+        }
+        return $flowlink;
+    }
+
+    /**可退回的步骤
+     * @param WorkflowEntry $entry
+     */
+    public function getPreProcessList(WorkflowEntry $entry)
+    {
+        $where = [
+            'status' => ['in', ['9', '-1']],
+            'circle' => $entry->circle,
+            'entry_id' => $entry->id,
+            'is_back' => 0,
+            'is_deleted' => 1,
+            'process_id' => ['neq', $entry->process_id]
+        ];
+        $list = WorkflowProc::where($where)
+            ->field('id,entry_id,flow_id,process_id,process_name,create_time')
+            ->order('create_time asc')
+            ->group('process_id')
+            ->select();
+        return $list;
+    }
+
+    private function restIsBack($proc)
+    {
+        list($small, $large) = explode(',', $proc->is_back_ids);
+        $where = [
+            'is_back' => -1,
+            'entry_id' => $proc->entry_id,
+            'flow_id' => $proc->flow_id,
+        ];
+        WorkflowProc::where($where)->where('id', '>', $small)->where('id', '<', $large)
+            ->setField('is_back', 0);
+    }
+
+    /**表达式校验
+     * @param $expression  字符串表达式
+     * @param $field_arr 变量
+     * @param $value 变量值
+     * @return bool
+     */
+    private function expression_check($expression, $field_arr, $value)
+    {
+        //可填写 1 或 0 表示验证成功或失败
+        if ($expression == "1" || $expression == "0") {
+            return true;
+        }
+        foreach ($field_arr as $item) {
+            $$item = $value[$item];
+        }
+        //替换AND /OR 为 && /||
+        $result = '';
+        $expression = str_replace("AND", "&&", $expression);
+        $expression = str_replace("OR", "||", $expression);
+        @eval ('$result=' . $expression . ";");//执行表达式
+        if ($result === false) {//解析错误返回false
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    /**
+     * 流程审批通过后处理
+     * @param WorkflowProc $proc
+     */
+    public function afterAction(WorkflowProc $proc)
+    {
+        $afterbehavior = new behavior\AfterAction();
+        $method = $proc->flow->type;
+        if (method_exists($afterbehavior, $method)) {
+            return $afterbehavior->$method($proc);
+        }
+        return false;
+    }
+
+    /**流程信息
+     * @param $proc_id 步骤id
+     */
+    public function workflowInfo()
+    {
+        $workflow = [];
+        $proc = WorkflowProc::where(['user_id' => $this->option['user_id'], "status" => 0])->field('id,process_id,flow_id,entry_id,process_name,next_process_id,order_sn,next_process_id')->findOrFail($this->option['proc_id']);
+        if (empty($proc->next_process_id)) {
+            $nextprocess = $this->getNextProcess($proc);
+            $next_process = $nextprocess->nextprocess;
+            $next_process_id = $nextprocess->next_process_id;
+        } else {
+            $next_process = WorkflowProcess::find($proc->next_process_id);
+            $next_process_id = $proc->next_process_id;
+        }
+        $workflow ['preprocess'] = $this->getPreProcessList($proc->entry);  // 可退回流程节点
+        $workflow['process'] = $proc;  //当前流程
+        $workflow['nextprocess'] = $next_process; // 下一步流程
+        $workflow ['log'] = WorkflowProc::where(['circle' => $proc->entry->circle, 'entry_id' => $proc->entry->id, 'flow_id' => $proc->entry->flow_id, 'is_deleted' => 1])
+            ->field('id,entry_id,order_sn,flow_id,process_id,process_name,user_name,user_id,dept_name,auditor_id,auditor_name,auditor_dept,content,finish_time')
+            ->order('finish_time desc')->select();  //审批记录
+        $workflow['nextprocess_user'] = SystemUser::where('id', 'in', $this->getProcessAuditorIds($proc->entry, $next_process_id))->field('id,name')->select(); // 下一步流程操作人员
+        $inspector_id = $this->getInspector($proc, 1004);
+        $workflow['is_next_user'] = $proc->process->wf_nextuser && !$inspector_id ?: 0; //是否可选择下一步审批人员-审查员
+        return $workflow;
+    }
+
+    /**
+     * 获取已选审查员 1004
+     */
+    private function getInspector($proc, $status)
+    {
+        $inspector_id = WorkflowProc::alias('wp')->where([
+            'wp.entry_id' => $proc['entry_id'],
+            'wp.flow_id' => $proc['flow_id'],
+            'wp.order_sn' => $proc['order_sn'],
+            'wp.is_deleted' => 1,
+            'wps.wf_status' => $status
+        ])->join('__WORKFLOW_PROCESS__ wps', 'wps.id=wp.process_id')
+            ->value('wp.user_id');
+        return $inspector_id ? $inspector_id : false;
+    }
+
+    /**获取流程id
+     * @param $type array ['JYDB','RISK'] 订单流程类型
+     * @return mixed
+     */
+    public function getFlowId($type = [])
+    {
+        $type = implode('_', $type);
+        $flow_id = FlowModel::where(['type' => $type, 'status' => 1, 'is_publish' => 1])->value('id');
+        return $flow_id;
+    }
+}
+

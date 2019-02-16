@@ -1,0 +1,61 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/9
+ * Time: 9:46
+ */
+//订单相关组件类
+namespace app\util;
+use app\model\OrderLog;
+use app\model\Order;
+use think\Db;
+
+class OrderComponents {
+    /**
+     * 添加订单日志的静态方法
+     * @param int $userInfo  用户信息
+     * @param string $order_sn 订单编号
+     * @param string $stage 订单状态
+     * @param string $operate  操作
+     * @param string $operate_node 操作节点
+     * @param string $operate_det  操作详情
+     */
+
+    public static function addOrderLog($userInfo,$order_sn, $stage, $operate = '',$operate_node = '',$operate_det = '') {
+            //添加操作日志
+            $logData['create_uid'] = $userInfo['id'];
+            $logData['order_sn'] = $order_sn;
+            $logData['stage'] = $stage;
+            $logData['operate'] = $operate;
+            $logData['operate_node'] = $operate_node;
+            $logData['operate_det'] = $operate_det;
+            $logData['dept_id'] = $userInfo['deptid'];
+            $logData['dept_name'] = $userInfo['deptname'];
+            $logData['create_time'] = time();
+            return OrderLog::create($logData);
+    }
+
+    /**
+     * 财务赎楼出账表 基本信息组件
+     * @param string $order_sn 订单编号
+     */
+
+    public static function orderJbInfo($order_sn) {
+        $orderInfo = Db::name('order')->alias('a')
+                     ->field('a.order_sn,a.type,a.finance_sn,a.financing_manager_id,a.dept_manager_id,b.guarantee_money,b.guarantee_per')
+                     ->join('order_guarantee b','a.order_sn = b.order_sn')
+                     ->where(['a.order_sn'=>$order_sn,'a.status'=>1,'a.delete_time' => NULL])
+                     ->find();
+
+        $orderInfo['financing_manager_name'] = Db::name('system_user')->where(['id' => $orderInfo['financing_manager_id']])->value('name');
+        $deptManagerInfo = Db::name('system_user')->where(['id' => $orderInfo['dept_manager_id']])->field('name,deptname')->find();
+        $orderInfo['dept_manager_name'] = $deptManagerInfo['name'];
+        $orderInfo['deptname'] = $deptManagerInfo['deptname'];
+        return $orderInfo;
+    }
+
+
+
+
+}

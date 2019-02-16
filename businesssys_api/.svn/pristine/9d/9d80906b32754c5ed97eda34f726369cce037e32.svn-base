@@ -1,0 +1,203 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/9
+ * Time: 13:46
+ */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\OrderCostRecord;
+use think\Db;
+
+class Financial extends Base {
+    /**
+     * @api {post} admin/Financial/bookedList 费用入账列表[admin/Financial/bookedList]
+     * @apiVersion 1.0.0
+     * @apiName bookedList
+     * @apiGroup Financial
+     * @apiSampleRequest admin/Financial/bookedList
+     *
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} type    订单类型
+     * @apiParam {int}  start_time   开始时间
+     * @apiParam {int}  end_time   结束时间
+     * @apiParam {int}  guarantee_fee_status   1未收齐 2已收齐
+     * @apiParam {int} search_text    关键字搜索
+     * @apiParam {int} page    页码
+     * @apiParam {int} limit    条数
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     * "data": {
+     *       "total": 2,
+     *       "per_page": 20,
+     *       "current_page": 1,
+     *       "last_page": 1,
+     *       "data": [
+     *           {
+     *           "order_sn": "JYDB2018050096",
+     *           "finance_sn": "100000047",
+     *           "type": "JYDB",
+     *           "name": "夏丽平",
+     *           "estate_name": "国际新城",
+     *           "estate_owner": null,
+     *           "update_time": "2018-05-08 14:50:07",
+     *           "guarantee_fee": "2.00",
+     *           "ac_guarantee_fee": "0.00",
+     *           "guarantee_fee_status": 1
+     *           },
+     *           {
+     *           "order_sn": "JYDB2018050095",
+     *           "finance_sn": "100000047",
+     *           "type": "JYDB",
+     *           "name": "夏丽平",
+     *           "estate_name": "国际新城",
+     *           "estate_owner": null,
+     *           "update_time": "2018-05-08 14:46:58",
+     *           "guarantee_fee": "2.00",
+     *           "ac_guarantee_fee": "0.00",
+     *           "guarantee_fee_status": 1
+     *           }
+     *       ]
+     *   }
+     * @apiSuccess {int} total    总条数
+     * @apiSuccess {int} per_page    每页显示的条数
+     * @apiSuccess {int} current_page    当前页
+     * @apiSuccess {int} last_page    总页数
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {int} finance_sn    财务序号
+     * @apiSuccess {int} type     订单类型
+     * @apiSuccess {string} name    理财经理
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} ac_guarantee_fee_time    入账时间
+     * @apiSuccess {float} guarantee_fee    应收金额
+     * @apiSuccess {float} ac_guarantee_fee    实收金额
+     * @apiSuccess {int} guarantee_fee_status    收费状态 1未收齐 2已收齐
+     */
+
+    public function bookedList(){
+        $createUid = input('create_uid')?:0;
+        $subordinates = input('subordinates')?:0;
+        $type = input('type');
+        $startTime = input('start_time');
+        $endTime = input('end_time');
+        $guarantee_fee_status = input('guarantee_fee_status')?:0;
+        $searchText = trim(input('search_text'));
+        $page = input('page') ? input('page') : 1;
+        $pageSize = input('limit') ? input('limit') : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        //$userId = $this->userInfo['id'];
+        $userId = 2;
+        $map = [];
+        //用户判断//
+        $userStr = $createUid === 0  ? SystemUser::getOrderPowerStr($userId) : SystemUser::orderCheckPower($userId,$createUid,$subordinates);
+        //return json($userStr);
+        if($userStr !== false)
+            $map['x.financing_manager_id']=['in', $userStr];
+        else
+            return $this->buildSuccess([]);
+        if($startTime && $endTime){
+            if($startTime > $endTime){
+                $map['n.ac_guarantee_fee_time'] = array(array('egt', $endTime), array('elt', $startTime));
+            }else{
+                $map['n.ac_guarantee_fee_time'] = array(array('egt', $startTime), array('elt', $endTime));
+            }
+        }elseif($startTime){
+            $map['n.ac_guarantee_fee_time'] = ['egt',$startTime];
+        }elseif($endTime){
+            $map['n.ac_guarantee_fee_time'] = ['elt',$endTime];
+        }
+        $type && $map['x.type'] = $type;
+        $guarantee_fee_status && $map['n.guarantee_fee_status'] = $guarantee_fee_status;
+        $searchText && $map['y.estate_name|x.order_sn|x.finance_sn']=['like', "%{$searchText}%"];
+        $map['x.delete_time'] = NULL;
+        $map['x.status'] = 1;
+        try{
+            return $this->buildSuccess(Order::costList($map,$page,$pageSize));
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!');
+        }
+    }
+
+    /**
+     * @api {post} admin/Financial/addBooksWater 增加入账流水[admin/Financial/addBooksWater]
+     * @apiVersion 1.0.0
+     * @apiName addBooksWater
+     * @apiGroup Financial
+     * @apiSampleRequest admin/Financial/addBooksWater
+     *
+     * @apiParam {string}  order_sn   订单编号
+     * @apiParam {int}  finance_sn   财务序号
+     * @apiParam {float}  guarantee_fee  担保费
+     * @apiParam {float}  fee   手续费
+     * @apiParam {float}  self_financing 自筹金额
+     * @apiParam {float}  short_loan_interest 短贷利息
+     * @apiParam {float}  return_money 赎楼返还款
+     * @apiParam {float}  default_interest 罚息
+     * @apiParam {float}  overdue_money 逾期金额
+     * @apiParam {float}  other_money 其它
+     * @apiParam {string}  remark   备注说明
+     * @apiParam {int}  guarantee_fee_status   收费状态 1未收齐 2已收齐
+     *
+     */
+
+    public function addBooksWater(){
+        $waterInfo['order_sn'] = input('order_sn');
+        $waterInfo['finance_sn'] = input('finance_sn');
+        $waterInfo['guarantee_fee'] = input('guarantee_fee')?:0;
+        $waterInfo['fee'] = input('fee')?:0;
+        $waterInfo['self_financing'] = input('self_financing')?:0;
+        $waterInfo['short_loan_interest'] = input('short_loan_interest')?:0;
+        $waterInfo['return_money'] = input('return_money')?:0;
+        $waterInfo['default_interest'] = input('default_interest')?:0;
+        $waterInfo['overdue_money'] = input('overdue_money')?:0;
+        $waterInfo['other_money'] = input('other_money')?:0;
+        $waterInfo['remark'] = input('remark');
+        $guarantee_fee_status = input('guarantee_fee_status');
+        //验证器验证参数
+        $valiDate = validate('FinanVail');
+        if(!$valiDate->check($waterInfo)){
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, $valiDate->getError());
+        }
+
+        // 启动事务
+        Db::startTrans();
+        try{
+            $total_money = $waterInfo['guarantee_fee']+$waterInfo['fee']+$waterInfo['self_financing']+$waterInfo['short_loan_interest']+
+                $waterInfo['return_money']+$waterInfo['default_interest']+$waterInfo['overdue_money']+$waterInfo['other_money'];
+            $waterInfo['total_money'] = $total_money;
+            $waterInfo['create_time'] = time();
+            //return json($waterInfo);
+            OrderCostRecord::create($waterInfo);
+
+            /*添加订单操作记录*/
+            //根据订单号查询出订单状态
+            $stageInfo = order::getOne(['order_sn' => $waterInfo['order_sn']],'stage');
+            $stage = $stageInfo['stage'];
+            $operate = "添加入账流水";
+            $operate_node = "添加入账流水";
+            $operate_det = "财务人员给订单添加入账流水";
+            OrderComponents::addOrderLog($this->userInfo['id'],$waterInfo['order_sn'], $stage, $operate,$operate_node,$operate_det);
+
+            // 提交事务
+            Db::commit();
+            return $this->buildSuccess('入账流水添加成功');
+        }catch (\Exception $e){
+            // 回滚事务
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '入账流水添加失败');
+        }
+
+
+
+    }
+
+
+
+}

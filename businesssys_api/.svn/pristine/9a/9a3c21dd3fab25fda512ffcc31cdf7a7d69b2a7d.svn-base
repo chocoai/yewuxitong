@@ -1,0 +1,28 @@
+<?php
+$afterBehavior = [
+    '\app\admin\behavior\ApiAuth',
+    '\app\admin\behavior\ApiPermission',
+    '\app\admin\behavior\AdminLog'
+];
+
+return [
+    '[admin]' => [
+        'Login/index'                 => [
+            'admin/Login/index',
+            ['method' => 'post']
+        ],
+        'Login/logout'                => [
+            'admin/Login/logout',
+            ['method' => 'get', 'after_behavior' => ['\app\admin\behavior\ApiAuth', '\app\admin\behavior\AdminLog']]
+        ],
+        'Log/index'                   => [
+            'admin/Log/index',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        'Log/del'                     => [
+            'admin/Log/del',
+            ['method' => 'get', 'after_behavior' => $afterBehavior]
+        ],
+        '__miss__'                    => ['admin/Miss/index'],
+    ],
+];

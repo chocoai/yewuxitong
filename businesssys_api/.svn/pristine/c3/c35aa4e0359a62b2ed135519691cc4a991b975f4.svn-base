@@ -1,0 +1,11 @@
+<?php
+
+namespace app\workflow\model;
+
+use think\Model;
+
+class WorkflowFlow extends Model
+{
+    //
+    protected $autoWriteTimestamp = true;
+}

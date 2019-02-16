@@ -1,0 +1,65 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/21
+ * Time: 14:38
+ */
+namespace app\model;
+use app\model\TrialFirst;
+
+
+class WorkflowProc extends Base {
+    /*
+     * @author 赵光帅
+     * 获取器 对status(审批结果)字段的转化
+     *
+     * */
+    public function getStatusAttr($value)
+    {
+        $status = [-1=>'驳回',0=>'待处理',9=>'通过',-2=>'撤回'];
+        return $status[$value];
+    }
+
+    /* @author 赵光帅
+     * 审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {string} $search_text    输入框搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function approval_list($map,$search_text,$page,$pageSize){
+
+        $res = self::alias('d')
+            //->distinct(true)
+            ->field('d.id as pid,a.id,a.order_sn,a.create_time,a.type,a.money,a.stage,b.estate_name,b.estate_ecity,b.estate_district,c.name')
+            ->join('order a','d.order_sn=a.order_sn','LEFT')
+            ->join('estate b','d.order_sn=b.order_sn','LEFT')
+            ->join('system_user c','a.financing_manager_id = c.id','LEFT')
+            ->where($map)
+            ->where('b.estate_name|a.order_sn', 'like', "%{$search_text}%")
+            ->order('a.create_time desc')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            //->fetchSql(true)
+            ->toArray();
+        //->select();
+        //return $res['data'];
+        //$result = unique($res['data']);
+        //$res['data'] = $result;
+        //到初审信息表去查询该订单是否是正常单
+        foreach ($res['data'] as $k => $v){
+            $isNormal = TrialFirst::getOne(['order_sn' => $v['order_sn'],'delete_time' => NULL],'is_normal');
+            if(empty($isNormal)){
+                $res['data'][$k]['is_normal'] = -1;
+            }else{
+                $res['data'][$k]['is_normal'] = $isNormal['is_normal'];
+            }
+        }
+        return $res;
+    }
+
+
+}

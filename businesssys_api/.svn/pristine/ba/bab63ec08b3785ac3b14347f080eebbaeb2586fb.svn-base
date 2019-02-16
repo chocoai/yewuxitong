@@ -1,0 +1,105 @@
+<?php
+
+/* 财务回款 */
+
+namespace app\admin\controller;
+
+use think\Db;
+use app\model\Order;
+use app\model\OrderGuaranteeBank;
+use app\model\OrderVerifyCard;
+use app\model\OrderVerifyCardRecord;
+use app\model\SystemUser;
+use app\util\OrderComponents;
+use app\util\ReturnCode;
+
+class FinancialReceipts extends Base {
+
+    private $order;
+    private $orderguaranteebank;
+    private $orderverifycard;
+    private $orderverifycardrecord;
+    private $systemuser;
+
+    public function _initialize() {
+        parent::_initialize();
+        $this->order = new Order();
+        $this->orderguaranteebank = new OrderGuaranteeBank();
+        $this->orderverifycard = new OrderVerifyCard();
+        $this->systemuser = new SystemUser();
+        $this->orderverifycardrecord = new OrderVerifyCardRecord();
+    }
+
+    /**
+     * @api {get} admin/FinancialReceipts/financialbackList 财务回款列表[admin/FinancialReceipts/financialbackList]
+     * @apiVersion 1.0.0
+     * @apiName financialbackList
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/financialbackList
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     * @apiParam {int} type     订单类型
+     * @apiParam {int} back_status   回款状态（0待回款 1待复核 2已复核 3驳回待处理）
+     * @apiParam {int} keywords     关键词
+     *
+     * @apiSuccess {string} finance_sn    财务序号
+     * @apiSuccess {string} order_sn    业务单号
+     * @apiSuccess {string} estate_name    房产名称
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} type_text    订单类型
+     * @apiSuccess {string} money    垫资总计
+     * @apiSuccess {string} readly_account    已出账金额
+     * @apiSuccess {string} return_money_amount    已回款金额
+     * @apiSuccess {string} return_money_amount    回款时间
+     * @apiSuccess {string} return_money_amount    回款状态
+     * @apiSuccess {string} financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function financialbackList() {
+        $limit = $this->request->get('size', config('apiAdmin.ADMIN_LIST_DEFAULT'));
+        $page = $this->request->get('page', 1);
+        $pageSize = $limit ? $limit : config('paginate')['list_rows'];
+        $create_uid = $this->request->get('create_uid', '');
+        $subordinates = $this->request->get('subordinates', 0);
+
+        $type = $this->request->get('type', '');
+        $back_status = $this->request->get('back_status', ''); ////////*///////
+        $keywords = $this->request->get('keywords', '');
+        //查询条件组装
+        $where = [];
+        $userId = $this->userInfo['id'];
+        if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($userId);
+            } else {
+                $userStr = $userId;
+            }
+            $where['o.financing_manager_id'] = ['in', $userStr];
+        }
+        $type && $where['o.type'] = $type;
+        $back_status && $where['x.back_status'] = $back_status; ////////*///////
+        $keywords && $where['x.order_sn|e.estate_name|x.finance_sn'] = ['like', "%{$keywords}%"];
+        $where['x.status'] = 1;
+        $field = "o.order_sn,o.id,o.finance_sn,o.type,e.estate_name,e.estate_owner,g.money,g.return_money_amount,g.com_loan_money,g.loan_money";
+        $creditList = $this->order->alias('x')
+                        ->join('__ESTATE__ e', 'e.order_sn=x.order_sn','left')
+                        ->join('__ORDER_GUARANTEE__ g', 'g.order_sn=x.order_sn')
+                        ->where('o.type', 'in', 'JYXJ,TMXJ,PDXJ,DQJK,SQDZ,GMDZ')//现金业务
+                        ->where($where)->field($field)
+                        ->order('x.create_time', 'DESC')
+                        ->group('x.id')
+                        ->paginate(array('list_rows' => $pageSize, 'page' => $page))->toArray();
+        if (!empty($creditList['data'])) {
+            foreach ($creditList['data'] as &$value) {
+                $value['type_text'] = $this->order->getType($value['type']); //订单类型
+                $value['financing_manager'] = $this->systemuser->where('id', $value['financing_manager_id'])->value('name'); //理财经理
+                $value['readly_account'] =$value['com_loan_money']+$value['loan_money']; //已出账总额=已出账渠道+公司放款
+            }
+        }
+        return $this->buildSuccess(['list' => $creditList['data'], 'count' => $creditList['total']]);
+    }
+
+}

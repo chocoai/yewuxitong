@@ -1,0 +1,289 @@
+<?php
+/**
+ * 用户管理
+ * @since   2018-04-16
+ * @author  
+ */
+namespace app\admin\controller;
+
+use app\model\SystemAuthGroupAccess;
+use app\model\SystemUser;
+use app\model\SystemUserData;
+use app\util\ReturnCode;
+use app\util\Tools;
+
+class User extends Base{
+
+    /**
+     * 获取用户列表
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     * @author 
+     */
+    public function index() {
+
+        $limit = $this->request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $start = $limit * ($this->request->get('page', 1) - 1);
+        $type = $this->request->get('type', '');
+        $keywords = $this->request->get('keywords', '');
+        $status = $this->request->get('status', '');
+
+        $where = [];
+        if ($status === '1' || $status === '0') {
+            $where['status'] = $status;
+        }
+        if ($type) {
+            switch ($type) {
+                case 1:
+                    $where['username'] = ['like', "%{$keywords}%"];
+                    break;
+                case 2:
+                    $where['nickname'] = ['like', "%{$keywords}%"];
+                    break;
+            }
+        }
+
+        $listInfo = (new SystemUser())->where($where)->order('regTime', 'DESC')->limit($start, $limit)->select();
+        $count = (new SystemUser())->where($where)->count();
+        $listInfo = Tools::buildArrFromObj($listInfo);
+        $idArr = array_column($listInfo, 'id');
+
+        $userData = SystemUserData::all(function($query) use ($idArr) {
+            $query->whereIn('uid', $idArr);
+        });
+        $userData = Tools::buildArrFromObj($userData);
+        $userData = Tools::buildArrByNewKey($userData, 'uid');
+
+        $userGroup = SystemAuthGroupAccess::all(function($query) use ($idArr) {
+            $query->whereIn('uid', $idArr);
+        });
+        $userGroup = Tools::buildArrFromObj($userGroup);
+        $userGroup = Tools::buildArrByNewKey($userGroup, 'uid');
+
+        foreach ($listInfo as $key => $value) {
+            if (isset($userData[$value['id']])) {
+                $listInfo[$key]['lastloginip'] = long2ip($userData[$value['id']]['lastloginip']);
+                $listInfo[$key]['logintimes'] = $userData[$value['id']]['logintimes'];
+                $listInfo[$key]['lastlogintime'] = date('Y-m-d H:i:s', $userData[$value['id']]['lastlogintime']);
+            }
+            $listInfo[$key]['regIp'] = long2ip($listInfo[$key]['regIp']);
+            if (isset($userGroup[$value['id']])) {
+                $listInfo[$key]['groupid'] = explode(',', $userGroup[$value['id']]['groupid']);
+            } else {
+                $listInfo[$key]['groupid'] = [];
+            }
+        }
+
+        return $this->buildSuccess([
+            'list'  => $listInfo,
+            'count' => $count
+        ]);
+    }
+
+    /**
+     * 新增用户
+     * @return array
+     * @author 
+     */
+    public function add() {
+        $groups = '';
+        $postData = $this->request->post();
+        $postData['regIp'] = request()->ip(1);
+        $postData['regTime'] = time();
+        $postData['password'] = Tools::userMd5($postData['password']);
+        if ($postData['groupid']) {
+            $groups = trim(implode(',', $postData['groupid']), ',');
+        }
+        unset($postData['groupid']);
+        $res = SystemUser::create($postData);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            SystemAuthGroupAccess::create([
+                'uid'     => $res->id,
+                'groupid' => $groups
+            ]);
+
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * 获取当前组的全部用户
+     * @author 
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public function getUsers() {
+        $limit = $this->request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $start = $limit * ($this->request->get('page', 1) - 1);
+        $gid = $this->request->get('gid', 0);
+        if (!$gid) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '非法操作');
+        }
+
+        $listInfo = (new SystemAuthGroupAccess())->where(['groupid' => ['like', "%{$gid}%"]])->select();
+        $listInfo = Tools::buildArrFromObj($listInfo);
+        $uidArr = array_column($listInfo, 'uid');
+
+        $userInfo = (new SystemUser())->whereIn('id', $uidArr)->order('regTime', 'DESC')->limit($start, $limit)->select();
+        $count = (new SystemUser())->whereIn('id', $uidArr)->count();
+        $userInfo = Tools::buildArrFromObj($userInfo);
+
+        $userData = SystemUserData::all(function($query) use ($uidArr) {
+            $query->whereIn('uid', $uidArr);
+        });
+        $userData = Tools::buildArrFromObj($userData);
+        $userData = Tools::buildArrByNewKey($userData, 'uid');
+
+        foreach ($userInfo as $key => $value) {
+            if (isset($userData[$value['id']])) {
+                $userInfo[$key]['lastloginip'] = long2ip($userData[$value['id']]['lastloginip']);
+                $userInfo[$key]['logintimes'] = $userData[$value['id']]['logintimes'];
+                $userInfo[$key]['lastlogintime'] = date('Y-m-d H:i:s', $userData[$value['id']]['lastlogintime']);
+            }
+            $userInfo[$key]['regIp'] = long2ip($userInfo[$key]['regIp']);
+        }
+
+        return $this->buildSuccess([
+            'list'  => $userInfo,
+            'count' => $count
+        ]);
+    }
+
+    /**
+     * 用户状态编辑
+     * @return array
+     * @author 
+     */
+    public function changeStatus() {
+        $id = $this->request->get('id');
+        $status = $this->request->get('status');
+        $res = SystemUser::update([
+            'id'         => $id,
+            'status'     => $status,
+            'update_time' => time()
+        ]);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * 编辑用户
+     * @author 
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public function edit() {
+        $groups = '';
+        $postData = $this->request->post();
+        if ($postData['password'] === 'Admin') {
+            unset($postData['password']);
+        } else {
+            $postData['password'] = Tools::userMd5($postData['password']);
+        }
+        if ($postData['groupid']) {
+            $groups = trim(implode(',', $postData['groupid']), ',');
+        }
+        $postData['update_time'] = time();
+        unset($postData['groupid']);
+        $res = SystemUser::update($postData);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            $has = SystemAuthGroupAccess::get(['uid' => $postData['id']]);
+            if ($has) {
+                SystemAuthGroupAccess::update([
+                    'groupid' => $groups
+                ], [
+                    'uid' => $postData['id'],
+                ]);
+            } else {
+                SystemAuthGroupAccess::create([
+                    'uid'     => $postData['id'],
+                    'groupid' => $groups
+                ]);
+            }
+
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * 修改自己的信息
+     * @author 
+     * @return array
+     * @throws \think\exception\DbException
+     */
+    public function own() {
+        $postData = $this->request->post();
+        $headImg = $postData['headImg'];
+        if ($postData['password'] && $postData['oldPassword']) {
+            $oldPass = Tools::userMd5($postData['oldPassword']);
+            unset($postData['oldPassword']);
+            if ($oldPass === $this->userInfo['password']) {
+                $postData['password'] = Tools::userMd5($postData['password']);
+            } else {
+                return $this->buildFailed(ReturnCode::INVALID, '原始密码不正确');
+            }
+        } else {
+            unset($postData['password']);
+            unset($postData['oldPassword']);
+        }
+        $postData['id'] = $this->userInfo['id'];
+        $postData['update_time'] = time();
+        unset($postData['headImg']);
+        $res = SystemUser::update($postData);
+        if ($res === false) {
+            return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '操作失败');
+        } else {
+            $userData = SystemUserData::get(['uid' => $postData['id']]);
+            $userData->headImg = $headImg;
+            $userData->save();
+
+            return $this->buildSuccess([]);
+        }
+    }
+
+    /**
+     * 删除用户
+     * @return array
+     * @author 
+     */
+    public function del() {
+        $id = $this->request->get('id');
+        if (!$id) {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '缺少必要参数');
+        }
+        SystemUser::destroy($id);
+        SystemAuthGroupAccess::destroy(['uid' => $id]);
+
+        return $this->buildSuccess([]);
+
+    }
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/User/userSearch 模糊匹配用户获取部门[admin/User/userSearch]
+     * @apiVersion 1.0.0
+     * @apiName userSearch
+     * @apiGroup User
+     * @apiSampleRequest admin/User/userSearch
+     * @apiParam {string}  name   用户编号
+     *
+     */
+    public function userSearch(){
+        $name = $this->request->post('name');
+        if(empty($name)){
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        }
+        return $this->buildSuccess(SystemUser::userSearch($name));
+    }
+}

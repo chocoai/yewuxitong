@@ -1,0 +1,50 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/18
+ * Time: 18:35
+ */
+
+namespace app\model;
+
+class OrderVerifyCard extends Base {
+
+    /**
+     * 获取核卡状态
+     * @return 核卡状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  核卡状态
+     * @author zhongjiaqi 6.27
+     */
+    public function getCheckstatus($status = '') {
+        $statusList = ['0' => '待核卡', '1' => '待财务复核', '2' => '驳回待处理', '3' => '已完成'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 获取账户状态
+     * @return 账户状态
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  账户状态
+     * @author zhongjiaqi 6.27
+     */
+    public function getAccountstatus($status = '') {
+        $statusList = ['1' => '正常', '2' => '冻结', '3' => '锁卡', '4' => '挂失', '5' => '注销'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+    /**
+     * 获取账户类型
+     * @return 账户类型
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $status  账户类型
+     * @author zhongjiaqi 6.27
+     */
+    public function getAccounttype($status = '') {
+        $statusList = ['1' => '赎楼卡', '2' => '尾款卡', '3' => '过账卡', '4' => '回款卡', '5' => '首期监管卡'];
+        return empty($status) ? '' : $statusList[$status];
+    }
+
+}

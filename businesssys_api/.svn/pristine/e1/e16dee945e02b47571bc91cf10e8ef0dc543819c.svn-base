@@ -1,0 +1,147 @@
+<?php
+
+namespace app\model;
+
+use think\Model;
+use app\util\Tools;
+
+class Customer extends Model {
+
+    protected $autoWriteTimestamp = true;
+    protected $createTime = 'create_time';
+
+    /**
+     * 根据条件获取用户信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $where 查询条件  $field查询字段
+     * @author zhongjiaqi 4.18
+     */
+    public function getcusinfoBywhere($where = [], $field = '') {
+        $data = $this->where($where)->field($field)->select();
+        return $data = Tools::buildArrFromObj($data);
+    }
+
+    /**
+     * 根据条件判断是否已经存在用户或企业
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $cname 用户/企业名称  $mobile 联系电话
+     * @author zhongjiaqi 4.19
+     */
+    public function checksameCustomer($cname, $mobile) {
+        $where = [
+            'status' => 1,
+            'cname' => $cname,
+            'mobile' => $mobile
+        ];
+        return $flag = $this->where($where)->count() > 0 ? FALSE : TRUE;
+    }
+
+    /**
+     * 新增用户
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合
+     * @author zhongjiaqi 4.19
+     */
+    public function addCustomer($data) {
+        $data['create_time'] = time();
+        $res = $this->insertGetId($data);
+        return $res;
+    }
+
+    /**
+     * 更新用户
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 与数据库字段对应的数组集合  $cusid 需要更新数据的用户id
+     * @author zhongjiaqi 4.20
+     */
+    public function updateCustomer($cusid, $data) {
+        $res = $this->where('id', $cusid)->update($data);
+        return $flag = $res > 0 ? TRUE : FALSE;
+    }
+
+    /**
+     * 筛选重复证件号
+     * @return bool
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $data 证件数据集  $cusid 被筛选用户
+     * @author zhongjiaqi 4.20
+     */
+    public function filterSamecard($cusid, $data) {
+        foreach ($data as $k => $v) {
+            if (empty($v['certtype']) || empty($v['certcode'])) {
+                return ['code' => 1, 'msg' => '证件信息不全,未选择证件类型或未填写证件号码'];
+            }
+        }
+        $this->Customercert = new CustomerCert();
+        $res = $this->Customercert->filterCreditcert($cusid, $data); //同步到客户信息
+        if (empty($res)) {
+            return ['code' => 1, 'msg' => '新增证件失败，请确定是否重复提交相同证件!'];
+        }
+        return $res;
+    }
+
+    /**
+     * 获取理财经理和对应部门 用-链接
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $id 与数据库字段对应的数组集合
+     * @author zhongjiaqi 4.20
+     */
+    public function getManagername($id) {
+        $res = $this->alias('ci')
+                ->field('su.name as uname,su.deptname,sd.id as did')
+                ->join('__SYSTEM_USER__ su', 'su.id=ci.financing_manager_id', 'LEFT')
+                ->join('__SYSTEM_DEPT__ sd', 'sd.id=su.deptid', 'LEFT')
+                ->where('ci.id', $id)
+                ->find()
+                ->toArray();
+        return $res;
+    }
+
+    /**
+     * 新增征信客户
+     * @return string
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $adddata 数据集
+     * @author zhongjiaqi 5.9
+     */
+    public function addcreditCustomer($adddata) {
+        $getdata = $this->dealwithCarddata($adddata['certdata']);
+        if ($getdata) {
+            $newdata['certtype'] = $getdata['certtype'];
+            $newdata['certcode'] = $getdata['certcode'];
+        }
+        $newdata['datacenter_id'] = $adddata['datacenter_id'];
+        $newdata['financing_manager_id'] = $adddata['financing_manager_id'];
+        $newdata['mobile'] = $adddata['mobile'];
+        $newdata['ctype'] = $adddata['type'];
+        $newdata['gender'] = $adddata['type'] == 1 ? $adddata['gender'] : 0;
+        $newdata['cname'] = $adddata['customer_name'];
+        $cusid = $this->addCustomer($newdata);
+        if ($cusid) {
+            $this->Customercert = new CustomerCert();
+            $this->Customercert->filterCreditcert($cusid, $adddata['certdata']); //同步证件信息
+            return $cusid;
+        }
+        return false;
+    }
+
+    /**
+     * 处理证件信息
+     * @param $data
+     * @return array|bool
+     */
+    private function dealwithCarddata($data) {
+        $newarray = array();
+        foreach ($data as $val) {
+            $val['certtype'] == 1 && $newarray = $val;
+        }
+        empty($newarray) && $newarray = $data[0];
+        return $newarray;
+    }
+
+}

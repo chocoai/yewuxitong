@@ -1,0 +1,156 @@
+<?php
+/*栋阁/楼层/房号信息控制器*/
+namespace app\admin\controller;
+
+use app\model\BuildingUnit as Unit;
+use app\model\BuildingFloor;
+use app\model\BuildingHouse;
+use app\util\ReturnCode;
+use app\util\Strs;
+use app\util\Tools;
+use app\admin\service\Zcdc;
+use think\Db;
+
+class BuildingUnit extends Base {
+
+
+    /**
+     * @author 林桂均
+     * 获取栋阁信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @param buildingId 楼盘id
+     */
+    public function getUnit()
+    {
+        $buildingId = $this->request->post('buildingId');
+        if(empty($buildingId))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $zcdc = new Zcdc;
+        $result = $zcdc->getUnit(['buildingId'=>$buildingId]);
+        if($result !== false) return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '栋阁信息读取失败!');
+
+    }
+
+
+    /**
+     * @author 林桂均
+     * 查询楼层信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public function getFloor()
+    {
+        $data['unit_id'] = $this->request->post('unitId');
+        if(empty($data['unit_id']))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $data['status'] = 1;
+        $result = BuildingFloor::getAll($data,'id,floorname');
+        if($result !== false)
+            return $this->buildSuccess($result);
+
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼层信息读取失败!');
+
+    }
+
+    /**
+     * @author 林桂均
+     * 添加楼层
+     * @params floortype 'up','down'
+     * @params floornum int
+     * @params buildingId str
+     * @params unitId str
+     * @return array
+     */
+    public function addFloor()
+    {
+        $floortype = $this->request->post('floortype');
+        $data['floornum'] = $this->request->post('floornum',0,'int');
+        $data['building_id'] = $this->request->post('buildingId');
+        $data['unit_id'] = $this->request->post('unitId');
+        if( empty($data['building_id']) || empty($data['unit_id']) || $data['floornum'] === 0 || ($floortype !== 'up' && $floortype !== 'down'))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数');
+
+        $floor = new BuildingFloor();
+        $data['status'] = 1;
+        if ($floor::getCount($data,true) > 0)
+            return $this->buildFailed(ReturnCode::DATA_EXISTS, '楼层已存在!');
+
+        $data['floorname'] =  $floortype === 'up' ?  '第'.Strs::numToWord(abs($data['floornum'])).'层' : '负'.Strs::numToWord(abs($data['floornum'])).'层';
+        $data['floortype'] = $floortype;
+        $data['id'] = 'F' . $this->_building_id();
+        $data['create_time'] = time();
+        if($floor->add($data) >0)
+            return $this->buildSuccess(['floorId'=>$data['id'],$data['floorname']]);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼层添加失败!');
+    }
+
+    /**
+     * @author 林桂均
+     * 查询房号信息
+     * @param floorId str 房号Id
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    public function getHouse()
+    {
+        $data['floor_id'] = $this->request->post('floorId');
+        if(empty($data['floor_id']))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $data['status'] = 1;
+        $result = BuildingHouse::getAll($data,'id,roomno_name');
+        if($result !== false)
+            return $this->buildSuccess($result);
+
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '房号信息读取失败!');
+    }
+
+    /**
+     * @author 林桂均
+     * 添加房号
+     * @param housename 房号
+     *
+     * @return array
+     */
+    public function addHouse()
+    {
+        $data['roomno_name'] = trim($this->request->post('housename'));
+        $data['unit_id'] = $this->request->post('unitId');
+        $floor_id = $this->request->post('floorId');
+        $building_id = $this->request->post('buildingId');
+        if(empty($data['roomno_name']) || empty($data['unit_id']) || empty($floor_id) || empty($building_id) || strlen($data['roomno_name']) > 8)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $data['status'] = 1;
+        $house = new BuildingHouse();
+        if($house::getCount($data,true) > 0)
+            return $this->buildFailed(ReturnCode::DATA_EXISTS, '房号已存在!');
+        $data['floor_id'] = $floor_id;
+        $data['building_id'] = $building_id;
+        $data['id'] = 'H' . $this->_building_id();
+        $data['create_time'] = time();
+        if($house->add($data) >0)
+            return $this->buildSuccess(['houseId'=>$data['id'],'unitname'=>$data['roomno_name']]);
+
+        return $this->buildFailed(ReturnCode::ADD_FAILED,'房号添加失败');
+
+    }
+
+    /*业务系统同步客户数据*/
+    public function test()
+    {
+        /*获取有效订单客户*/
+
+        $data = Db::name('order')->limit(10)->select();//dump($data);exit;
+        $result = Tools::post('http://test.zcapi.com/admin/buildingUnit/test1.html',$data);dump($result);
+    }
+
+    public function test1()
+    {
+        return input();
+    }
+}

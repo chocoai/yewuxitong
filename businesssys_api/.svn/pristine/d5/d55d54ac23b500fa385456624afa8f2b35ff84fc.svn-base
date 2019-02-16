@@ -1,0 +1,448 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/8/15
+ * Time: 16:38
+ */
+namespace app\model;
+
+
+use think\Db;
+use app\model\Order;
+
+class OrderOther extends Base {
+    /**
+     * 信息费支付列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+    public static function infoPayList($map, $field, $page, $pageSize){
+        $resInfo = self::alias('x')
+            ->field($field)
+            ->join('order o','x.order_sn = o.order_sn')
+            ->join('estate y','x.order_sn = y.order_sn','left')
+            ->join('system_user z ','x.create_uid = z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            //->group('x.order_sn')
+            ->paginate( ['list_rows'=>$pageSize,'page'=>$page])
+            ->toArray();
+        foreach ($resInfo['data'] as $key => $value) {
+            //时间年月日
+            $resInfo['data'][$key]['create_time'] = date('Y-m-d',strtotime($value['create_time']));
+            $resInfo['data'][$key]['type_text'] = (new order())->getType($value['type']); //订单类型
+            $resInfo['data'][$key]['stage_text'] = self::getType($value['stage']); //订单状态
+        }
+        return $resInfo;
+
+
+
+    }
+
+    /**
+     * 其他退费申请列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     */
+    public static function otherRefundList($map, $field, $page, $pageSize){
+        $resInfo = self::alias('x')
+            ->field($field)
+            ->join('order o','x.order_sn = o.order_sn')
+            ->join('estate y','x.order_sn = y.order_sn','left')
+            ->join('system_user z ','o.financing_manager_id = z.id')
+            ->where($map)
+            ->order('x.create_time desc')
+            //->group('x.order_sn')
+            ->paginate( ['list_rows'=>$pageSize,'page'=>$page])
+            ->toArray();
+        foreach ($resInfo['data'] as $key => $value) {
+            //时间年月日
+            $resInfo['data'][$key]['create_time'] = date('Y-m-d',strtotime($value['create_time']));
+            $resInfo['data'][$key]['process_type_text'] = self::getProcessTypeStr($value['process_type']); //订单类型
+            $resInfo['data'][$key]['stage_text'] = self::getType($value['stage']); //订单状态
+            $resInfo['data'][$key]['process_type_code'] = self::getProcessTypecodew($value['process_type']); //订单状态
+        }
+        return $resInfo;
+
+    }
+
+    /**
+     * 获取业务类型
+     * @return 业务类型
+     * @throws \think\db\exception\DataNotFoundException
+     * @param $type
+     * @author zhongjiaqi 5.18
+     */
+    public static function getType($type = '') {
+        $types = (new Dictionary())->getValnameByCode('OTHER_BUS_STATUS', $type);
+        return empty($types) ? '' : $types;
+    }
+
+    /**
+     * 获取订单基本信息
+     * @Param {arr} $process_type   费用申请类型
+     * @Param {int} $order_sn    订单编号
+     */
+    public static function getProcessTypeStr($process_type){
+        switch ($process_type) {
+            case 'SQ_TRANSFER' :
+                return '首期款转账';
+                break;
+            case 'DEPOSIT' :
+                return '退保证金';
+                break;
+            case 'XJ_GUARANTEE_FEE' :
+                return '现金单退担保费';
+                break;
+            case 'ED_GUARANTEE_FEE' :
+                return '额度单退担保费';
+                break;
+            default:
+                return '';
+        }
+
+    }
+
+    /**
+     * 获取订单基本信息
+     * @Param {arr} $process_type   费用申请类型
+     * @Param {int} $order_sn    订单编号
+     */
+    public static function getProcessTypecodew($process_type){
+        switch ($process_type) {
+            case 'SQ_TRANSFER' :
+                return 2;
+                break;
+            case 'DEPOSIT' :
+                return 3;
+                break;
+            case 'XJ_GUARANTEE_FEE' :
+                return 4;
+                break;
+            case 'ED_GUARANTEE_FEE' :
+                return 5;
+                break;
+            default:
+                return '';
+        }
+
+    }
+
+    /**
+     * 获取账户信息
+     * @Param {int} $id    其他业务表主键id
+     */
+    public function getAccountsInfo($id){
+        return Db::name('order_other_account')->where(['order_other_id' => $id,'status' => 1])->field('id,bank_account,account_type,account_source,bank_card,bank,bank_branch,money,exhibition_fee,actual_payment,expense_taxation')->select();
+    }
+
+    /**
+     * 获取申请信息
+     * @Param {int} $id    其他业务表主键id
+     */
+    public function getApplyInfo($id){
+           $applyInfo = self::where(['id' => $id])->field('id,process_sn,order_type,loan_way,transfer_type,info_fee_rate,info_fee,collector,mobile,reason')->find();
+           $applyInfo['attachment'] = Db::name('order_other_attachment')->alias('ooa')
+               ->join('attachment a','ooa.attachment_id = a.id')
+               ->field('a.id,a.url,a.name,a.thum1,a.ext')
+               ->where(['ooa.order_other_id' => $id, 'status' => 1])
+               ->select();
+           return $applyInfo;
+    }
+
+
+    /**
+     * 获取订单基本信息
+     * @Param {arr} $process_type   费用申请类型
+     * @Param {int} $order_sn    订单编号
+     */
+    public function getOrderInfo($process_type,$order_sn){
+            switch ($process_type) {
+                case 'INFO_FEE' :
+                    return self::getXXF($order_sn);
+                    break;
+                case 'SQ_TRANSFER' :
+                    return self::getSQ($order_sn);
+                    break;
+                case 'DEPOSIT' :
+                    return self::getBZJ($order_sn);
+                    break;
+                case 'XJ_GUARANTEE_FEE' :
+                    return self::getATDBF($order_sn);
+                    break;
+                case 'ED_GUARANTEE_FEE' :
+                    return self::getEDDBF($order_sn);
+                    break;
+                default:
+                    return '';
+            }
+
+    }
+
+    /*
+     * 获取按天退担保费订单基本信息
+     * */
+    private function getEDDBF($order_sn){
+        $orderInfo = Db::name('order')->alias('o')
+            ->join('order_guarantee og','o.order_sn = og.order_sn')
+            ->join('system_user su','o.financing_manager_id = su.id')
+            ->join('system_dept sd','o.financing_dept_id = sd.id')
+            ->field('o.order_sn,o.finance_sn,og.money,og.guarantee_rate,og.ac_guarantee_fee,og.ac_fee,su.name,sd.name sname')
+            ->where(['o.order_sn' => $order_sn, 'o.status' => 1])
+            ->find();
+        $orderInfo['paymatters'] = '额度单退担保费';
+        $orderInfo['estateinfo'] = $this->getEstates($order_sn)['estateNameStr'];
+        $orderInfo['estateOwner'] = $this->getEstates($order_sn)['estateOwnerStr'];
+        return $orderInfo;
+
+    }
+
+    /*
+     * 获取按天退担保费订单基本信息
+     * */
+    private function getATDBF($order_sn){
+        $orderInfo = Db::name('order')->alias('o')
+            ->join('order_guarantee og','o.order_sn = og.order_sn')
+            ->join('system_user su','o.financing_manager_id = su.id')
+            ->join('system_dept sd','o.financing_dept_id = sd.id')
+            ->field('o.order_sn,o.finance_sn,og.ac_guarantee_fee,og.ac_fee,og.ac_exhibition_fee,og.ac_overdue_money,su.name,sd.name sname')
+            ->where(['o.order_sn' => $order_sn, 'o.status' => 1])
+            ->find();
+        $orderInfo['paymatters'] = '现金单退担保费';
+        $orderInfo['estateinfo'] = $this->getEstates($order_sn)['estateNameStr'];
+        $orderInfo['estateOwner'] = $this->getEstates($order_sn)['estateOwnerStr'];
+        return $orderInfo;
+
+    }
+
+    /*
+     * 获取退保证金订单基本信息
+     * */
+    private function getBZJ($order_sn){
+        $orderInfo = Db::name('order')->alias('o')
+            ->join('order_guarantee og','o.order_sn = og.order_sn')
+            ->join('system_user su','o.financing_manager_id = su.id')
+            ->join('system_dept sd','o.financing_dept_id = sd.id')
+            ->field('o.order_sn,o.finance_sn,og.ac_deposit,su.name,sd.name sname')
+            ->where(['o.order_sn' => $order_sn, 'o.status' => 1])
+            ->find();
+        $orderInfo['paymatters'] = '退保证金';
+        $orderInfo['estateOwner'] = $this->getEstates($order_sn)['estateOwnerStr'];
+        return $orderInfo;
+
+    }
+
+    /*
+     * 获取首期转账订单基本信息
+     * */
+    private function getSQ($order_sn){
+        $orderInfo = Db::name('order')->alias('o')
+            ->join('order_guarantee og','o.order_sn = og.order_sn')
+            ->join('system_user su','o.financing_manager_id = su.id')
+            ->join('system_dept sd','o.financing_dept_id = sd.id')
+            ->field('o.order_sn,o.finance_sn,og.money,su.name,sd.name sname')
+            ->where(['o.order_sn' => $order_sn, 'o.status' => 1])
+            ->find();
+        $orderInfo['paymatters'] = '首期款转账';
+        $orderInfo['estateinfo'] = $this->getEstates($order_sn)['estateNameStr'];
+        $orderInfo['estateOwner'] = $this->getEstates($order_sn)['estateOwnerStr'];
+        //获取所有的关联的订单
+        $orderInfo['associated'] = $this->getAssociatedOrder($order_sn);
+        return $orderInfo;
+
+    }
+
+    /*
+     * 获取信息费订单基本信息
+     * */
+    private function getXXF($order_sn){
+        $orderInfo = Db::name('order')->alias('o')
+            ->join('order_guarantee og','o.order_sn = og.order_sn')
+            ->join('system_user su','o.financing_manager_id = su.id')
+            ->join('system_dept sd','o.financing_dept_id = sd.id')
+            ->field('o.order_sn,o.finance_sn,og.money,og.ac_guarantee_fee,o.order_source,o.source_info,su.name,sd.name sname')
+            ->where(['o.order_sn' => $order_sn, 'o.status' => 1])
+            ->find();
+        $orderInfo['estateinfo'] = $this->getEstates($order_sn)['estateNameStr'];
+        $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_YWLY'));
+        $orderInfo['order_source_str'] = !empty($orderInfo['order_source']) ? $newStageArr[$orderInfo['order_source']] : '';
+        $orderInfo['costomerinfo'] = $this->getCustomer($order_sn);
+        return $orderInfo;
+
+    }
+
+
+    /*
+     * 根据房产名称获取所有的关联单
+     * */
+    private function getAssociatedOrder($order_sn){
+        $estaterarr = $this->getEstates($order_sn)['estatearr'];
+        $orderSnStr = '';
+        if(!empty($estaterarr[0])){
+            foreach ($estaterarr as $k => $v){
+                $map['e.estate_name'] = ['like',$v['estate_name']];
+                $map['o.stage'] = ['not in','1021,1023'];
+                $map['e.order_sn'] = ['<>',$order_sn];
+                $orderSnInfo = Db::name('estate')->alias('e')
+                    ->join('order o','e.order_sn = o.order_sn')
+                    ->where($map)
+                    ->group('e.order_sn')
+                    ->column('e.order_sn');
+                $str = join(',',$orderSnInfo);
+                $orderSnStr .= $str.',';
+            }
+            return rtrim($orderSnStr,',');
+        }
+        return '';
+
+    }
+
+
+    /*
+     * 查询出所有的房产名称
+     * */
+    private function getEstates($order_sn){
+        $resInfo = Db::name('estate')->where(['order_sn' => $order_sn,'status' => 1,'estate_usage' => 'DB'])->field('estate_name,estate_owner')->select();
+        $returnInfo['estatearr'] = $resInfo;
+        $estateNameStr = '';
+        $estateOwnerStr = '';
+        foreach ($resInfo as $k => $v){
+            $estateNameStr .= $v['estate_name'].',';
+            $estateOwnerStr .= $v['estate_owner'].',';
+        }
+        $returnInfo['estateNameStr'] = rtrim($estateNameStr,',');
+        $returnInfo['estateOwnerStr'] = rtrim($estateOwnerStr,',');
+        return $returnInfo;
+    }
+
+    /*
+     * 查询出所有的担保申请人
+     * */
+    private function getCustomer($order_sn){
+        $customerInfo = Db::name('customer')->where(['order_sn' => $order_sn,'status' => 1])->column('cname');
+        return join(',',$customerInfo);
+    }
+
+    /*
+     * 查询出所有的审批记录
+     * */
+    public function getApprovalRecords($order_sn){
+        $jlField = 'wp.order_sn,wp.create_time,wp.process_name,wp.auditor_name,wp.auditor_dept,wp.status_desc status,wp.content';
+        //查询出审批记录
+        $appMap['wp.order_sn'] = $order_sn;
+        $appMap['wp.is_deleted'] = 1;
+        $appMap['wp.status'] = ['in','-1,9'];
+        $appMap['wf.flow_type'] = 'other_refund';
+        $appInfo = Db::name('workflow_proc')->alias('wp')
+            ->join('workflow_flow wf', 'wp.flow_id = wf.id')
+            ->where($appMap)
+            ->field($jlField)
+            ->select();
+        return $appInfo;
+    }
+
+    /* @author 赵光帅
+     * 信息费审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function costList($map,$field,$page,$pageSize){
+        $res = Db::name('workflow_proc')->alias('d')
+            ->field($field)
+            ->join('workflow_entry we', 'd.entry_id = we.id')
+            ->join('workflow_flow wf','d.flow_id = wf.id')
+            ->join('order_other x', 'x.id = we.mid')
+            ->join('estate y','d.order_sn = y.order_sn','LEFT')
+            ->join('order o','d.order_sn = o.order_sn')
+            ->join('system_user z','x.create_uid = z.id')
+            ->where($map)
+            ->order('x.create_time asc')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+
+        foreach ($res['data'] as $k => $v){
+            $res['data'][$k]['create_time'] = date('Y-m-d',$v['create_time']);
+            $res['data'][$k]['type_text'] = (new order())->getType($v['type']); //订单类型
+            $res['data'][$k]['stage_text'] = self::getType($v['stage']); //订单状态
+        }
+        return $res;
+    }
+
+
+    /* @author 赵光帅
+     * 其他费用审批列表查询
+     *
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     *
+     * */
+
+    public static function otherApprovalList($map,$field,$page,$pageSize){
+        $res = Db::name('workflow_proc')->alias('d')
+            ->field($field)
+            ->join('workflow_entry we', 'd.entry_id = we.id')
+            ->join('workflow_flow wf','d.flow_id = wf.id')
+            ->join('order_other x', 'x.id = we.mid')
+            ->join('estate y','d.order_sn = y.order_sn','LEFT')
+            ->join('order o','d.order_sn = o.order_sn')
+            ->join('system_user z','o.financing_manager_id = z.id')
+            ->where($map)
+            ->order('x.create_time asc')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        foreach ($res['data'] as $k => $v){
+            $res['data'][$k]['create_time'] = date('Y-m-d',$v['create_time']);
+            $res['data'][$k]['process_type_text'] = self::getProcessTypeStr($v['process_type']); //订单类型
+            $res['data'][$k]['stage_text'] = self::getType($v['stage']); //订单状态
+            $res['data'][$k]['process_type_code'] = self::getProcessTypecodew($v['process_type']); //订单状态
+        }
+        return $res;
+    }
+
+    /**获取展期数据列表
+     * @param array $where 查询条件
+     * @param bool $filed 查询字段
+     * @param array $paginate 分页参数
+     * @return array
+     * @author: bordon
+     */
+    public static function getExtenList($where = [], $field = true, $paginate = [])
+    {
+        $list = self::alias('ot')
+            ->join('order_other_exhibition oe','oe.order_other_id = ot.id')
+            ->join('system_user su','su.id = ot.create_uid')
+            ->where($where)
+            ->field($field)
+            ->order('ot.create_time desc')
+            ->paginate($paginate)
+            ->toArray();
+        return $list;
+    }
+    /**获取展期汇总数据
+     * @param array $where 查询条件
+     * @param bool $filed 查询字段
+     * @return array
+     * @author: bordon
+     */
+    public static function getExtenInfo($where = [], $field = true)
+    {
+        $list = self::alias('ot')
+            ->join('order_other_exhibition oe','oe.order_other_id = ot.id')
+            ->where($where)
+            ->field($field)
+            ->select();
+        return $list;
+    }
+
+
+}

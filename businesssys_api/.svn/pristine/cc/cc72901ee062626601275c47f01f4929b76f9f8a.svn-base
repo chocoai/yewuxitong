@@ -1,0 +1,700 @@
+<?php
+/**
+赎楼控制器
+ */
+
+namespace app\admin\controller;
+
+use app\model\Order;
+
+use app\model\OrderRansomDispatch;
+use app\model\Estate;
+use app\model\OrderMortgage;
+use app\model\SystemUser;
+use app\model\Dictionary;
+use app\util\Tools;
+use app\util\ReturnCode;
+use app\workflow\model\WorkflowEntry;
+use think\Exception;
+use app\util\OrderComponents;
+use think\Db;
+use Workflow\Workflow;
+use app\model\WorkflowFlow;
+
+class Ransomer extends Base
+{
+    /**
+     * @api {post} admin/Ransomer/index 赎楼正常派单列表[admin/Ransomer/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup Ransomer
+     * @apiSampleRequest admin/Ransomer/index
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  status   1已指派2待指派
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  is_combined_loan   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     */
+    public function index()
+    {
+        $search = input('search','','trim');
+        $managerId = input('managerId',0,'int');
+        $subordinates = input('subordinates',0,'int');
+        $is_combined_loan = input('is_combined_loan',2,'int');
+        $type = input('type','');
+        $where=[];
+        $search && $where['x.order_sn|y.estate_name|x.finance_sn']=['like', "%{$search}%"];
+        $type && $where['x.type'] = $type;
+        $pageSize = input('pagesize',0,'int');
+        $page = input('page',1,'int');
+        $where['z.status'] =1;
+        $is_combined_loan != 2 && $where['z.is_combined_loan'] = $is_combined_loan;
+        $managerId!='0' && $where['x.financing_manager_id'] = $subordinates ? ['in',SystemUser::getOrderPowerStr($managerId)]:$managerId;
+        $pageSize = $pageSize ? $pageSize : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $result= Order::ransomerList($where,$page,$pageSize);
+        $Arr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '派单列表读取失败!');
+        if(isset($result['data']) && $result['data']){
+            foreach($result['data'] as &$val){
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'],'estate_name','DB');
+                $val['financing_manager_id'] = SystemUser::where(['id'=>$val['financing_manager_id']])->value('name');
+                $val['type_name'] = isset($Arr[$val['type']]) ? $Arr[$val['type']] : '';
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+    /**
+     * @api {post} admin/Ransomer/otherList 赎楼其他派单列表[admin/Ransomer/otherList]
+     * @apiVersion 1.0.0
+     * @apiName otherList
+     * @apiGroup Ransomer
+     * @apiSampleRequest admin/Ransomer/otherList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  is_combined_loan   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     */
+    public function otherList()
+    {
+        $search = input('search','','trim');
+        $managerId = input('managerId',0,'int');
+        $subordinates = input('subordinates',0,'int');
+        $is_combined_loan = input('is_combined_loan',2,'int');
+        $type = input('post.type','');
+        $where=[];
+        $search && $where['x.order_sn|y.estate_name|x.finance_sn']=['like', "%{$search}%"];
+        $pageSize = input('pagesize',0,'int');
+        $page = input('page',1,'int');
+        $where['z.status'] =1;
+        $type && $where['x.type'] = $type;
+        $is_combined_loan != 2 && $where['z.is_combined_loan'] = $is_combined_loan;
+        $managerId!='0' && $where['x.financing_manager_id'] = $subordinates ? ['in',SystemUser::getOrderPowerStr($managerId)]:$managerId;
+        $result= Order::ortherRansomerList($where,$page,$pageSize);
+        $Arr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '派单列表读取失败!');
+        if($result['data']){
+            foreach($result['data'] as &$val){
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'],'estate_name','DB');
+                $val['financing_manager_id'] = SystemUser::where(['id'=>$val['financing_manager_id']])->value('name');
+                $val['type_name'] = isset($Arr[$val['type']]) ? $Arr[$val['type']] : '';
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/Ransomer/dispatchList 指派赎楼员列表[admin/Ransomer/dispatchList]
+     * @apiVersion 1.0.0
+     * @apiName dispatchList
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Ransomer/dispatchList
+     * @apiParam {string}  orderSn   订单编号
+     */
+    public function dispatchList()
+    {
+        $orderSn = input('orderSn','');
+        $id = input('id',0,'int');
+
+        if(empty($orderSn)) return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+        /*查询是否需要赎楼*/
+        $is_foreclosure = Db::name('order_guarantee')->where(['order_sn'=>$orderSn])->value('is_foreclosure');
+        $result['ransomer'] = $is_foreclosure == 1 ? SystemUser::getRansomer(1,$this->auth_group['redemption_staff']) : SystemUser::getRansomer(0,19);
+        $result['is_foreclosure'] = $is_foreclosure;
+        $arr = dictionary_reset((new dictionary)->getDictionaryByType('MORTGAGE_TYPE'));
+
+        //返回派单指派
+        if($id){
+            $dispatch = OrderRansomDispatch::getOne(['order_sn'=>$orderSn,'status'=>1,'is_dispatch'=>2],'is_dispatch,ransom_bank,ransom_type,ransomer');
+            $dispatch['mortgage_type_name'] = isset($arr[$dispatch['ransom_type']]) ? $arr[$dispatch['ransom_type']] :'';
+            $result['dispatch'] = $dispatch;
+            $result['is_dispatch_finance'] = Db::name('order_guarantee')->where(['order_sn'=>$orderSn,'status'=>1])->value('is_dispatch_finance');
+            return $this->buildSuccess($result);
+        }
+        //需要赎楼
+        if($is_foreclosure == 1){
+            $mortage = OrderComponents::showMortgage($orderSn,'mortgage_type,organization,id','ORIGINAL');
+            if($mortage){
+                foreach($mortage as &$val){
+                    $val['mortgage_type_name'] = isset($arr[$val['mortgage_type']]) ? $arr[$val['mortgage_type']] :'';
+                }
+                $result['mortage'] = $mortage;
+            }else{
+                $result['mortage'] = [];
+            }
+        }else{
+            $result['mortage'] = [];
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/Ransomer/addDispatch 指派赎楼员[admin/Ransomer/addDispatch]
+     * @apiVersion 1.0.0
+     * @apiName addDispatch
+     * @apiGroup Orders
+     * @apiSampleRequest admin/Ransomer/addDispatch
+     * @apiParam {int}  isFinance   是否不经财务派单1是0否
+     * @apiParam {array}  dispatch  赎楼员id赎楼员姓名ransomer赎楼银行ransom_bank赎楼类型ransom_type,按揭信息id ：mortgage_id
+     * @apiParam {string}  orderSn  订单编号
+     *
+     */
+    public function addDispatch()
+    {
+        $dispatch = input('post.dispatch/a');
+        $isFinance = input('post.isFinance',0,'int');
+        $orderSn = input('post.orderSn');
+        $createId = $this->userInfo['id'];
+        /*$dispatch= [
+            ['ransomer'=>'张三','ransome_id'=>1,'ransom_bank'=>'中国银行','ransom_type'=>1],
+            ['ransomer'=>'李四','ransome_id'=>1,'ransom_bank'=>'农业银行','ransom_type'=>1],
+        ];*/
+        Db::startTrans();
+        try{
+            if($dispatch){
+                $time = time();
+                $dispathStr = '';
+                //判断订单状态
+                $modelOrder = Db::name('order');
+                $res = $modelOrder->lock(true)->where(['status'=>1,'stage'=>1013,'order_sn'=>$orderSn])->find();
+                if(!$res) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '该订单不可派!');
+                /*查询是否需要赎楼*/
+                $is_foreclosure = Db::name('order_guarantee')->where(['order_sn'=>$orderSn])->value('is_foreclosure');
+                $modelOrderRansomDispatch = new OrderRansomDispatch;
+                $dictionary = new Dictionary;
+                $arr = dictionary_reset((new dictionary)->getDictionaryByType('MORTGAGE_TYPE'));
+                if($is_foreclosure == 1){
+                    foreach($dispatch as $key=>$vals){
+                        $dispatch[$key]['order_sn'] = $orderSn;
+                        $dispatch[$key]['ransom_status'] = 202;//待赎楼经理审批
+                        $dispatch[$key]['create_uid'] = $createId;
+                        $dispatch[$key]['create_time'] = $time;
+                        $dispatch[$key]['update_time'] = $time;
+                        $dispatch[$key]['is_dispatch'] = 1;
+                        $dispathStr === '' ? $dispathStr='赎楼员：'.$vals['ransomer'] .'('.$arr[$vals['ransom_type']].')': $dispathStr.=','.$vals['ransomer'] .'('.$arr[$vals['ransom_type']].')';
+                    }
+                }else{
+                    $dispatch[0]['order_sn'] = $orderSn;
+                    $dispatch[0]['ransom_status'] = 202;//待赎楼经理审批
+                    $dispatch[0]['create_uid'] = $createId;
+                    $dispatch[0]['create_time'] = $time;
+                    $dispatch[0]['update_time'] = $time;
+                    $dispatch[0]['is_dispatch'] = 1;
+                    $dispathStr = '赎楼员：'.$dispatch[0]['ransomer'];
+                }
+
+                $result = $modelOrderRansomDispatch->saveAll($dispatch);
+                if($result<=0){
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_READ_ERROR, '添加派单失败!');
+                }
+
+                /*写入是否经财务审核派单*/
+                if($isFinance=='1'){
+                    $res = Db::name('order_guarantee')->where(['order_sn'=>$orderSn])->setField('is_dispatch_finance',$isFinance);
+                    if($res===false){
+                        Db::rollback();
+                        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '财务派单状态更新失败!');
+                    }
+                }
+                $stageName = $dictionary->getValnameByCode('ORDER_JYDB_STATUS',1014);
+                //修改订单状态
+                $res = $modelOrder->where(['order_sn'=>$orderSn])->setField('stage',1014);
+                if($res !== 1){
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单状态修改失败');
+                }
+
+                /*写入指派赎楼员日志*/
+                if(OrderComponents::addOrderLog($this->userInfo,$orderSn,$stageName,'指派赎楼员','待指派赎楼员',$dispathStr,'',1014) === false){
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单日志添加失败');
+                }
+                //流程初始化
+                $resInitInfo = $this->initProcess($result,$orderSn);
+                if($resInitInfo['code'] == -1){
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, $resInitInfo['msg']);
+                }
+                Db::commit();
+                return $this->buildSuccess();
+            }
+        }catch(Exception $e){
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '系统繁忙，请稍后重试!'.$e->getMessage());
+        }
+
+    }
+
+    /*
+     * 流程初始化
+     * */
+    private function initProcess($result,$order_sn){
+        $workflow = new Workflow();
+        //根据订单号查询出订单类型
+        $type = Db::name('order')->where(['order_sn' => $order_sn])->value('type');
+        $flow_id = $workflow->getFlowId([$type,'FINANCIAL']);
+        if(empty($flow_id)) return (['code' => -1,'msg' => "派单流程初始化获取flow_id失败"]);
+        foreach ($result as $val){
+            $params['flow_id'] = $flow_id;
+            $params['user_id'] = $this->userInfo['id'];
+            $params['order_sn'] = $order_sn;
+            $params['mid'] = $val['id'];
+            $workflow->init($params);
+        }
+    }
+
+    /**
+     * @api {post} admin/Ransomer/returnDispatchList 赎楼退回派单列表[admin/Ransomer/returnDispatchList]
+     * @apiVersion 1.0.0
+     * @apiName returnDispatchList
+     * @apiGroup Ransomer
+     * @apiSampleRequest admin/Ransomer/returnDispatchList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {int}  type  暂时有JYDB一个类型 拿字典的数据，字典标识ORDER_TYPE
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  ransomType   赎楼类型1公积金2商业贷款（原按揭信息没有消费贷）
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     */
+    public function returnDispatchList()
+    {
+        $search = input('search','','trim');
+        $managerId = input('managerId',0,'int');
+        $subordinates = input('subordinates',0,'int');
+        $ransomType = input('ransomType',0,'int');
+
+        $type = input('post.type','');
+        $pageSize = input('pagesize',0,'int');
+        $page = input('page',1,'int');
+        $pageSize = $pageSize ? $pageSize : config('apiBusiness.ADMIN_LIST_DEFAULT');
+        $where=[];
+        $search && $where['x.order_sn|y.estate_name|x.finance_sn']=['like', "%{$search}%"];
+        $where['z.status'] =1;
+        $type && $where['x.type'] = $type;
+        $ransomType != 0 && $where['a.ransom_type'] = $ransomType;
+        $managerId!='0' && $where['x.financing_manager_id'] = $subordinates ? ['in',SystemUser::getOrderPowerStr($managerId)]:$managerId;
+        $arr = dictionary_reset((new Dictionary)->getDictionaryByType('MORTGAGE_TYPE'));
+        $Arr =  dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        $result= Order::returnRansomerList($where,$page,$pageSize);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '派单列表读取失败!');
+        if(isset($result['data']) && $result['data']){
+            foreach($result['data'] as &$val){
+                $val['ransom_type'] = $arr[$val['ransom_type']] ? $arr[$val['ransom_type']]:'';
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'],'estate_name','DB');
+                $val['financing_manager_id'] = SystemUser::where(['id'=>$val['financing_manager_id']])->value('name');
+                $val['type_name'] = isset($Arr[$val['type']]) ? $Arr[$val['type']] : '';
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/Ransomer/updateDispatch 退回派单指派[admin/Ransomer/updateDispatch]
+     * @apiVersion 1.0.0
+     * @apiName updateDispatch
+     * @apiGroup Ransomer
+     * @apiSampleRequest admin/Ransomer/updateDispatch
+     * @apiParam {int}  id   派单表id
+     * @apiParam {int}  ransomeId   赎楼员id
+     * @apiParam {string}  ransomer  赎楼员
+     */
+    public function updateDispatch()
+    {
+        $id = input('post.id',0,'int');
+        $ransome_id = input('post.ransomeId',0,'int');
+        $ransomer = input('post.ransomer','');
+        if($id=='0' || $ransome_id == '0' || empty($ransomer) ){
+          return  $this->buildFailed(ReturnCode::EMPTY_PARAMS, '缺少参数');
+        }
+        Db::startTrans();
+        try{
+            $OrderRansomDispatch = new OrderRansomDispatch;
+            $dispatchInfo = $OrderRansomDispatch::getOne(['is_dispatch'=>2,'status'=>1,'id'=>$id],'order_sn,ransom_type');
+            if(!$dispatchInfo){
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '派单信息未找到');
+            }
+            if($OrderRansomDispatch->save(['ransomer'=>$ransomer,'ransome_id'=>$ransome_id,'update_time'=>time(),'ransom_status'=>202,'is_dispatch'=>1],['id'=>$id,'is_dispatch'=>2]) !== 1){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '指派赎楼员失败');
+            }
+            $dispathStr = '指派赎楼员：'.$ransomer.'（'.show_status_name($dispatchInfo['ransom_type'],'MORTGAGE_TYPE').')';
+            /*写入指派赎楼员日志*/
+            if(OrderComponents::addOrderLog($this->userInfo,$dispatchInfo['order_sn'],show_status_name(1014,'ORDER_JYDB_STATUS'),'指派赎楼员','退回派单',$dispathStr,'',1014,'order_ransom_dispatch',$id) === false){
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单日志添加失败');
+            }
+            //驳回派单流程初始化
+            $this->inProcess($id,$dispatchInfo['order_sn']);
+            Db::commit();
+            return $this->buildSuccess();
+        }catch(Exception $e){
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '系统繁忙，请稍后重试!'.$e->getMessage());
+        }
+
+
+
+    }
+
+    /**
+     * @api {post} admin/Ransomer/dispatchDetails 赎楼派单详情页[admin/Ransomer/dispatchDetails]
+     * @apiVersion 1.0.0
+     * @apiName dispatchDetails
+     * @apiGroup Ransomer
+     * @apiSampleRequest admin/Ransomer/Ransomer
+     * @apiParam {string}  orderSn   订单编号
+     * @apiParam {int}  id   派单id(退回派单列表详情需要)
+     * @apiParam type 订单类型
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *  "data": {
+    "basic_information": {                      基本信息
+    "order_sn": "JYDB2018050137123456",    业务单号
+    "stage"      1002       订单状态
+    "type": "JYDB",        业务类型
+    "finance_sn": "100000048",      财务序号
+    "guarantee_money": "2.00",      担保金额
+    "guarantee_per": 2,            担保成数
+    "financing_manager_id": "夏丽平",    理财经理
+    "financing_manager_id": "杜欣",           部门经理
+    "financing_dept_id": "总经办"                   所属部门
+    "is_dispatch_finance":                   是否需要财务审核派单 0不需要1需要
+    "guarantee_fee_status": （担保费）收费状态 1未收齐 2已收齐
+    "is_loan_finish":                   银行放款是否完成 0未完成1完成
+
+    },
+    "estate_info": [   房产信息
+    {
+    "estate_name": "国际新城一栋",                  房产名称
+    "estate_region": "深圳市|罗湖区|桂园街道",      所属城区
+    "estate_area": 70,                             房产面积
+    "estate_certtype": 1,                          产证类型
+    "estate_certnum": 11111,                       产证编码
+    "house_type": 1                                房产类型 1分户 2分栋
+    },
+    {
+    "estate_name": "国际新城一栋",
+    "estate_district": "440303",
+    "estate_area": 70,
+    "estate_certtype": 1,
+    "estate_certnum": 11111,
+    "house_type": 1
+    }
+    ],
+    "seller_info": [  卖房信息(转让方)
+    {
+    "cname": "张三",                 卖方姓名
+    "ctype": 1,                      卖方类型 1个人 2企业
+    "certtype": 1,                   证件类型
+    "certcode": "11111122322",       证件号码
+    "mobile": "18825454079",         电话号码
+    "is_guarantee": 0                 担保申请人 1是 0否
+    },
+    {
+    "cname": "张三",
+    "ctype": 1,
+    "certtype": 1,
+    "certcode": "11111122322",
+    "mobile": "18825454079",
+    "is_guarantee": 0
+    }
+    ],
+    "borrower_info": [       卖方共同借款人
+    {
+    "cname": "张三",          共同借款人姓名
+    "ctype": 1,               借款人类型 1个人 2企业
+    "certtype": 1,                证件类型
+    "certcode": "1111112sdad222",  证件号码
+    "mobile": "18825454079",        电话号码
+    "is_guarantee": 0                担保申请人 1是 0否
+    },
+    {
+    "cname": "张三",
+    "ctype": 1,
+    "certtype": 1,
+    "certcode": "1111112222",
+    "mobile": "18825454079",
+    "is_guarantee": 0
+    },
+    ],
+    "preliminary_question": [    风控初审问题汇总
+    {
+    "describe": "呵呵456",     问题描述
+    "status": 0               是否解决  0未解决 1已经解决
+    },
+    {
+    "describe": "呵呵帅那个帅789",
+    "status": 0
+    }
+    ],
+    "needing_attention": [   风控提醒注意事项
+    {
+    "process_name": "收到公司的",    来源
+    "item": "啥打法是否"             注意事项
+    },
+    {
+    "process_name": "测试",
+    "item": "测试注意事项"
+    }
+    ],
+    "arrears_info": [    欠款及出账金额
+    {
+    "organization": "银行",      欠款机构名称
+    "interest_balance": "111111.11",    欠款金额
+    "mortgage_type_name": "商业贷款",   欠款类型
+    "accumulation_fund": "2.00"         出账金额
+    },
+    {
+    "organization": "银行",
+    "interest_balance": "111111.11",
+    "mortgage_type_name": "公积金贷款",
+    "accumulation_fund": "2.00"
+    }
+    ],
+    "reimbursement_info": [   预录赎楼还款账户
+    {
+    "bankaccount": "张三",   银行户名
+    "accounttype": 1,        账户类型：1卖方 2卖方共同借款人 3买方 4买方共同借款人 5其它
+    "bankcard": "111111",    银行卡号
+    "openbank": "中国银行"    开户银行
+    },
+    {
+    "bankaccount": "李四",
+    "accounttype": 5,
+    "bankcard": "111",
+    "openbank": "工商银行"
+    }
+    ],
+
+    "ac_guarantee_fee": "1000.00",   担保费
+    "ac_fee": "-15.00",              手续费
+    "ac_self_financing": "30.00",    自筹金额
+    "ac_short_loan_interest": "-12.30",   短贷利息
+    "ac_return_money": "12.50",           赎楼返还款
+    "ac_default_interest": "0.00",        罚息
+    "ac_overdue_money": "0.00",           逾期金额
+    "ac_other_money": "0.00"             其他
+     "ac_exhibition_fee" 展期费
+    "lend_books": [    银行放款入账
+    {
+    "bank_money": "56786.00",             放款金额
+    "lender_bank": "中国银行",           放款银行
+    "receivable_account": "中国银行账户",    收款账户
+    "bank_money_time": "2019-11-03",        到账时间
+    "remark": "法国红酒狂欢节",             备注说明
+    "operation_name": "杜欣"                入账人员
+    },
+    {
+    "bank_money": "123456.00",
+    "lender_bank": "中国银行",
+    "receivable_account": "中国银行账户",
+    "bank_money_time": "2019-11-02",
+    "remark": "啊是的范德萨",
+    "operation_name": "杜欣"
+    }
+    ],
+    "dispatch": {        赎楼状态
+    "ransom_type": 2,     赎楼类型
+    "ransomer": 1,         赎楼员
+    "ransom_bank": 3,           赎楼银行
+    "ransom_status": 1,             当前状态
+
+    }
+     * 渠道信息
+     "channel_info"{
+    fund_channel_id,fund_channel_name(渠道名称),money（垫资金额）,is_loan_finish（入账状态1完成0未完成）,actual_account_money（实际入账金额）
+     * }
+
+    }
+     */
+
+    public function dispatchDetails(){
+
+        $orderSn = input('orderSn','');
+        $id= input('id','');
+        $type = input('type','');
+        if(empty($orderSn) || $type=='') return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数不能为空!');
+        try{
+            $returnInfo = [];
+            //基本信息信息
+            $returnInfo['basic_information'] = OrderComponents::orderBaseInfo($orderSn,$type);
+            if($returnInfo['basic_information'] ===false) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单未找到!');
+            $dictonaryType = ['PROPERTY_TYPE','CERTTYPE','JYDB_ACCOUNT_TYPE','MORTGAGE_TYPE','ORDER_JYDB_FINC_STATUS','ORDER_HOUSE_TYPE'];
+            $dictonaryTypeArr = dictionary_reset(Dictionary::dictionaryMultiType($dictonaryType),1);
+            $returnInfo['basic_information']['type'] = show_status_name($returnInfo['basic_information']['type'] ,'ORDER_TYPE');
+
+            if($type!='DQJK'){
+                //房产信息
+                $estateInfo = OrderComponents::showEstateList($orderSn,'estate_name,estate_region,estate_area,estate_certtype,estate_certnum,house_type','DB');
+                if($estateInfo){
+                    foreach($estateInfo as $key=>$val){
+                        $estateInfo[$key]['estate_certtype_str'] = $dictonaryTypeArr['PROPERTY_TYPE'][$val['estate_certtype']] ? $dictonaryTypeArr['PROPERTY_TYPE'][$val['estate_certtype']]:'';
+                        $estateInfo[$key]['house_type'] = isset($dictonaryTypeArr['ORDER_HOUSE_TYPE'][$val['house_type']]) ? $dictonaryTypeArr['ORDER_HOUSE_TYPE'][$val['house_type']]:'';
+                    }
+                }
+                $returnInfo['estate_info'] = $estateInfo;
+                //客户信息
+                $customerInfo = OrderComponents::showCustomerInfo($orderSn,'ctype,is_seller,is_comborrower,cname,certtype,certcode,mobile,is_guarantee',2);
+                $sellInfo = $sellGuaranteeInfo = [];
+                if($customerInfo){
+                    foreach($customerInfo as $vals){
+                        $vals['ctype'] = $vals['ctype'] == '1'  ? '个人':'企业';
+                        $vals['is_guarantee'] = $vals['is_guarantee'] == '1' ? '是':'否';
+                        $vals['certtype_str'] = $dictonaryTypeArr['CERTTYPE'][$vals['certtype']] ? $dictonaryTypeArr['CERTTYPE'][$vals['certtype']]:'';
+                        if($vals['is_comborrower'] == '1'){
+                            $sellGuaranteeInfo[] = $vals;
+                        }else{
+                            $sellInfo[] = $vals;
+                        }
+
+                    }
+                }
+
+                $returnInfo['seller_info'] = $sellInfo;//卖方信息
+                $returnInfo['borrower_info'] = $sellGuaranteeInfo;//卖方共同借款人
+            }
+
+
+            //风控初审问题汇总
+            $returnInfo['preliminary_question'] = OrderComponents::showPreliminary($orderSn);
+            //风控提醒注意事项
+            $returnInfo['needing_attention'] = OrderComponents::showNeedAtten($orderSn);
+
+            //欠款及出账金额 => 原按揭信息
+            $returnInfo['arrears_info'] = OrderComponents::showArrearsInfo($orderSn,'mortgage_type,organization,interest_balance','ORIGINAL');
+            //获取对应赎楼银行信息
+            $resInfo = OrderComponents::showGuaranteeBank($orderSn,'bankaccount,accounttype,bankcard,openbank',$this->showGuaranteeBankType($type));
+            if($resInfo){
+                foreach($resInfo as $key => $val){
+                    $resInfo[$key]['accounttype_str'] = isset($dictonaryTypeArr['JYDB_ACCOUNT_TYPE'][$val['accounttype']]) ? $dictonaryTypeArr['JYDB_ACCOUNT_TYPE'][$val['accounttype']]:'';
+                }
+            }
+            $returnInfo['guaranteeBank'] = $resInfo;
+            //费用入账
+
+            if($type == 'JYDB'){
+                //银行放款入账
+                $lend_books =  OrderComponents::showBankList($orderSn);
+                $returnInfo['actTotal'] = 0;
+                if($lend_books){
+                    foreach($lend_books as $lend_book){
+                        $returnInfo['actTotal']+=$lend_book['loan_money'];
+                    }
+                    $returnInfo['lend_books'] = $lend_books;
+                }else{
+                    $returnInfo['lend_books']=[];
+                }
+            }else{
+                $returnInfo['channel_info'] = OrderComponents::fundChannel($orderSn,'fund_channel_id,fund_channel_name,money,is_loan_finish,actual_account_money');
+            }
+            //获取赎楼信息
+            if($returnInfo['basic_information']['is_foreclosure'] == 1){
+                /*需要赎楼*/
+                if($id){
+                    $dispatch = OrderRansomDispatch::where(['order_sn'=>$orderSn,'id'=>$id])->field('ransom_type,ransom_bank,is_dispatch,ransom_status,ransomer')->find();
+                    if($dispatch){
+                        $dispatch['ransom_status'] = show_status_name($returnInfo['dispatch']['ransom_status'],'ORDER_JYDB_FINC_STATUS');
+                        $dispatch['ransom_type'] = isset($dictonaryTypeArr['MORTGAGE_TYPE'][$returnInfo['dispatch']['ransom_type']]) ? $dictonaryTypeArr['MORTGAGE_TYPE'][$returnInfo['dispatch']['ransom_type']] : '';
+                        $returnInfo['dispatch'] = $dispatch;
+                    }else{
+                        $returnInfo['dispatch'] = [];
+                    }
+                }else{
+                    $dispatch = OrderComponents::orderDispatch($orderSn);
+                    if($dispatch){
+                        foreach($dispatch as $key=>$val){
+                            $dispatch[$key]['ransom_type'] = isset($dictonaryTypeArr['MORTGAGE_TYPE'][$val['ransom_type']]) ? $dictonaryTypeArr['MORTGAGE_TYPE'][$val['ransom_type']] : '';
+                            $dispatch[$key]['ransom_status'] = isset($dictonaryTypeArr['ORDER_JYDB_FINC_STATUS'][$val['ransom_status']]) ? $dictonaryTypeArr['ORDER_JYDB_FINC_STATUS'][$val['ransom_status']] : '';
+                        }
+                        $returnInfo['dispatch'] = $dispatch;
+                    }
+
+                }
+            }else{
+                //非赎楼
+                $dispatch = OrderRansomDispatch::where(['order_sn'=>$orderSn,'id'=>$id])->field('ransom_type,ransom_bank,is_dispatch,ransom_status,ransomer')->find();
+                if($dispatch){
+                    $dispatch['ransom_status'] = show_status_name($returnInfo['dispatch']['ransom_status'],'ORDER_JYDB_FINC_STATUS');
+                    $returnInfo['dispatch'] = $dispatch;
+                }else{
+                    $returnInfo['dispatch'] = [];
+                }
+            }
+            return $this->buildSuccess($returnInfo);
+        }catch (\Exception $e){
+            return $this->buildFailed(ReturnCode::RECORD_NOT_FOUND, '查询失败!'.$e->getMessage());
+        }
+    }
+
+
+    /**
+     * 根据订单类型获取银行信息类型
+     * @param $type
+     * @return bool|int|string
+     */
+    private function showGuaranteeBankType($type)
+    {
+        switch($type){
+            case 'JYDB':
+                return 1;
+                break;
+            case 'JYXJ':
+            case 'TMXJ':
+            case 'GMDZ':
+                return '1,3,4';
+                break;
+            case 'DQJK':
+                return 4;
+                break;
+            case 'SQDZ':
+                return '4,5';
+                break;
+            case 'PDXJ':
+                return '4,6';
+                break;
+            default:
+                return false;
+        }
+    }
+
+
+
+
+    /*
+     * 驳回派单流程初始化
+     * */
+    private function inProcess($id,$order_sn){
+        $entry_id = WorkflowEntry::where(['mid'=>$id,'order_sn'=>$order_sn,'status'=>-1])->value('id');
+        $workflow = new Workflow();
+        $workflow->resend($entry_id,$this->userInfo['id']);
+    }
+
+
+}

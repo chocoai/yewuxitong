@@ -1,0 +1,34 @@
+<?php
+
+namespace app\workflow\model;
+
+use think\Model;
+
+class WorkflowProc extends Model
+{
+    protected $autoWriteTimestamp = true;
+    public function emp()
+    {
+        return $this->belongsTo("Emp", "emp_id");
+    }
+
+    public function entry()
+    {
+        return $this->belongsTo("WorkflowEntry", "entry_id");
+    }
+
+    public function process()
+    {
+        return $this->belongsTo("WorkflowProcess", "process_id");
+    }
+
+    public function flow()
+    {
+        return $this->belongsTo("WorkflowFlow", "flow_id");
+    }
+
+    public function procs()
+    {
+        return $this->hasMany('WorkflowProc', 'entry_id');
+    }
+}

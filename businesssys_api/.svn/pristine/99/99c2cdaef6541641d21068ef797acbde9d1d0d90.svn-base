@@ -1,0 +1,36 @@
+<?php
+
+
+namespace Workflow\behavior;
+
+use think\Db;
+
+/**
+ * Class AfterAction 流程审批通过后处理
+ * @author: bordon
+ */
+class AfterAction
+{
+
+    /**
+     *交易担保流程审批通过后处理
+     */
+    public function JYDB_RISK($proc)
+    {
+        $is_foreclosure = Db::name('OrderGuarantee')->where(['order_sn' => $proc->order_sn, 'status' => 1])->value('is_foreclosure');
+        if (!in_array($is_foreclosure,[0,1])) {
+            throw new \Exception("数据异常！");
+        }
+        if ($is_foreclosure == 1) {
+            $status = 1013;  // 待指派赎楼员
+        } else {
+            $status = 1015;  // 带取红本
+        }
+        $result = Db::name('order')->where(['stage'=>1012,'order_sn'=>$proc->order_sn])->find();
+        if(!$result){
+            throw new \Exception('a数据异常31');
+        }
+        $result->stage = $status;
+        return $result->save();
+    }
+}

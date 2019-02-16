@@ -1,0 +1,860 @@
+<?php
+
+/**
+  权证管理控制器
+ */
+
+namespace app\admin\controller;
+
+use app\model\Order;
+use app\model\SystemUser;
+use app\model\OrderWarrant as modelOrderWarrant;
+use app\model\Dictionary;
+use app\util\OrderComponents;
+use app\util\ReturnCode;
+use think\Db;
+use think\Exception;
+
+class OrderWarrant extends Base {
+
+    /**
+     * @api {post} admin/OrderWarrant/index 取原产证列表[admin/OrderWarrant/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/index
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  isGet   取证状态0默认全部1已取2待取
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  isGet   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} type    订单类型
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} is_finish    0待取原产证1已取原产证
+     * @apiSuccess {string} create_time    取证日期
+     * @apiSuccess {string} name    理财经理姓名
+     * @apiSuccess {string} deptname    理财经理部门
+     * @apiSuccess {array} estateInfo    房产信息
+     */
+    public function index() {
+        $result = $this->baseList(1, 1015);
+        if ($result === false)
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '列表读取失败!');
+        if ($result['data']) {
+            foreach ($result['data'] as &$val) {
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'], 'estate_name', 'DB');
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/details 详情[admin/OrderWarrant/details]
+     * @apiVersion 1.0.0
+     * @apiName details
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/details
+     * @apiParam {string}  orderSn   权证详情
+     * @apiParam {int}  stage   判断图片显示 1不显示
+     * @apiSuccess {array} is_finish    是否完成 0未完成1已完成
+     */
+    public function details() {
+        $orderSn = input('orderSn', '');
+        $id = input('id', 0, 'int');
+
+        $stage = input('stage', 0, 'int');
+        if (empty($orderSn) || $id <= 0)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数无效!');
+
+        $dictonaryType = ['MORTGAGE_TYPE', 'CERTTYPE', 'ORDER_HOUSE_TYPE', 'PROPERTY_TYPE'];
+        $dictonaryTypeArr = dictionary_reset(Dictionary::dictionaryMultiType($dictonaryType), 1);
+        //订单按揭信息
+        $mortgage = OrderComponents::showMortgage($orderSn, 'type,mortgage_type,money,organization_type,organization,interest_balance');
+        $orgMortgage = $nowMortgage = [];
+        if ($mortgage) {
+            foreach ($mortgage as $val) {
+                $val['mortgage_type'] = isset($dictonaryTypeArr['MORTGAGE_TYPE'][$val['mortgage_type']]) ? $dictonaryTypeArr['MORTGAGE_TYPE'][$val['mortgage_type']] : '';
+                $val['organization_type'] = $val['organization_type'] == '1' ? '银行' : '其他';
+                if ($val['mortgage_type'] == '1') {
+                    $val['mortgage_type'] = '公积金贷款';
+                }
+                if ($val['type'] === 'ORIGINAL') {
+                    $orgMortgage[] = $val;
+                } else {
+                    $nowMortgage[] = $val;
+                }
+            }
+        }
+        $result['is_finish'] = Db::name('order_warrant')->where('id=' . $id)->value('is_finish');
+        $result['orgMortgage'] = $orgMortgage; //原按揭信息
+        $result['nowMortgage'] = $nowMortgage; //现按揭信息
+        //订单用户信息
+        $customerInfo = OrderComponents::showCustomerInfo($orderSn, 'ctype,is_seller,is_comborrower,cname,certtype,certcode,mobile,is_guarantee');
+        $sellInfo = $buyerInfo = [];
+        if ($customerInfo) {
+            foreach ($customerInfo as $val) {
+                $val['ctype'] = $val['ctype'] == '1' ? '个人' : '企业';
+                $val['certtype'] = isset($dictonaryTypeArr['CERTTYPE'][$val['certtype']]) ? $dictonaryTypeArr['CERTTYPE'][$val['certtype']] : '';
+                $val['is_guarantee'] = $val['is_guarantee'] == '1' ? '是' : '否';
+                if ($val['is_seller'] == '1') {
+                    $val['is_comborrower'] == '0' ? $buyerInfo['customer'][] = $val : $buyerInfo['combor'][] = $val;
+                } elseif ($val['is_seller'] == '2') {
+                    $val['is_comborrower'] == '0' ? $sellInfo['customer'][] = $val : $sellInfo['combor'][] = $val;
+                }
+            }
+        }
+        $result['sellerInfo'] = $sellInfo;
+        $result['buyerInfo'] = $buyerInfo;
+        //房产信息
+        $estateInfo = OrderComponents::showEstateList($orderSn, 'estate_name,replace(estate_region,\'|\',\'-\') estate_region,estate_area,estate_certtype,estate_certnum,house_type', 'DB');
+        if ($estateInfo) {
+            foreach ($estateInfo as $key => $val) {
+                $estateInfo[$key]['house_type'] = isset($dictonaryTypeArr['ORDER_HOUSE_TYPE'][$val['house_type']]) ? $dictonaryTypeArr['ORDER_HOUSE_TYPE'][$val['house_type']] : '';
+                $estateInfo[$key]['estate_certtype'] = isset($dictonaryTypeArr['PROPERTY_TYPE'][$val['estate_certtype']]) ? $dictonaryTypeArr['PROPERTY_TYPE'][$val['estate_certtype']] : '';
+            }
+            $result['estateInfo'] = $estateInfo;
+        }
+
+        $dpInfo = OrderComponents::orderDp($orderSn, 'dp_strike_price,dp_earnest_money,dp_money,dp_supervise_bank,dp_supervise_bank_branch,dp_buy_way,dp_now_mortgage,dp_redeem_bank');
+        if ($dpInfo) {
+            $dpInfo['dp_buy_way'] = $dpInfo['dp_buy_way'] == '2' ? '按揭购房' : '全款购房';
+            $result['dpInfo'] = $dpInfo;
+        }
+
+
+        if ($stage != '1') {
+            $result['image'] = Db::name('order_warrant a')->join('bs_attachment b', 'a.receipt_img=b.id')->where("a.is_finish=1 and a.receipt_img is not null and order_sn='{$orderSn}'")->field('b.name,b.url,b.ext')->select(); //权证图片
+            if ($result['image']) {
+                foreach ($result['image'] as $key => $val) {
+                    $result['image'][$key]['url'] = config('uploadFile.url') . $val['url'];
+                }
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/mortgageList 注销抵押列表[admin/OrderWarrant/mortgageList]
+     * @apiVersion 1.0.0
+     * @apiName mortgageList
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/mortgageList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  isGet   取证状态0默认全部1已取2待取
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  isGet   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} type    订单类型
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} is_finish    0待取原产证1已取原产证
+     * @apiSuccess {string} create_time    取证日期
+     * @apiSuccess {string} name    理财经理姓名
+     * @apiSuccess {string} deptname    理财经理部门
+     * @apiSuccess {array} estateInfo    房产信息
+     */
+    public function mortgageList() {
+        $result = $this->baseList(2, 1016);
+        if ($result === false)
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '列表读取失败!');
+        if ($result['data']) {
+            foreach ($result['data'] as &$val) {
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'], 'estate_name', 'DB');
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/ownershipList 递件过户列表[admin/OrderWarrant/ownershipList]
+     * @apiVersion 1.0.0
+     * @apiName ownershipList
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/ownershipList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  isGet   取证状态0默认全部1已取2待取
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  isGet   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} type    订单类型
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} is_finish    0待取原产证1已取原产证
+     * @apiSuccess {string} create_time    取证日期
+     * @apiSuccess {string} name    理财经理姓名
+     * @apiSuccess {string} deptname    理财经理部门
+     * @apiSuccess {array} estateInfo    房产信息
+     */
+    public function ownershipList() {
+        $result = $this->baseList(3, 1017);
+        if ($result === false)
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '列表读取失败!');
+        if ($result['data']) {
+            foreach ($result['data'] as &$val) {
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'], 'estate_name', 'DB');
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/newCertList 领取新证列表[admin/OrderWarrant/newCertList]
+     * @apiVersion 1.0.0
+     * @apiName newCertList
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/newCertList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  isGet   取证状态0默认全部1已取2待取
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  isGet   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} type    订单类型
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} is_finish    0待取原产证1已取原产证
+     * @apiSuccess {string} create_time    取证日期
+     * @apiSuccess {string} name    理财经理姓名
+     * @apiSuccess {string} deptname    理财经理部门
+     * @apiSuccess {array} estateInfo    房产信息
+     */
+    public function newCertList() {
+        $result = $this->baseList(4, 1018);
+        if ($result === false)
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '列表读取失败!');
+        if ($result['data']) {
+            foreach ($result['data'] as &$val) {
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'], 'estate_name', 'DB');
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/newMortgageList 抵押新证列表[admin/OrderWarrant/newMortgageList]
+     * @apiVersion 1.0.0
+     * @apiName newMortgageList
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/newMortgageList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  isGet   取证状态1已取2待取
+     * @apiParam {int}  type  暂时有JYDB一个类型
+     * @apiParam {int}  isGet   是否组合贷1是0否
+     * @apiParam {int}  subordinates   0不含下属1含下属
+     * @apiParam {int}  page   页
+     * @apiParam {int}  pageSize   每页显示数量
+     * @apiSuccess {string} order_sn    订单编号
+     * @apiSuccess {string} type    订单类型
+     * @apiSuccess {string} estate_owner    业主姓名
+     * @apiSuccess {string} is_finish    0待取原产证1已取原产证
+     * @apiSuccess {string} create_time    取证日期
+     * @apiSuccess {string} name    理财经理姓名
+     * @apiSuccess {string} deptname    理财经理部门
+     * @apiSuccess {array} estateInfo    房产信息
+     */
+    public function newMortgageList() {
+        $result = $this->baseList(5, 1019);
+        if ($result === false)
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '列表读取失败!');
+        if ($result['data']) {
+            foreach ($result['data'] as &$val) {
+                $val['estateInfo'] = OrderComponents::showEstateList($val['order_sn'], 'estate_name', 'DB');
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/update 完成原产证取回[admin/OrderWarrant/update]
+     * @apiVersion 1.0.0
+     * @apiName update
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/update
+     * @apiParam {string}  id   权证id
+     * @apiParam {string}  orderSn   订单编号
+     */
+    public function update() {
+
+        $result = $this->baseUpdate(1016, '完成取原产证', 1015);
+        if ($result !== 1)
+            return $result;
+        return $this->buildSuccess();
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/updateMortgage 完成注销抵押[admin/OrderWarrant/updateMortgage]
+     * @apiVersion 1.0.0
+     * @apiName updateMortgage
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/updateMortgage
+     * @apiParam {string}  id   权证id
+     * @apiParam {string}  orderSn   订单编号
+     */
+    public function updateMortgage() {
+        $result = $this->baseUpdate(1017, '完成注销抵押', 1016);
+        if ($result !== 1)
+            return $result;
+        return $this->buildSuccess();
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/updateOwnership 完成过户[admin/OrderWarrant/updateOwnership]
+     * @apiVersion 1.0.0
+     * @apiName updateOwnership
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/updateOwnership
+     * @apiParam {string}  id   权证id
+     * @apiParam {string}  orderSn   订单编号
+     * @apiParam {string}  receiptNo   回执编号
+     * @apiParam {string}  receiptImg   回执相片
+     */
+    public function updateOwnership() {
+        $receiptNo = input('post.receiptNo', '');
+        $receiptImg = input('post.receiptImg', '0', 'int');
+        if (empty($receiptNo) || $receiptImg <= 0)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '回执编号或者回执未上传!');
+        $result = $this->baseUpdate(1018, '完成过户', 1017, $receiptNo, $receiptImg);
+        if ($result !== 1)
+            return $result;
+        return $this->buildSuccess();
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/updateNewCert 完成领取新证[admin/OrderWarrant/updateNewCert]
+     * @apiVersion 1.0.0
+     * @apiName updateNewCert
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/updateNewCert
+     * @apiParam {string}  id   权证id
+     * @apiParam {string}  orderSn   订单编号
+     * @apiParam {string}  receiptNo   回执编号
+     * @apiParam {string}  receiptImg   回执相片
+     */
+    public function updateNewCert() {
+        $receiptNo = input('post.receiptNo', '');
+        $receiptImg = input('post.receiptImg', '0', 'int');
+        if (empty($receiptNo) || $receiptImg <= 0)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '回执编号或者回执未上传!');
+
+        $result = $this->baseUpdate(1019, '完成领取新证', 1018, $receiptNo, $receiptImg);
+        if ($result !== 1)
+            return $result;
+        return $this->buildSuccess();
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/updateNewMortgage 完成新证抵押[admin/OrderWarrant/updateNewMortgage]
+     * @apiVersion 1.0.0
+     * @apiName updateNewMortgage
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/updateNewMortgage
+     * @apiParam {string}  id   权证id
+     * @apiParam {string}  orderSn   订单编号
+     * @apiParam {string}  receiptNo   回执编号
+     * @apiParam {string}  receiptImg   回执相片
+     */
+    public function updateNewMortgage() {
+        $receiptNo = input('post.receiptNo', '');
+        $receiptImg = input('post.receiptImg', '0', 'int');
+        if (empty($receiptNo) || $receiptImg <= 0)
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '回执编号或者回执未上传!');
+        $result = $this->baseUpdate(1026, '完成新证抵押', 1019, $receiptNo, $receiptImg);
+        if ($result !== 1)
+            return $result;
+        return $this->buildSuccess();
+    }
+
+    /**
+     * 权证列表查询
+     * @param $warrantStage 权证阶段
+     * @return array
+     * @throws Exception
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+    private function baseList($warrantStage, $orderStage) {
+        $pageSize = input('post.pageSize', 0, 'int');
+        $page = input('post.page', 1, 'int');
+        $search = input('search', '', 'trim');
+        $subordinates = input('post.subordinates', 0, 'int');
+        $managerId = input('post.managerId', 0, 'int');
+        $type = input('post.type', '');
+        $isGet = input('post.isGet', 2, 'int');
+        $where['z.warrant_stage'] = $warrantStage; //取原产证
+        //$where['x.stage'] = $orderStage;//订单主状态
+        $isGet != '2' && $where['z.is_finish'] = $isGet;
+        $search && $where['x.order_sn|y.estate_name'] = ['like', "%{$search}%"];
+        if ($managerId) {
+            if ($subordinates) {
+                $userStr = SystemUser::getOrderPowerStr($managerId);
+                $where['x.financing_manager_id'] = ['in', $userStr];
+            } else {
+                $where['x.financing_manager_id'] = $managerId;
+            }
+        }
+        $warrantStage == 1 &&
+                $type && $where['x.type'] = $type;
+        if ($warrantStage == 1) {
+            $res = Order::orderWarrantRedbook($where, $page, $pageSize);
+        } else {
+            $res = Order::orderWarrant($where, $page, $pageSize);
+        }
+
+
+        if ($res['data']) {
+            $Arr = dictionary_reset((new Dictionary)->dictionaryMultiType(['ORDER_TYPE', 'MORTGAGE_TYPE']), 1);
+            foreach ($res['data'] as $key => $val) {
+                $res['data'][$key]['type'] = isset($Arr['ORDER_TYPE'][$res['data'][$key]['type']]) ? $Arr['ORDER_TYPE'][$res['data'][$key]['type']] : '';
+                $mortgage = OrderComponents::showMortgage($res['data'][$key]['order_sn'], 'organization,mortgage_type', 'ORIGINAL');
+                $newMortgage = [];
+                $mortgageStr = '';
+                foreach ($mortgage as $k => $v) {
+                    $mortgageStr === '' && $mortgageStr = $v['organization'];
+                    $mortgageType = isset($Arr['MORTGAGE_TYPE'][$mortgage[$k]['mortgage_type']]) ? $Arr['MORTGAGE_TYPE'][$mortgage[$k]['mortgage_type']] : '';
+                    $newMortgage[] = $v['organization'] . '（' . $mortgageType . '）';
+                }
+                $res['data'][$key]['mortgageInfo'] = $newMortgage;
+                $res['data'][$key]['mortgage'] = $mortgageStr;
+                $res['data'][$key]['buyer'] = OrderComponents::showCustomerInfo($res['data'][$key]['order_sn'], 'cname', 1, 0);
+            }
+        }
+        return $res;
+    }
+
+    /**
+     * 更新
+     * @param $orderSn
+     * @param $id
+     * @param $stage更新后的订单状态code
+     * @param string $receiptNo 回执编号
+     * @param string $receiptImg 回执相片
+     * @return int|string
+     */
+    private function baseUpdate($stage, $operate, $orgStage, $receiptNo = '', $receiptImg = '') {
+        $id = input('post.id', '0', 'int');
+        $orderSn = input('post.orderSn', '');
+        if ($id === '0' || empty($orderSn)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        }
+        Db::startTrans();
+        try {
+            //$ordergStage = $orgStage;//获取权证状态参数
+            //获取订单类型
+            $orderModel = new Order();
+            $type = $orderModel->where(['status' => 1, 'stage' => $orgStage, 'order_sn' => $orderSn])->value('type');
+            if (!$type) {
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '未找到有效的订单');
+            }
+            if ($orgStage == 1016 && $type == 'TMXJ') {
+                $stage = 1019; //非交易现金注销抵押直接到待抵押新证
+            }
+            //（待取新证）判断购房方式
+            if ($orgStage == 1018 && ($type == 'JYXJ' || $type == 'JYDB')) {
+                $buyWay = Db::name('order_dp')->where(['status' => 1, 'order_sn' => $orderSn])->value('dp_buy_way');
+                //全款购房不走抵押新证
+                if ($buyWay == 1) {
+                    $stage = 1026; //修改订单主状态为待结单
+                }
+            }
+            $modelOrderWarrant = new modelOrderWarrant();
+            $data = ['update_time' => time(), 'is_finish' => 1, 'finish_uid' => $this->userInfo['id']];
+            $receiptNo && $data['receipt_no'] = $receiptNo;
+            $receiptImg && $data['receipt_img'] = $receiptImg;
+            if ($modelOrderWarrant->save($data, ['order_sn' => $orderSn, 'id' => $id, 'is_finish' => 0]) !== 1) {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '操作失败');
+            }
+
+            //更改订单主状态
+            $orderData['stage'] = $stage;
+            $stage == 1026 && $orderData['is_mortgage_finish'] = 1; //待结单新增抵押完成
+
+            if ($orderModel->save($orderData, ['order_sn' => $orderSn, 'status' => 1, 'stage' => $orgStage]) !== 1) {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::UPDATE_FAILED, '订单状态更新失败');
+            }
+            //写入下一订单记录
+            if ($stage != 1026) {
+                $warrantData['warrant_stage'] = $this->getWarrantStage($stage);
+                $warrantData['create_time'] = $warrantData['update_time'] = time();
+                $warrantData['order_sn'] = $orderSn;
+                $warrantRes = Db::name('order_warrant')->insert($warrantData);
+                if (!$warrantRes) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '权证记录添加失败');
+                }
+            }
+
+
+            $stageName = (new Dictionary)->getValnameByCode('ORDER_JYDB_STATUS', $stage);
+            $orgStageName = (new Dictionary)->getValnameByCode('ORDER_JYDB_STATUS', $orgStage);
+
+            //添加订单日志
+            if (OrderComponents::addOrderLog($this->userInfo, $orderSn, $stageName, $operate, $orgStageName, $this->userInfo['name'] . $operate, '', $stage) === false) {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单日志添加失败');
+            }
+            Db::commit();
+        } catch (Exception $e) {
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!');
+        }
+        return 1;
+    }
+
+    //获取订单对应权证阶段
+    private function getWarrantStage($orderStage) {
+        switch ($orderStage) {
+            case '1016':
+                return 2;
+                break;
+            case '1017':
+                return 3;
+                break;
+            case '1018':
+                return 4;
+                break;
+            case '1019':
+                return 5;
+                break;
+        }
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/dataSendList 资料送审列表[admin/OrderWarrant/dataSendList]
+     * @apiVersion 1.0.0
+     * @apiName dataSendList
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/dataSendList
+     * @apiParam {string}  search   查询名称
+     * @apiParam {string}  managerId   理财经理
+     * @apiParam {string}  estateCity   所属城市
+     * @apiParam {string}  estateDistrict   所属城区
+     * @apiParam {int} subordinates 含下属
+     * @apiParam type 订单类型
+     * @apiParam deliveryStatus 送审状态
+     * @apiParam fund_channel_id 渠道id
+     * @apiSuccess {int} order_sn    订单编号
+     * @apiSuccess {int} estate_region    城市城区
+     * @apiSuccess {int} estate_name    房产名称
+     * @apiSuccess {int} type_name    订单类型
+     * @apiSuccess {int} money    垫资金额
+     * @apiSuccess {int} fund_channel_name    资金渠道
+     * @apiSuccess {int} delivery_status_name    送审状态
+     * @apiSuccess {int} name    理财经理
+     * @apiSuccess {int} create_time    报单时间
+     * @apiSuccess {int} id    渠道资金id
+     */
+    public function dataSendList() {
+        //资料送审列表  显示条件（风控审核通过后状态大于1012
+        //首期垫资不显示
+        $search = $this->request->post('search', '', 'trim');
+        $managerId = $this->request->post('managerId', 0, 'int');
+        $estateCity = $this->request->post('estateCity', '');
+        $estateDistrict = $this->request->post('estateDistrict', '');
+        $type = $this->request->post('type', '');
+        $deliveryStatus = $this->request->post('deliveryStatus/d', '');
+        $fund_channel_id = $this->request->post('fund_channel_id', '');
+        $subordinates = $this->request->post('subordinates', 0, 'int');
+        $pageSize = $this->request->post('pageSize', 0, 'int');
+        $page = $this->request->post('page', 1, 'int');
+        $where['y.estate_usage'] = 'DB';
+        $type != '' && $where['x.type'] = $type;
+        $managerId != '0' && $where['x.financing_manager_id'] = $subordinates == '0' ? $managerId : ['in', SystemUser::getOrderPowerStr($managerId)];
+        $search && $where['x.order_sn|y.estate_name'] = ['like', "%{$search}%"];
+        $estateCity && $where['y.estate_ecity'] = $estateCity;
+        if ($deliveryStatus === 0 || !empty($deliveryStatus)) {
+            $where['z.delivery_status'] = $deliveryStatus;
+        }
+        $fund_channel_id && $where['z.fund_channel_id'] = $fund_channel_id;
+        $estateDistrict && $where['y.estate_district'] = $estateDistrict;
+        $result = Order::dataSendList($where, $page, $pageSize);
+        if ($result === false)
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '订单读取失败!');
+        $newStageArr = dictionary_reset((new Dictionary)->getDictionaryByType('ORDER_TYPE'));
+        if ($result) {
+            foreach ($result['data'] as $key => $val) {
+                $result['data'][$key]['delivery_status_name'] = $this->DeliveryStatus($val['delivery_status']);
+                $result['data'][$key]['type_name'] = isset($newStageArr[$val['type']]) ? $newStageArr[$val['type']] : '';
+            }
+        }
+        return $this->buildSuccess($result);
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/updateData 确认送审[admin/OrderWarrant/updateData]
+     * @apiVersion 1.0.0
+     * @apiName updateData
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/updateData
+     * @apiParam {int}  id   资金渠道id
+     * @apiParam {string}  orderSn
+     */
+    public function updateData() {
+        $id = input('post.id', 0, 'int');
+        $orderSn = input('post.orderSn', '');
+
+        if ($id <= 0 || $orderSn == '')
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数有误!');
+        Db::startTrans();
+        try {
+            $stage = Db::name('order')->lock(true)->where(['status' => 1, 'stage' => ['gt', 1012]])->value('stage');
+            if (!$stage) {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '资料入架后的订单才能操作!');
+            }
+
+            $modelFundChannel = Db::name('order_fund_channel');
+            $res = $modelFundChannel->where(['status' => 1, 'id' => $id, 'order_sn' => $orderSn])->lock(true)->field('delivery_status,fund_channel_name,fund_channel_id')->find();
+
+            if ($res && $res['delivery_status'] == 0) {
+                if ($res['fund_channel_id'] == 1) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '自有资金不可操作!');
+                }
+                $result = $modelFundChannel->where(['status' => 1, 'id' => $id, 'delivery_status' => 0])->setField('delivery_status', 1);
+                if ($result <= 0) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '操作失败!');
+                }
+                $stageName = (new Dictionary)->getValnameByCode('ORDER_JYDB_STATUS', $stage);
+                //添加订单日志
+                if (OrderComponents::addOrderLog($this->userInfo, $orderSn, $stageName, '确认送审', '待送审资料', "资金渠道：{$res['fund_channel_name']}", '', $stage, 'order_fund_channel', $id, 'DELIVERY') === false) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单日志添加失败');
+                }
+                Db::commit();
+                return $this->buildSuccess();
+            } else {
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '送审资料状态有误!');
+            }
+        } catch (Exception $e) {
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '系统繁忙，请稍后重试!' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/reviewData 审核通过[admin/OrderWarrant/reviewData]
+     * @apiVersion 1.0.0
+     * @apiName reviewData
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/reviewData
+     * @apiParam {int}  id   资金渠道id
+     * @apiParam {string}  orderSn
+     * @apiParam {string}  trust_contract_num 信托合同号
+     * @apiParam {string}  push_order_money 推单金额
+     * @apiParam {string}  loan_day 借款天数
+     */
+    public function reviewData() {
+        $id = input('post.id', 0, 'int');
+        $orderSn = input('post.orderSn', '');
+        $trust_contract_num = input('post.trust_contract_num', '');
+        $push_order_money = input('post.push_order_money', '');
+        $loan_day = input('post.loan_day', '');
+        if ($id <= 0 || $orderSn == '' || $trust_contract_num == '' || $push_order_money == '' || $loan_day == '')
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数有误!');
+        Db::startTrans();
+        try {
+            $stage = Db::name('order')->lock(true)->where(['status' => 1, 'stage' => ['gt', 1012]])->value('stage');
+            if (!$stage) {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '资料入架后的订单才能操作!');
+            }
+
+            $modelFundChannel = Db::name('order_fund_channel');
+            $res = $modelFundChannel->where(['status' => 1, 'id' => $id, 'order_sn' => $orderSn])->lock(true)->field('delivery_status,fund_channel_name,fund_channel_id')->find();
+
+            if ($res && $res['delivery_status'] == 1) {
+                if ($res['fund_channel_id'] == 1) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '自有资金不可操作!');
+                }
+                if ($modelFundChannel->where(['status' => 1, 'trust_contract_num' => $trust_contract_num])->count() > 0) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '该信托合同号已经存在!');
+                }
+                $result = $modelFundChannel->where(['status' => 1, 'id' => $id, 'delivery_status' => 1])->update(['delivery_status' => 2, 'trust_contract_num' => $trust_contract_num, 'push_order_money' => $push_order_money, 'loan_day' => $loan_day]); //审核通过
+                if ($result <= 0) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '操作失败!');
+                }
+                $stageName = (new Dictionary)->getValnameByCode('ORDER_JYDB_STATUS', $stage);
+                //添加订单日志
+                if (OrderComponents::addOrderLog($this->userInfo, $orderSn, $stageName, '审核通过', '待渠道审核', "资金渠道：{$res['fund_channel_name']}审核通过", '', $stage, 'order_fund_channel', $id, 'DELIVERY') === false) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单日志添加失败');
+                }
+                Db::commit();
+                return $this->buildSuccess();
+            } else {
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '送审资料状态有误!');
+            }
+        } catch (Exception $e) {
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '系统繁忙，请稍后重试!' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @api {post} admin/OrderWarrant/changeChannel 变更渠道[admin/OrderWarrant/changeChannel]
+     * @apiVersion 1.0.0
+     * @apiName changeChannel
+     * @apiGroup OrderWarrant
+     * @apiSampleRequest admin/OrderWarrant/changeChannel
+     * @apiParam {int}  id   资金渠道id
+     * @apiParam {string}  orderSn
+     * @apiParam {int}  channelId 渠道id
+     * @apiParam {string}  reason 原因
+     */
+    public function changeChannel() {
+        $id = input('post.id', 0, 'int');
+        $orderSn = input('post.orderSn', '');
+        $channelId = input('post.channelId', 0, 'int'); //变更后渠道id
+        $reason = trim(input('post.reason', ''));
+        if ($id <= 0 || $channelId <= 0 || $orderSn == '' || $reason == '') {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '参数有误!');
+        }
+
+        Db::startTrans();
+        try {
+            $stage = Db::name('order')->lock(true)->where(['status' => 1, 'stage' => ['gt', 1012], 'order_sn' => $orderSn])->value('stage');
+            if (!$stage) {
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '资料入架后的订单才能操作!');
+            }
+
+            $modelFundChannel = Db::name('order_fund_channel');
+            $res = $modelFundChannel->where(['status' => 1, 'id' => $id, 'order_sn' => $orderSn])->lock(true)->field('delivery_status,fund_channel_name,fund_channel_id,money')->find();
+
+            if ($res && $res['delivery_status'] != 2) {
+                //审核未通过
+                if ($res['fund_channel_id'] == $channelId) {//校验渠道是否相同
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '请选择需要变更的渠道!');
+                }
+                if ($res['fund_channel_id'] == 1) {
+                    //原自有资金
+                    $setMoney = Db::name('order_guarantee')->where(['order_sn' => $orderSn])->setDec('com_loan_money', $res['money']);
+                    if ($setMoney !== 1) {
+                        Db::rollback();
+                        return $this->buildFailed(ReturnCode::PARAM_INVALID, '公司放款金额更新失败!');
+                    }
+                } elseif ($channelId == 1) {
+                    //更新后自有资金
+                    $setMoney = Db::name('order_guarantee')->where(['order_sn' => $orderSn])->setInc('com_loan_money', $res['money']);
+                    if ($setMoney !== 1) {
+                        Db::rollback();
+                        return $this->buildFailed(ReturnCode::PARAM_INVALID, '公司放款金额更新失败!');
+                    }
+                }
+                $name = Db::name('fund_channel')->where(['status' => 1, 'id' => $channelId])->value('name'); //校验渠道id以及获取渠道名称
+                if (!$name) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '渠道不存在!');
+                }
+                if ($channelId == 1) {
+                    $delivery_status = -1;
+                    $guarData = $this->checkChannel($orderSn, $id);
+                    $changeChannel = ['is_instruct' => 0, 'instruct_status' => 0, 'is_loan_finish' => 1, 'delivery_status' => -1];
+                } else {
+                    $delivery_status = 0;
+                    //变更为非自有资金需要发送指令
+                    $guarData = ['is_instruct' => 1, 'instruct_status' => 1, 'is_loan_finish' => 0];
+                    $changeChannel = ['is_instruct' => 1, 'instruct_status' => 1, 'is_loan_finish' => 0, 'delivery_status' => 0];
+                }
+
+                if (Db::name('order_guarantee')->where(['order_sn' => $orderSn])->update($guarData) === false) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '指令状态更新失败!');
+                }
+                $changeChannel['delivery_status'] = $delivery_status;
+                $changeChannel['fund_channel_name'] = $name;
+                $changeChannel['fund_channel_id'] = $channelId;
+                $result = $modelFundChannel->where(['status' => 1, 'id' => $id])->update($changeChannel); //变更渠道
+
+                if ($result <= 0) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::PARAM_INVALID, '操作失败!');
+                }
+                $stageName = (new Dictionary)->getValnameByCode('ORDER_JYDB_STATUS', $stage);
+                //添加订单日志
+                if (OrderComponents::addOrderLog($this->userInfo, $orderSn, $stageName, '变更渠道', '待渠道审核', "渠道资金变更为：{$res['fund_channel_name']}", $reason, $stage, 'order_fund_channel', $id, 'DELIVERY') === false) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::DB_SAVE_ERROR, '订单日志添加失败');
+                }
+                Db::commit();
+                return $this->buildSuccess();
+            } else {
+                return $this->buildFailed(ReturnCode::PARAM_INVALID, '条件不符不能变更渠道!');
+            }
+        } catch (Exception $e) {
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::DB_READ_ERROR, '系统繁忙，请稍后重试!' . $e->getMessage());
+        }
+    }
+
+    //校验渠道是否发送指令
+    private function checkChannel($orderSn, $id) {
+        $channelInfo = Db::name('order_fund_channel')->where(['order_sn' => $orderSn, 'status' => 1, 'id' => ['neq', $id]])->field('fund_channel_id,is_instruct,instruct_status')->select();
+        $isFinsh = 1; //是否完成
+        $isNotOwnChannel = 0; //是否非自有资金
+        if ($channelInfo) {
+            foreach ($channelInfo as $val) {
+                if ($val['fund_channel_id'] != 1) {
+                    if ($val['is_instruct'] = 1 && $val['instruct_status'] != 4) {
+                        $isFinsh = 0;
+                    }
+                    $isNotOwnChannel = 1;
+                }
+            }
+            if ($isNotOwnChannel == 1) {
+                return $isFinsh === 1 ? ['is_instruct' => 1, 'instruct_status' => 3, 'is_loan_finish' => 1] : ['is_instruct' => 1, 'instruct_status' => 1, 'is_loan_finish' => 0];
+            } else {
+                //只有自有资金修改渠道放款已完成
+                return ['is_instruct' => 0, 'instruct_status' => 0, 'is_loan_finish' => 1];
+            }
+        } else {
+            return ['is_instruct' => 0, 'instruct_status' => 0, 'is_loan_finish' => 1]; //只有自有资金变更渠道放款已完成
+        }
+    }
+
+    /**
+     * 送审状态
+     * @param $type
+     * @return string
+     */
+    private function DeliveryStatus($type) {
+        switch ($type) {
+            case -1 :
+                return '不需要送审';
+                break;
+            case 0 :
+                return '待送审';
+                break;
+            case 1 :
+                return '待渠道审核';
+                break;
+            case 2 :
+                return '审核通过';
+                break;
+            default:
+                return '';
+        }
+    }
+
+}

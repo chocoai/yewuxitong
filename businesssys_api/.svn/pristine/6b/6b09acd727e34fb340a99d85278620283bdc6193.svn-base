@@ -1,0 +1,64 @@
+<?php
+
+namespace app\admin\controller;
+
+
+use app\util\ReturnCode;
+use app\model\Attachment;
+
+class Index extends Base {
+    public function index() {
+        return json(['welcome']);
+    }
+
+    //@author 赵光帅
+    /**
+     * @api {post} admin/Index/imageUpload 图片上传[admin/Index/imageUpload]
+     * @apiVersion 1.0.0
+     * @apiName imageUpload
+     * @apiGroup Index
+     * @apiSampleRequest admin/Index/imageUpload
+     *
+     *
+     * @apiParam {file}  pic    文件文件
+     *
+     * @apiSuccess {string}  file_url    文件链接地址
+     * @apiSuccess {string}  old_name    文件原始名称
+     * @apiSuccess {int}  id    附件表主键id
+     */
+    public function imageUpload(){
+        $file = request()->file('pic');
+        if(empty($file)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '文件不能为空!');
+        $path = config('uploadFile.img_path');
+        $info = $file->validate(['size'=>9437184,'ext'=> config('uploadFile.file_type')])->move($path,true,false);
+        if($info){
+            //图片原始名称
+            $imgInfo['name'] = $info->getInFo()['name'];
+            //新的图片名称
+            $imgInfo['savename'] = $info->getFilename();
+            //获取上传文件的hash散列值
+            $imgInfo['md5'] = $file->hash('md5');
+            $imgInfo['sha1'] = $file->hash('sha1');
+            //路径
+            $imgInfo['path'] = config('uploadFile.img_path');
+            //连接地址
+            $imgInfo['url'] = '/uploads/'.$info->getSaveName();
+            //上传时间
+            $imgInfo['create_time'] = time();
+            try{
+                $resImg = Attachment::create($imgInfo);
+                //上传成功就返回附件表的该文件对应的主键id,以及文件地址
+                return $this->buildSuccess(['id' => $resImg->id,'file_url' =>config('uploadFile.url').$imgInfo['url'],'old_name' => $imgInfo['name']]);
+            }catch (\Exception $e){
+                return $this->buildFailed(ReturnCode::FILE_SAVE_ERROR, '文件信息存储失败');
+            }
+        }else{
+            // 上传失败获取错误信息
+            return $this->buildFailed(ReturnCode::FILE_SAVE_ERROR, $file->getError());
+        }
+
+
+    }
+
+    
+}

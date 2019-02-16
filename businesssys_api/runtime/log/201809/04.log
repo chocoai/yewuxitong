@@ -1,0 +1,845 @@
+---------------------------------------------------------------
+[ 2018-09-04T20:53:29+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.193424s][吞吐率：5.17req/s] [内存消耗：2,958.50kb] [文件加载：64]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000428s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.021170s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.011633s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 46 LIMIT 1 [ RunTime:0.011522s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(id) FROM `bs_system_user` WHERE  (  instr(`deptpath`,'[19]') and status=1 ) LIMIT 1 [ RunTime:0.011896s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.010874s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.010954s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.011105s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.010689s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.010577s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.010667s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.010569s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'[91]') ) [ RunTime:0.009741s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:54:02+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.160874s][吞吐率：6.22req/s] [内存消耗：2,958.50kb] [文件加载：64]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000399s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.015058s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.010736s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 46 LIMIT 1 [ RunTime:0.010325s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(id) FROM `bs_system_user` WHERE  (  instr(`deptpath`,'[19]') and status=1 ) LIMIT 1 [ RunTime:0.010792s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.009525s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.009186s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.009268s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.009726s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.009301s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.008171s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.008228s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) [ RunTime:0.009872s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:55:00+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.236795s][吞吐率：4.22req/s] [内存消耗：2,958.55kb] [文件加载：64]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000372s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.040915s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.014878s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 46 LIMIT 1 [ RunTime:0.027526s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(id) FROM `bs_system_user` WHERE  (  instr(`deptpath`,'[19]') and status=1 ) LIMIT 1 [ RunTime:0.017060s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.010935s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.010971s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.010813s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.011045s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.010898s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.010782s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.010333s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) [ RunTime:0.010952s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:55:33+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.781374s][吞吐率：1.28req/s] [内存消耗：3,192.95kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000340s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.027114s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.018661s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 46 LIMIT 1 [ RunTime:0.018044s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(id) FROM `bs_system_user` WHERE  (  instr(`deptpath`,'[19]') and status=1 ) LIMIT 1 [ RunTime:0.018441s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.017771s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.016935s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.017145s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.016723s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.016616s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.016704s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.016606s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) [ RunTime:0.017099s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.018240s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.048533s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.048612s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.017804s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.016989s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.015617s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.018299s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016791s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017020s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016926s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016521s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.017250s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.018523s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.017497s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017196s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016026s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017156s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.017214s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017213s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016516s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016677s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016663s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017059s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016644s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017776s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.017222s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:55:54+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.706630s][吞吐率：1.42req/s] [内存消耗：3,190.40kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000323s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.026833s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.017393s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 60 LIMIT 1 [ RunTime:0.017047s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.017182s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 60 LIMIT 1 [ RunTime:0.016291s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.017070s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (93,91)  AND `status` = 1 [ RunTime:0.016277s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 60 LIMIT 1 [ RunTime:0.017364s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (93,91)  AND `status` = 1 [ RunTime:0.016522s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.017504s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.047975s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.048602s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.016823s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.017029s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016674s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.017232s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016835s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016242s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016746s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.015875s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016571s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.015946s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016616s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016531s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016722s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016320s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016693s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.015989s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.017209s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016340s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016871s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.015889s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016339s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016107s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.015963s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:56:47+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.546009s][吞吐率：1.83req/s] [内存消耗：3,190.40kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000392s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.023177s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.012900s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 47 LIMIT 1 [ RunTime:0.010927s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.012331s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 47 LIMIT 1 [ RunTime:0.011557s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.012288s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,34)  AND `status` = 1 [ RunTime:0.012003s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.011897s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) [ RunTime:0.012370s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.011700s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.042038s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.050154s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.012145s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.012304s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011811s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.012255s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011821s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011763s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011761s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011580s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011905s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011704s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011866s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011812s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010602s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011768s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011929s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011558s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011832s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011831s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011951s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011682s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011791s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011803s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011846s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:56:54+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.521833s][吞吐率：1.92req/s] [内存消耗：3,191.62kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000432s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.017162s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.011463s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 1 LIMIT 1 [ RunTime:0.010877s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.010744s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 1 LIMIT 1 [ RunTime:0.010365s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.011025s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (75,117)  AND `status` = 1 [ RunTime:0.010419s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 1 LIMIT 1 [ RunTime:0.010458s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (75,117)  AND `status` = 1 [ RunTime:0.010568s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.010689s ]
+[ sql ] [ SQL ] SELECT `uid` FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) [ RunTime:0.011390s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.011634s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.043077s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.046637s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.011233s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.011030s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010664s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.010935s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010787s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010393s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010571s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010591s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010781s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010418s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010627s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010614s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010686s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010507s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010636s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010930s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010825s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.012912s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010030s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010609s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010643s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010609s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010620s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:57:34+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.748718s][吞吐率：1.34req/s] [内存消耗：3,190.97kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.001273s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.028617s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.017841s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 60 LIMIT 1 [ RunTime:0.016551s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.018338s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 60 LIMIT 1 [ RunTime:0.016721s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.017059s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (93,91)  AND `status` = 1 [ RunTime:0.017004s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 60 LIMIT 1 [ RunTime:0.017431s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (93,91)  AND `status` = 1 [ RunTime:0.016629s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.017581s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.045682s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (60)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.047793s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.016814s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.016374s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016818s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.016575s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.015513s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016422s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.017930s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016963s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016536s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.018735s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016084s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016925s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.018549s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017037s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016897s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017318s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.015723s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017005s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016797s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.016819s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016978s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.017770s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.016930s ]
+---------------------------------------------------------------
+[ 2018-09-04T20:57:54+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.263525s][吞吐率：3.79req/s] [内存消耗：3,054.98kb] [文件加载：68]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000351s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.025140s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.014974s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 55 LIMIT 1 [ RunTime:0.015755s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.014971s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 55 LIMIT 1 [ RunTime:0.014369s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.014667s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (35)  AND `status` = 1 [ RunTime:0.013830s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 55 LIMIT 1 [ RunTime:0.013688s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (35)  AND `status` = 1 [ RunTime:0.013660s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.015481s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (55)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.013868s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN (55)  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.014741s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.014789s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.014606s ]
+---------------------------------------------------------------
+[ 2018-09-04T21:03:22+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.532295s][吞吐率：1.88req/s] [内存消耗：3,190.44kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000452s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.023004s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.011440s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 60 LIMIT 1 [ RunTime:0.011557s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.011212s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 60 LIMIT 1 [ RunTime:0.009684s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.011098s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (93,91)  AND `status` = 1 [ RunTime:0.010983s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 60 LIMIT 1 [ RunTime:0.010493s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (93,91)  AND `status` = 1 [ RunTime:0.010653s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.012668s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN ('60')  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.040539s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN ('60')  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.053077s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.011910s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.011116s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010796s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.012091s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010854s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009820s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011207s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010591s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009413s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009443s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010543s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011489s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010669s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011860s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011292s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010460s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010087s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009932s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011685s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011713s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010778s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.012586s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010612s ]
+---------------------------------------------------------------
+[ 2018-09-04T21:03:59+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.544883s][吞吐率：1.84req/s] [内存消耗：3,193.02kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000303s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.017460s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.011579s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 46 LIMIT 1 [ RunTime:0.012255s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(id) FROM `bs_system_user` WHERE  (  instr(`deptpath`,'[19]') and status=1 ) LIMIT 1 [ RunTime:0.012004s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.010927s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.011057s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.010986s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.011024s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.011320s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.010414s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.011233s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(uid) FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) LIMIT 1 [ RunTime:0.011475s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.012324s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN ('60')  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.040827s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN ('60')  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.042846s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.012036s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.011487s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010782s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.011312s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011181s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011057s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011179s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011147s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010591s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010837s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011063s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011062s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010777s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010993s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011826s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010635s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011073s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011353s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.011666s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.011088s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010574s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.010608s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.010661s ]
+---------------------------------------------------------------
+[ 2018-09-04T21:04:06+08:00 ] 192.168.24.46 POST /admin/Foreclo/hasBeenList
+[ info ] www.busys.com/admin/Foreclo/hasBeenList [运行时间：0.487785s][吞吐率：2.05req/s] [内存消耗：3,193.02kb] [文件加载：69]
+[ info ] [ LANG ] F:\phpstudy\WWW\businesssys_api\thinkphp\lang\zh-cn.php
+[ info ] [ ROUTE ] array (
+  'type' => 'module',
+  'module' => 
+  array (
+    0 => 'admin',
+    1 => 'Foreclo',
+    2 => 'hasBeenList',
+  ),
+  'convert' => false,
+)
+[ info ] [ HEADER ] array (
+  'accept-language' => 'zh-CN,zh;q=0.9',
+  'accept-encoding' => 'gzip, deflate',
+  'referer' => 'http://www.busys.com/apidoc/',
+  'content-type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+  'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36',
+  'x-requested-with' => 'XMLHttpRequest',
+  'origin' => 'http://www.busys.com',
+  'accept' => '*/*',
+  'content-length' => '75',
+  'connection' => 'close',
+  'host' => 'www.busys.com',
+)
+[ info ] [ PARAM ] array (
+  '/admin/Foreclo/hasBeenList' => '',
+  'create_uid' => '',
+  'subordinates' => '',
+  'type' => '',
+  'is_combined_loan' => '',
+  'search_text' => '',
+  'page' => '',
+  'limit' => '',
+)
+[ info ] [ DB ] INIT mysql
+[ info ] [ CACHE ] INIT Redis
+[ info ] [ RUN ] app\admin\controller\Foreclo->hasBeenList[ F:\phpstudy\WWW\businesssys_api\application\admin\controller\Foreclo.php ]
+[ info ] [ BEHAVIOR ] Run app\admin\behavior\BuildResponse @response_send [ RunTime:0.000337s ]
+[ info ] [ LOG ] INIT File
+[ sql ] [ DB ] CONNECT:[ UseTime:0.018749s ] mysql:host=119.23.24.187;dbname=businesssys;charset=utf8
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_user` [ RunTime:0.009703s ]
+[ sql ] [ SQL ] SELECT * FROM `bs_system_user` WHERE  `id` = 46 LIMIT 1 [ RunTime:0.010910s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(id) FROM `bs_system_user` WHERE  (  instr(`deptpath`,'[19]') and status=1 ) LIMIT 1 [ RunTime:0.010084s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group_access` [ RunTime:0.009806s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.009121s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_system_auth_group` [ RunTime:0.007928s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.008812s ]
+[ sql ] [ SQL ] SELECT `groupid` FROM `bs_system_auth_group_access` WHERE  `uid` = 46 LIMIT 1 [ RunTime:0.009193s ]
+[ sql ] [ SQL ] SELECT `sign` FROM `bs_system_auth_group` WHERE  `id` IN (95,96,92)  AND `status` = 1 [ RunTime:0.008899s ]
+[ sql ] [ SQL ] SELECT `id` FROM `bs_system_auth_group` WHERE  `sign` = 'data_entry_staff'  AND `status` = 1 LIMIT 1 [ RunTime:0.010541s ]
+[ sql ] [ SQL ] SELECT GROUP_CONCAT(uid) FROM `bs_system_auth_group_access` WHERE  (  instr(`groupid`,'91') ) LIMIT 1 [ RunTime:0.009096s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order` [ RunTime:0.010572s ]
+[ sql ] [ SQL ] SELECT COUNT(*) AS tp_count FROM ( SELECT count(*) FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN ('60')  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ) `_group_count_` LIMIT 1 [ RunTime:0.039007s ]
+[ sql ] [ SQL ] SELECT `x`.`order_sn`,`x`.`type`,`x`.`stage`,`x`.`create_time`,`z`.`name`,`y`.`estate_name`,`y`.`estate_region`,`y`.`estate_owner`,`n`.`is_combined_loan`,w.id as proc_id FROM `bs_order` `x` INNER JOIN `bs_order_guarantee` `n` ON `x`.`order_sn`=`n`.`order_sn` LEFT JOIN `bs_estate` `y` ON `x`.`order_sn`=`y`.`order_sn` INNER JOIN `bs_system_user` `z` ON `x`.`financing_manager_id`=`z`.`id` INNER JOIN `bs_workflow_proc` `w` ON `x`.`order_sn`=`w`.`order_sn` INNER JOIN `bs_workflow_flow` `wf` ON `w`.`flow_id`=`wf`.`id` WHERE  `x`.`delete_time` IS NULL  AND `x`.`status` = 1  AND `w`.`is_deleted` = 1  AND `w`.`is_back` = 0  AND `wf`.`flow_type` = 'risk'  AND `w`.`user_id` IN ('60')  AND `w`.`status` = 9 GROUP BY `x`.`order_sn` ORDER BY `x`.`create_time` DESC LIMIT 0,10 [ RunTime:0.042662s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_dictionary` [ RunTime:0.009940s ]
+[ sql ] [ SQL ] SELECT `code`,`valname` FROM `bs_dictionary` WHERE  `status` = 1  AND `type` = 'ORDER_TYPE' ORDER BY `sort` ASC [ RunTime:0.009859s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.008945s ]
+[ sql ] [ SQL ] SHOW COLUMNS FROM `bs_order_mortgage` [ RunTime:0.010717s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090004'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009664s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1013'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009252s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009034s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009728s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'GMDZ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009326s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.008260s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090003'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009637s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009417s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009873s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.008288s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'SQDZ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009411s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1026'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.008619s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'DQJK2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.008171s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.008059s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'JYXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.008874s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1014'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.008167s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'PDXJ2018090002'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009434s ]
+[ sql ] [ SQL ] SELECT `valname` FROM `bs_dictionary` WHERE  `code` = '1015'  AND `type` = 'ORDER_JYDB_STATUS' LIMIT 1 [ RunTime:0.009462s ]
+[ sql ] [ SQL ] SELECT `organization` FROM `bs_order_mortgage` WHERE  `order_sn` = 'TMXJ2018090001'  AND `status` = 1  AND `type` = 'ORIGINAL' [ RunTime:0.009432s ]

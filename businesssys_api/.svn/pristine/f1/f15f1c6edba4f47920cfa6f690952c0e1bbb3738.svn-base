@@ -1,0 +1,428 @@
+<?php
+
+/* 财务回款 */
+
+namespace app\admin\controller;
+
+use think\Db;
+use app\model\Order;
+use app\model\OrderGuaranteeBank;
+use app\model\SystemUser;
+use app\util\FinancialBack;
+use app\util\ReturnCode;
+use app\model\OrderRansomReturn;
+use app\model\OrderAttachment;
+use app\model\Dictionary;
+use app\model\Attachment;
+use think\Loader;
+use app\model\OrderOther;
+use think\Request;
+use app\model\OrderCollectFee;
+use app\util\OrderComponents;
+
+class FinancialReceipts extends Base
+{
+
+    private $order;
+    private $orderguaranteebank;
+    private $systemuser;
+    private $orderransomreturn;
+    private $orderattac;
+    private $dictionary;
+    private $attachment;
+
+    public function _initialize()
+    {
+        parent::_initialize();
+        $this->order = new Order();
+        $this->orderguaranteebank = new OrderGuaranteeBank();
+        $this->systemuser = new SystemUser();
+        $this->orderransomreturn = new OrderRansomReturn();
+        $this->orderattac = new OrderAttachment();
+        $this->dictionary = new Dictionary();
+        $this->attachment = new Attachment();
+    }
+
+    /**
+     * @api {get} admin/FinancialReceipts/index 回款管理列表[admin/FinancialReceipts/index]
+     * @apiVersion 1.0.0
+     * @apiName index
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/index
+     *
+     * @apiParam {int} create_uid    人员id
+     * @apiParam {int} subordinates    1含下属 0不含下属
+     * @apiParam {string} start_time    开始时间
+     * @apiParam {string} end_time    结束时间
+     * @apiParam {int} return_money_status   回款状态（1回款待完成 2回款完成待复核 3回款完成待核算 4回款已完成） 数据字典类型 PAYBACK_STATUS
+     * @apiParam {int} city     城市
+     * @apiParam {int} district     城区
+     * @apiParam {int} keywords     关键词
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {Object}  list       回款管理列表.
+     * @apiSuccess {string} list.finance_sn    财务序号
+     * @apiSuccess {string} list.order_sn    业务单号
+     * @apiSuccess {string} list.estate_name    房产名称
+     * @apiSuccess {string} list.estate_owner    业主姓名
+     * @apiSuccess {string} list.return_money_amount    应收回款金额
+     * @apiSuccess {string} list.return_money    已收回款金额
+     * @apiSuccess {string} list.return_time    回款到账时间
+     * @apiSuccess {string} list.return_money_status_text    回款状态
+     * @apiSuccess {string} list.financing_manager    理财经理
+     * @apiSuccess {int} count    总条数
+     */
+    public function index(Request $request)
+    {
+        $create_uid = $request->get('create_uid', '');
+        $subordinates = $request->get('subordinates', 0);
+        $page = $request->get('page', 1);
+        $pageSize = $request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $return_money_status = $request->get('return_money_status', '');
+        $city = $request->get('city', '');
+        $district = $request->get('district', '');
+        $keywords = $request->get('keywords', '');
+
+        $start_time = $request->get('start_time');
+        $end_time = $request->get('end_time');
+        if ($start_time && $end_time) {
+            $start_time_stamp = strtotime($start_time);
+            $end_time_stamp = strtotime($end_time);
+            if ($start_time_stamp > $end_time_stamp) {
+                $map['create_time'] = ['between', [$end_time, $start_time]];
+            } else {
+                $map['create_time'] = ['between', [$start_time, $end_time]];
+            }
+        } else {
+            $start_time && $map['create_time'] = ['egt', $start_time];
+            $end_time && $map['create_time'] = ['elt', $end_time];
+        }
+
+        $where = [];
+        if ($create_uid) {
+            if ($subordinates == 1) {
+                $userStr = SystemUser::getOrderPowerStr($create_uid);
+            } else {
+                $userStr = $create_uid;
+            }
+            $where['x.financing_manager_id'] = ['in', $userStr];
+        }
+        $city && $where['e.estate_ecity'] = $city;
+        $district && $where['e.estate_district'] = $district;
+        $keywords && $where['x.order_sn|e.estate_name|x.finance_sn'] = ['like', "%{$keywords}%"];
+        $where['x.status'] = 1;
+        $where['e.estate_usage'] = 'DB';
+        $field = "x.id,x.finance_sn,x.order_sn,x.return_money_status,x.financing_manager_id,x.type,e.estate_name,e.estate_owner,g.return_money_amount";
+        $orderList = Order::alias('x')
+            ->join('__ESTATE__ e', 'e.order_sn=x.order_sn', 'left')
+            ->join('__ORDER_GUARANTEE__ g', 'g.order_sn=x.order_sn')
+            ->where('x.type', 'in', 'JYXJ,TMXJ,PDXJ,DQJK,SQDZ,GMDZ')//现金业务
+            ->where($where)
+            ->where('x.return_money_status', $return_money_status ? $return_money_status : 'not null')
+            ->field($field)
+            ->order('x.create_time', 'DESC')
+            ->group('x.id')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        foreach ($orderList['data'] as &$item) {
+            $item['financing_manager'] = SystemUser::where('id', $item['financing_manager_id'])->value('name');
+            $item['return_money_status_text'] = Order::$returnMoneyStatusMap[$item['return_money_status']];
+            $where = [
+                'order_sn' => $item['order_sn'],
+                'return_money_into_status' => 4,
+                'status' => 1
+            ];
+            $item['return_money'] = OrderRansomReturn::where($where)->sum('money');
+            $item['return_time'] = OrderRansomReturn::where($where)->order('return_time desc')->value('return_time');
+        }
+        return $this->buildSuccess([
+            'count' => $orderList['total'],
+            'list' => $orderList['data']
+        ]);
+    }
+
+    /**
+     * @api {get} admin/FinancialReceipts/collectList 费用信息列表[admin/FinancialReceipts/collectList]
+     * @apiVersion 1.0.0
+     * @apiName collectList
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/collectList
+     *
+     * @apiParam {string} start_time    开始时间
+     * @apiParam {string} end_time    结束时间
+     * @apiParam {string} order_sn    订单编号
+     * @apiParam {number} type    费用类型 1正常担保 2展期 3逾期 数据字典类型 PAYBACK_FEE_TYPE
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {Object}  list       费用信息列表.
+     * @apiSuccess {string} list.cal_date    计算费用日期
+     * @apiSuccess {string} list.wait_money    待收回款金额
+     * @apiSuccess {string} list.type    费用类型
+     * @apiSuccess {string} list.rate    计算费率%
+     * @apiSuccess {string} list.money    当日费用
+     * @apiSuccess {string} list.remark    备注
+     * @apiSuccess {int} count    总条数
+     */
+    //@author: bordon
+    public function collectList(Request $request)
+    {
+        $start_time = $request->get('start_time');
+        $end_time = $request->get('end_time');
+        $type = $request->get('type', '');
+        $order_sn = $request->get('order_sn');
+        if (!$order_sn) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '订单编号不能为空');
+        }
+        $page = $request->get('page', 1);
+        $pageSize = $request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $where['order_sn'] = $order_sn;
+        if ($start_time && $end_time) {
+            $start_time_stamp = strtotime($start_time);
+            $end_time_stamp = strtotime($end_time);
+            if ($start_time_stamp > $end_time_stamp) {
+                $where['cal_date'] = ['between', [$end_time, $start_time]];
+            } else {
+                $where['cal_date'] = ['between', [$start_time, $end_time]];
+            }
+        } else {
+            $start_time && $where['cal_date'] = ['egt', $start_time];
+            $end_time && $where['cal_date'] = ['elt', $end_time];
+        }
+        $type && $where['type'] = $type;
+        $field = 'id,cal_date,wait_money,type,rate,money,remark';
+        $list = OrderCollectFee::getList($where, $field, ['page' => $page, 'list_rows' => $pageSize]);
+        return $this->buildSuccess([
+            'count' => $list['total'],
+            'list' => $list['data']
+        ]);
+    }
+
+    /**
+     * @api {get} admin/FinancialReceipts/extensionList 展期信息列表[admin/FinancialReceipts/extensionList]
+     * @apiVersion 1.0.0
+     * @apiName extensionList
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/extensionList
+     *
+     * @apiParam {string} order_sn    订单编号
+     * @apiParam {int} page    页码
+     * @apiParam {int} size    条数
+     *
+     * @apiSuccess {Object}  list       展期信息列表.
+     * @apiSuccess {string} list.return_money    待收回款金额
+     * @apiSuccess {string} list.exhibition_starttime    展期开始时间
+     * @apiSuccess {string} list.exhibition_endtime    展期合同结束时间
+     * @apiSuccess {string} list.actual_exhibition_endtime    展期实际结束时间
+     * @apiSuccess {string} list.actual_exhibition_day    实际展期天数
+     * @apiSuccess {string} list.exhibition_rate    展期费率
+     * @apiSuccess {string} list.total_money    实际展期费
+     * @apiSuccess {string} list.money    已收展期费
+     * @apiSuccess {string} list.create_user    展期申请人
+     * @apiSuccess {Object}  extension      展期信息列表.
+     * @apiSuccess {Number} extension.exten_time    展期次数
+     * @apiSuccess {Number} extension.exten_days    实际展期总天数
+     * @apiSuccess {string} extension.exten_total_money    实际展期费总额
+     * @apiSuccess {string} extension.exten_receive_money     已收展期费总额
+     * @apiSuccess {int} count    总条数
+     */
+    //@author: bordon
+    public function extensionList(Request $request)
+    {
+        $order_sn = $request->get('order_sn');
+        if (!$order_sn) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '订单编号不能为空');
+        }
+        $where['ot.order_sn'] = $order_sn;
+        $where['ot.process_type'] = 'EXHIBITION';
+        $where['ot.stage'] = '308';
+        $where['ot.status'] = 1;
+        $page = $request->get('page', 1);
+        $pageSize = $request->get('size', config('apiBusiness.ADMIN_LIST_DEFAULT'));
+        $field = 'ot.money,ot.return_money,ot.create_uid,oe.exhibition_starttime,
+        oe.exhibition_endtime,oe.actual_exhibition_endtime,oe.actual_exhibition_day,
+        oe.exhibition_rate,oe.exhibition_fee,oe.exhibition_day,su.name as create_user';
+        $list = OrderOther::getExtenList($where, $field, ['page' => $page, 'list_rows' => $pageSize]);
+        $extension = OrderOther::getExtenInfo($where, 'count(*) as exten_time,sum(exhibition_day) as exten_days,sum(total_money) as exten_total_money,sum(money) as exten_receive_money');
+
+        return $this->buildSuccess([
+            'count' => $list['total'],
+            'list' => $list['data'],
+            'extensionInfo' => $extension[0]
+        ]);
+    }
+
+    public function finishPayback(Request $request)
+    {
+        $data = $request->post();
+
+    }
+
+    /****************************************************bordon*********************************/
+
+    /**
+     * @api {post} admin/FinancialReceipts/FinancialBackdetail 财务回款详情[admin/FinancialReceipts/FinancialBackdetail]
+     * @apiVersion 1.0.0
+     * @apiName FinancialBackdetail
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/FinancialBackdetail
+     *
+     * @apiParam {int} order_sn    订单号
+     *
+     * @apiSuccessExample {json} 返回数据示例:
+     * HTTP/1.1 200 OK
+     *
+     */
+    public function FinancialBackdetail()
+    {
+        $order_sn = $this->request->post('order_sn', '');
+        $order_sn = 'JYXJ2018080033';
+        if ($order_sn) {
+            //订单信息
+            $data['baseinfo'] = FinancialBack::orderBaseinfo($order_sn);
+            if (!$data['baseinfo'])
+                $this->buildFailed(ReturnCode::UNKNOWN, '订单类型有误！');
+            //回款卡信息
+            $data['backcardinfo'] = FinancialBack::orderBackcardinfo($order_sn);
+            //出账回款信息
+            $data['outbackinfo'] = FinancialBack::outBackinfo($order_sn);
+            //费用信息
+            $data['fee'] = FinancialBack::getfee($order_sn);
+            //回款入账流水
+            $data['backmoneyrecord'] = FinancialBack::orderBackmoneyrecord($order_sn);
+            halt($data);
+        } else {
+            return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误！');
+        }
+    }
+
+    /**
+     * @api {post} admin/FinancialReceipts/addBackmoneyrecord 新增/编辑回款入账[admin/FinancialReceipts/addBackmoneyrecord]
+     * @apiVersion 1.0.0
+     * @apiName addBackmoneyrecord
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/addBackmoneyrecord
+     *
+     * @apiParam {string}  id 回款记录id （编辑的时候才需要传）
+     * @apiParam {string}  order_sn 订单编号
+     * @apiParam {string}  unmoney  待回款金额
+     * @apiParam {string}  money  回款金额
+     * @apiParam {string}  bank_card_id  银行卡ID
+     * @apiParam {string}  bank_card  银行卡号
+     * @apiParam {string}  bank_account  银行账户
+     * @apiParam {string}  bank  银行
+     * @apiParam {string}  bank_branch  支行
+     * @apiParam {string}  bank_name  银行账号别名（下拉选中的值）
+     * @apiParam {date}    return_time  回款时间
+     * @apiParam {string}  remark  备注
+     * @apiParam {array}   attachment  授权材料（数组）eg:[1,2]
+     *
+     */
+    public function addBackmoneyrecord()
+    {
+        $data = $this->request->Post('', null, 'trim');
+        $validate = loader::validate('AddBackmoney');
+        if (!$validate->check($data)) {
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, $validate->getError());
+        }
+        Db::startTrans();
+        try {
+            if (count($data['attachment']) > 0) {
+                if (!$this->orderattac->filterCreditpic($data['order_sn'], $data['attachment'])) {
+                    Db::rollback();
+                    return $this->buildFailed(ReturnCode::UPDATE_FAILED, '授权材料保存失败！');
+                }
+            }
+            $data['return_money_into_status'] = 1; //默认回款入账待复核（编辑之后也是默认这个状态）
+            $data['create_uid'] = $this->userInfo['id'];
+            $where = [];
+            !empty($data['id']) && $where['id'] = $data['id'];
+            unset($data['unmoney']);
+            unset($data['attachment']);
+            $user = $this->systemuser->where('id', $this->userInfo['id'])->field('deptid,deptname,name')->find(); //获取用户信息
+            $orderstatus = $this->order->where('order_sn', $data['order_sn'])->value('stage'); //获取当前主订单状态
+            if ($this->orderransomreturn->save($data, $where)) {
+                //加订单操作记录
+                $userInfo['id'] = $data['create_uid'];
+                $userInfo['deptid'] = $user['deptid'];
+                $userInfo['deptname'] = $user['deptname'];
+                $operate_det = empty($data['id']) ? "新增回款:新增一笔金额为" . $data['money'] . '的回款' : "编辑回款:编辑回款信息";
+                $operate = empty($data['id']) ? "新增回款信息" : "编辑回款信息";
+                $operate_node = empty($data['id']) ? "回款入账待复核" : "驳回待处理";
+                $operate_table = 'order_ransom_return';
+                $operate_table_id = empty($data['id']) ? $this->orderransomreturn->id : $data['id'];
+                if (OrderComponents::addOrderLog($userInfo, $order_sn = $data['order_sn'], $stage = show_status_name($orderstatus, 'ORDER_JYDB_STATUS'), $operate, $operate_node, $operate_det, $operate_reason = '', $orderstatus, $operate_table, $operate_table_id, 'RETURN_MONEY')) {
+                    Db::commit();
+                    return $this->buildSuccess();
+                }
+                Db::rollback();
+                return $this->buildFailed(ReturnCode::ADD_FAILED, '新增操作记录失败！');
+            }
+            Db::rollback();
+            return $this->buildFailed(ReturnCode::UPDATE_FAILED, '新增回款记录失败！');
+        } catch (Exception $exc) {
+            return $this->buildFailed(ReturnCode::EXCEPTION, '系统繁忙，请稍后重试!' . $exc->getMessage());
+        }
+    }
+
+    /**
+     * @api {get} admin/FinancialReceipts/getAllreceiptcard 获取所有回款卡账户信息[admin/FinancialReceipts/getAllreceiptcard]
+     * @apiVersion 1.0.0
+     * @apiName getAllreceiptcard
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/getAllreceiptcard
+     *
+     * @apiParam {int} name    账号名称
+     *
+     * @apiSuccess {string} id    银行卡id
+     * @apiSuccess {string} name    银行卡别名（下拉展示的值）
+     * @apiSuccess {string} openbank    银行
+     * @apiSuccess {string} bankaccount   开户人
+     * @apiSuccess {string} bankcard    银行卡号
+     * @apiSuccess {string} bank_branch    支行
+     */
+    public function getAllreceiptcard()
+    {
+        $name = $this->request->get('name', '');
+        $where = [
+            'status' => 1,
+            'type' => 6,
+            'name' => ['like', "%{$name}%"]
+        ];
+        $data = Db::name('bank_card')->where($where)->field('id,name,bank_account,bank_card,bank,bank_branch')->order('create_time', 'DESC')->limit(10)->select();
+        return $this->buildSuccess($data);
+    }
+
+    /**
+     * @api {get} admin/FinancialReceipts/getReceiptinfo 获取回款记录信息[admin/FinancialReceipts/getReceiptinfo]
+     * @apiVersion 1.0.0
+     * @apiName getReceiptinfo
+     * @apiGroup FinancialReceipts
+     * @apiSampleRequest admin/FinancialReceipts/getReceiptinfo
+     *
+     * @apiParam {int} id    回款记录ID
+     *
+     * @apiSuccess {string} order_sn   订单号
+     * @apiSuccess {string} money   回款金额
+     * @apiSuccess {string} bank_name   回款账号
+     * @apiSuccess {string} return_time    回款到账时间
+     * @apiSuccess {string} remark    备注
+     * @apiSuccess {array} attachment    附件
+     */
+    public function getReceiptinfo()
+    {
+        $id = $this->request->get('id', '');
+        if ($id) {
+            $where = ['id' => $id];
+            $data = $this->orderransomreturn->where($where)->field('id,order_sn,money,bank_name,return_time,remark')->find()->toarray();
+            $aids = $this->orderattac->where(['order_sn' => $data['order_sn'], 'type' => 2, 'status' => 1])->column('attachment_id');
+            foreach ($aids as $value) {
+                $data['attachment'][] = $this->attachment->getUrl($value);
+            }
+            return $this->buildSuccess($data);
+        }
+        return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '参数有误！');
+    }
+
+}

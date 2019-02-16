@@ -1,0 +1,23 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: Administrator
+ * Date: 2018/4/17
+ * Time: 18:10
+ */
+namespace app\model;
+
+class Region extends Base{
+
+    /*获取城市*/
+    public static function getcity()
+    {
+        return self::where(['level'=>2,'status'=>1])->field('id,shortname')->select();
+    }
+
+    /*获取城区/县区*/
+    public static function getdistrict($parentId)
+    {
+        return self::where(['parentid'=>$parentId,'status'=>1])->field('id,shortname')->select();
+    }
+}

@@ -1,0 +1,37 @@
+<?php
+
+/**
+ * 订单验证类
+ */
+
+namespace app\admin\validate;
+
+use \think\Validate;
+
+class ApplyAccount extends Validate {
+
+    protected $rule = [
+        'item' => 'require', //出账类型
+        'money' => 'require', //出账金额
+        'way' => 'require|in:1,2', //出账方式
+        'is_prestore' => 'requireIf:way,1',//是否预存
+        'account_type' => 'requireIf:way,1',//账户类型
+        'out_bank_card' => 'requireIf:way,1',//出账卡号
+        'out_bank' => 'requireIf:way,1',//出账银行
+        'out_bank_account' => 'requireIf:way,1',//出账账户
+        'bank' => 'requireIf:way,2',//支票银行
+        'cheque_num' => 'requireIf:way,2',//支票号码
+    ];
+    protected $message = [
+        'item' => '出账类型不能为空', //出账类型
+        'money' => '出账金额不能为空', //出账金额
+        'is_prestore' => '现金出账,请选择是否预存', //工号
+        'account_type' => '现金出账,请选择账户类型', //工号
+        'out_bank_card' => '现金出账,出账卡号必选', //工号
+        'out_bank' => '现金出账,出账银行必选', //工号
+        'out_bank_account' => '现金出账,出账账户必选', //工号
+        'bank' => '支票出账,支票银行必选', //工号
+        'cheque_num' => '支票出账,支票号码必选', //工号
+    ];
+
+}

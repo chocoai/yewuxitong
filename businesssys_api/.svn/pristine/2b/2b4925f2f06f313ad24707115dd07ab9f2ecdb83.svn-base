@@ -1,0 +1,89 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/5/31
+ * Time: 16:35
+ */
+namespace app\home\model;
+
+use app\model\Base;
+use think\Db;
+
+
+class News extends Base {
+    /* @author 赵光帅
+     * 新闻列表
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     * */
+
+    public static function newList($map,$page,$pageSize){
+        $res = self::alias('a')
+            ->field('a.id,a.type,a.title,a.summary,a.img1,a.img2,a.img3,a.source,a.author,a.content,a.newsdate,a.create_time,z.name,z.deptname')
+            ->join('system_user z', 'a.create_uid=z.id')
+            ->where($map)
+            ->order('create_time desc')
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        return $res;
+    }
+
+    /* @author 赵光帅
+     * 新闻详情
+     * @Param {int} $id   新闻表id
+     * */
+
+    public static function newDetail($id){
+        $res = self::alias('a')
+            ->field('a.id,a.type,a.title,a.summary,a.img1,a.source,a.author,a.content,a.newsdate,a.create_time,z.name,z.deptname')
+            ->join('system_user z', 'a.create_uid=z.id')
+            ->where(['a.id' => $id])
+            ->order('create_time desc')
+            ->find();
+        return $res;
+    }
+
+    /* @author 赵光帅
+     * 待审批列表
+     * @Param {int} $user_id    用户id
+     * @Param {arr} $map    搜索条件
+     * @Param {int} $page    页码
+     * @Param {int} $pageSize    每页数量
+     * */
+
+    public static function processList($user_id,$page,$pageSize){
+        //首先查询出该用户有哪些需要待审批的业务
+        $procInfo = Db::name('workflow_proc')
+            ->field('order_sn')
+            ->where(['user_id' => $user_id,'status' => 0,'is_deleted' => 1])
+            ->paginate(array('list_rows' => $pageSize, 'page' => $page))
+            ->toArray();
+        if($procInfo['data'] && !empty($procInfo['data'])){
+            $map['wp.status'] = ['<>','0'];
+            $resInfo = [];
+            foreach ($procInfo['data'] as $k => $v){
+                $map['wp.order_sn'] = $v['order_sn'];
+                $resInfo[] = Db::name('workflow_proc')->alias('wp')->field('o.type,e.estate_name,wp.order_sn,wp.create_time,wp.user_name,wp.dept_name')
+                    ->join('order o', 'wp.order_sn = o.order_sn')
+                    ->join('estate e', 'wp.order_sn = e.order_sn')
+                    ->where($map)
+                    ->order('wp.create_time desc')
+                    ->find();
+            }
+            array_multisort(array_column($resInfo,'create_time'),SORT_DESC,$resInfo);
+            foreach ($resInfo as $k => $v){
+                $resInfo[$k]['create_time'] = date('Y-m-d H:i:s',$v['create_time']);
+            }
+        }
+        if(empty($resInfo)){
+            $procInfo['data'] = [];
+        }else{
+            $procInfo['data'] = $resInfo;
+        }
+        return $procInfo;
+    }
+
+
+}

@@ -1,0 +1,46 @@
+<?php
+/**
+ * 银行信息控制器
+ */
+namespace app\admin\controller;
+
+use app\model\Bank as modelBank;
+use app\util\ReturnCode;
+class Bank extends Base{
+    // @author 林桂均
+    /**
+     * @api {post} admin/Bank/getBank 获取银行[admin/Bank/getBank]
+     * @apiVersion 1.0.0
+     * @apiName getBank
+     * @apiGroup Bank
+     * @apiSampleRequest admin/Bank/getBank
+     *
+     */
+    public function getBank()
+    {
+        $result = modelBank::getAll(['parentid'=>0,'status'=>1],'id,bank_name');
+        if($result !== false)
+            return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '银行读取失败!');
+    }
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/Bank/getBranch 获取支行[admin/Bank/getBranch]
+     * @apiVersion 1.0.0
+     * @apiName getBranch
+     * @apiGroup Bank
+     * @apiSampleRequest admin/Bank/getBranch
+     * @apiParam {string}  id   银行表id
+     */
+    public function getBranch()
+    {
+        $parentId = $this->request->post('id');
+        if(empty($parentId))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数!');
+        $result = modelBank::getAll(['parentid'=>$parentId,'status'=>1],'id,bank_name');
+        if($result !== false)
+            return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '读取失败!');
+    }
+}

@@ -1,0 +1,178 @@
+<?php
+/*栋阁/楼层/房号信息控制器*/
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+use app\util\Strs;
+use app\util\Tools;
+use app\admin\service\Zcdc;
+use think\Db;
+
+class BuildingUnit extends Base {
+
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingUnit/getUnit 获取栋阁信息[admin/BuildingUnit/getUnit]
+     * @apiVersion 1.0.0
+     * @apiName getUnit
+     * @apiGroup BuildingUnit
+     * @apiSampleRequest admin/BuildingUnit/getUnit
+     * @apiParam buildingId 楼盘id
+     */
+    public function getUnit()
+    {
+        $buildingId = $this->request->post('buildingId');
+        if(empty($buildingId))
+            return $this->buildFailed(ReturnCode::PARAM_INVALID, '缺少参数或无效的参数!');
+        $zcdc = new Zcdc;
+        $result = $zcdc->getUnit(['buildingId'=>$buildingId]);
+        if($result !== false) return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '栋阁信息读取失败!');
+
+    }
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingUnit/addUnit 添加栋阁信息[admin/BuildingUnit/addUnit]
+     * @apiVersion 1.0.0
+     * @apiName addUnit
+     * @apiGroup BuildingUnit
+     * @apiSampleRequest admin/BuildingUnit/addUnit
+     * @apiParam buildingId 楼盘id
+     * @apiParam unitalias 栋阁别名
+     * @apiParam unitname 栋阁名称
+     */
+    public function addUnit()
+    {
+        $data['unit_name'] = trim($this->request->post('unitname',''));
+        $data['unit_alias'] = trim($this->request->post('unitalias',''));
+        $data['building_id'] = $this->request->post('buildingId');
+        $zcdc = new Zcdc;
+        $result = $zcdc->addUnit($data);
+        if($result!==false && !is_array($result)) return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '栋阁信息添加失败!');
+        if($result['code'] === 1) return $this->buildSuccess($result['data']);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result['msg']);
+    }
+
+
+    /**
+     * @author 林桂均
+     * 查询楼层信息
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingUnit/getFloor 查询楼层信息[admin/BuildingUnit/getFloor]
+     * @apiVersion 1.0.0
+     * @apiName getFloor
+     * @apiGroup BuildingUnit
+     * @apiSampleRequest admin/BuildingUnit/getFloor
+     * @apiParam unitId 栋阁id
+     */
+    public function getFloor()
+    {
+        $unitId = $this->request->post('unitId');
+        $zcdc = new Zcdc;
+        $result = $zcdc->getFloor(['unit_id'=>$unitId]);
+        if($result !== false) return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼层信息读取失败!');
+    }
+
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingUnit/addFloor 添加楼层[admin/BuildingUnit/addFloor]
+     * @apiVersion 1.0.0
+     * @apiName addFloor
+     * @apiGroup BuildingUnit
+     * @apiSampleRequest admin/BuildingUnit/addFloor
+     * @apiParam unitId 栋阁id
+     * @apiParam buildingId 楼盘id
+     *@apiParam floornum  楼层
+     * @apiParam floortype 楼层类型(up:地上楼层；down：地下楼层)
+     */
+    public function addFloor()
+    {
+        $data['floortype'] = $this->request->post('floortype');
+        $data['floornum'] = $this->request->post('floornum',0,'int');
+        $data['building_id'] = $this->request->post('buildingId');
+        $data['unit_id'] = $this->request->post('unitId');
+        $zcdc = new Zcdc;
+        $result = $zcdc->addFloor($data);
+        if($result!==false && !is_array($result)) return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼层添加失败!');
+        if($result['code'] === 1) return $this->buildSuccess($result['data']);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result['msg']);
+    }
+
+    /**
+     * @author 林桂均
+     * 查询房号信息
+     * @param floorId str 房号Id
+     * @return array
+     * @throws \think\db\exception\DataNotFoundException
+     * @throws \think\db\exception\ModelNotFoundException
+     * @throws \think\exception\DbException
+     */
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingUnit/getHouse 查询房号信息[admin/BuildingUnit/getHouse]
+     * @apiVersion 1.0.0
+     * @apiName getHouse
+     * @apiGroup BuildingUnit
+     * @apiSampleRequest admin/BuildingUnit/getHouse
+     * @apiParam floorId 楼层id
+     */
+    public function getHouse()
+    {
+        $floorId = $this->request->post('floorId');
+        $zcdc = new Zcdc;
+        $result = $zcdc->getHouse(['floor_id'=>$floorId]);
+        if($result !== false) return $this->buildSuccess($result);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, '房号信息读取失败!');
+
+    }
+
+    /**
+     * @author 林桂均
+     * 添加房号
+     * @param housename 房号
+     *
+     * @return array
+     */
+
+    // @author 林桂均
+    /**
+     * @api {post} admin/BuildingUnit/addHouse 添加房号[admin/BuildingUnit/addHouse]
+     * @apiVersion 1.0.0
+     * @apiName addHouse
+     * @apiGroup BuildingUnit
+     * @apiSampleRequest admin/BuildingUnit/addHouse
+     * @apiParam floorId 楼层id
+     * @apiParam unitId 栋阁id
+     * @apiParam buildingId 楼盘id
+     * @apiParam housename 房号
+     */
+    public function addHouse()
+    {
+        $data['roomno_name'] = trim($this->request->post('housename'));
+        $data['unit_id'] = $this->request->post('unitId');
+        $data['floor_id'] = $this->request->post('floorId');
+        $data['building_id'] = $this->request->post('buildingId');
+        $zcdc = new Zcdc;
+        $result = $zcdc->addHouse($data);
+        if($result!==false && !is_array($result)) return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result);
+        if($result === false) return $this->buildFailed(ReturnCode::DB_READ_ERROR, '楼层添加失败!');
+        if($result['code'] === 1) return $this->buildSuccess($result['data']);
+        return $this->buildFailed(ReturnCode::DB_READ_ERROR, $result['msg']);
+    }
+
+
+}

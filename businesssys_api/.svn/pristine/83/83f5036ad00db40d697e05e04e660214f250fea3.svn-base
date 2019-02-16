@@ -1,0 +1,37 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: 赵光帅
+ * Date: 2018/4/25
+ * Time: 11:50
+ */
+namespace app\admin\controller;
+
+use app\util\ReturnCode;
+
+class Check extends Base {
+        // @author 赵光帅
+        /**
+         * @api {post} admin/Check/showCheckList 支票列表[admin/Check/showCheckList]
+         * @apiVersion 1.0.0
+         * @apiName showCheckList
+         * @apiGroup Check
+         * @apiSampleRequest admin/Check/showCheckList
+         *
+         *
+         * @apiParam {string}  order_sn   订单编号
+         *
+         * @apiSuccess {string} estate_name    每个房产的名称
+         */
+
+        public function showCheckList(){
+            $orderSn = input('order_sn');
+            if(empty($orderSn)) return $this->buildFailed(ReturnCode::EMPTY_PARAMS, '订单编号不能为空!');
+            $resInfo = Estate::getAll(['order_sn' => $orderSn,'status' => 1],'estate_name');
+            return $this->buildSuccess($resInfo);
+        }
+
+
+
+
+}
